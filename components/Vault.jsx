@@ -33,44 +33,77 @@ const SheetsIcon = () => (
 
 export default function Vault() {
   const [sheetId, setSheetId] = useState("");
+  const [manualTabs, setManualTabs] = useState(null); // string[] | null
   const [tabs, setTabs] = useState([]);
   const [activeTab, setActiveTab] = useState("");
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState("");
+  const [needsManualTabs, setNeedsManualTabs] = useState(false);
   const [viewMode, setViewMode] = useState("grid");
   const [search, setSearch] = useState("");
   const [showConfig, setShowConfig] = useState(false);
   const [activeItem, setActiveItem] = useState(null);
   const [typeFilter, setTypeFilter] = useState("All");
 
-  // Load persisted sheet id on mount
   useEffect(() => {
-    const saved = localStorage.getItem("mv_sheet_id");
-    if (saved) {
-      setSheetId(saved);
-      loadSheet(saved, true);
-    } else {
+    try {
+      const saved = localStorage.getItem("mv_sheet_id");
+      const savedTabs = localStorage.getItem("mv_manual_tabs");
+      if (saved) {
+        setSheetId(saved);
+        const mt = savedTabs ? JSON.parse(savedTabs) : null;
+        setManualTabs(mt);
+        loadSheet(saved, mt, true);
+      } else {
+        setShowConfig(true);
+      }
+    } catch {
       setShowConfig(true);
     }
   }, []);
 
-  const loadSheet = async (id, initial = false) => {
+  const loadSheet = async (id, manualTabNames = null, initial = false) => {
     if (!id) return;
     initial ? setLoading(true) : setSyncing(true);
     setError("");
+    setNeedsManualTabs(false);
+
     try {
-      const tabMeta = await fetchAllTabs(id);
-      if (!tabMeta.length) throw new Error("No tabs found.");
+      let tabList;
+
+      if (manualTabNames && manualTabNames.length > 0) {
+        // User provided tab names manually — trust them
+        tabList = manualTabNames.map((name) => ({ name }));
+      } else {
+        // Try auto-detect
+        const res = await fetch(`/api/tabs?id=${encodeURIComponent(id)}`);
+        const json = await res.json();
+
+        if (json.error === "NEEDS_MANUAL_TABS") {
+          setNeedsManualTabs(true);
+          setShowConfig(true);
+          setLoading(false);
+          setSyncing(false);
+          return;
+        }
+        if (json.error) throw new Error(json.error);
+        tabList = json.tabs.map((name) => ({ name }));
+      }
+
+      if (!tabList.length) throw new Error("No tabs found.");
+
       const results = await Promise.all(
-        tabMeta.map(async (t) => {
+        tabList.map(async (t) => {
           const items = await fetchTabData(id, t.name);
           return { name: t.name, items };
         })
       );
+
       setTabs(results);
       if (initial || !activeTab) setActiveTab(results[0]?.name || "");
       setTypeFilter("All");
+      setSearch("");
     } catch (e) {
       setError(e.message || "Failed to load sheet.");
     } finally {
@@ -79,12 +112,19 @@ export default function Vault() {
     }
   };
 
-  const handleSaveConfig = (id) => {
+  const handleSaveConfig = (id, newManualTabs) => {
     setSheetId(id);
-    localStorage.setItem("mv_sheet_id", id);
+    const mt = newManualTabs && newManualTabs.length > 0 ? newManualTabs : null;
+    setManualTabs(mt);
+    try {
+      localStorage.setItem("mv_sheet_id", id);
+      if (mt) localStorage.setItem("mv_manual_tabs", JSON.stringify(mt));
+      else localStorage.removeItem("mv_manual_tabs");
+    } catch {}
     setShowConfig(false);
+    setNeedsManualTabs(false);
     setActiveTab("");
-    loadSheet(id, true);
+    loadSheet(id, mt, true);
   };
 
   const currentItems = tabs.find((t) => t.name === activeTab)?.items || [];
@@ -113,7 +153,7 @@ export default function Vault() {
       minHeight: "100vh", background: "#0a0a0a",
       color: "#fff", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, sans-serif"
     }}>
-      {/* ── Top bar ── */}
+      {/* Top bar */}
       <div style={{
         padding: "15px 24px",
         display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -147,19 +187,13 @@ export default function Vault() {
                 display: "flex", background: "#141414", borderRadius: 7,
                 padding: 2, border: "1px solid rgba(255,255,255,0.07)"
               }}>
-                {[["grid", <GridIcon key="g" />], ["list", <ListIcon key="l" />]].map(([m, icon]) => (
-                  <button
-                    key={m}
-                    onClick={() => setViewMode(m)}
-                    style={{
-                      background: viewMode === m ? "rgba(255,255,255,0.1)" : "transparent",
-                      border: "none", color: viewMode === m ? "#fff" : "#555",
-                      cursor: "pointer", borderRadius: 5, padding: "5px 9px",
-                      display: "flex", alignItems: "center"
-                    }}
-                  >
-                    {icon}
-                  </button>
+                {[["grid", <GridIcon key="g"/>], ["list", <ListIcon key="l"/>]].map(([m, icon]) => (
+                  <button key={m} onClick={() => setViewMode(m)} style={{
+                    background: viewMode === m ? "rgba(255,255,255,0.1)" : "transparent",
+                    border: "none", color: viewMode === m ? "#fff" : "#555",
+                    cursor: "pointer", borderRadius: 5, padding: "5px 9px",
+                    display: "flex", alignItems: "center"
+                  }}>{icon}</button>
                 ))}
               </div>
             </>
@@ -167,7 +201,7 @@ export default function Vault() {
 
           {sheetId && (
             <button
-              onClick={() => loadSheet(sheetId)}
+              onClick={() => loadSheet(sheetId, manualTabs)}
               disabled={syncing || loading}
               style={{
                 display: "flex", alignItems: "center", gap: 5,
@@ -177,10 +211,7 @@ export default function Vault() {
                 cursor: syncing ? "not-allowed" : "pointer", fontSize: 12
               }}
             >
-              <span style={{
-                display: "inline-block",
-                animation: syncing ? "spin 0.8s linear infinite" : "none"
-              }}>
+              <span style={{ display: "inline-block", animation: syncing ? "spin 0.8s linear infinite" : "none" }}>
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
                   <path d="M3 3v5h5"/>
@@ -190,22 +221,19 @@ export default function Vault() {
             </button>
           )}
 
-          <button
-            onClick={() => setShowConfig(true)}
-            style={{
-              display: "flex", alignItems: "center", gap: 6,
-              padding: "6px 14px", background: "#34A853",
-              border: "none", borderRadius: 7,
-              color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer"
-            }}
-          >
+          <button onClick={() => setShowConfig(true)} style={{
+            display: "flex", alignItems: "center", gap: 6,
+            padding: "6px 14px", background: "#34A853",
+            border: "none", borderRadius: 7,
+            color: "#fff", fontSize: 12, fontWeight: 600, cursor: "pointer"
+          }}>
             <SheetsIcon />
             {sheetId ? "Change Sheet" : "Connect Sheet"}
           </button>
         </div>
       </div>
 
-      {/* ── Collection tabs ── */}
+      {/* Collection tabs */}
       {tabs.length > 0 && (
         <div style={{
           display: "flex", overflowX: "auto", scrollbarWidth: "none",
@@ -213,34 +241,27 @@ export default function Vault() {
           padding: "0 24px"
         }}>
           {tabs.map((t) => (
-            <button
-              key={t.name}
-              onClick={() => { setActiveTab(t.name); setTypeFilter("All"); setSearch(""); }}
+            <button key={t.name} onClick={() => { setActiveTab(t.name); setTypeFilter("All"); setSearch(""); }}
               style={{
-                padding: "10px 16px",
-                background: "transparent", border: "none",
+                padding: "10px 16px", background: "transparent", border: "none",
                 borderBottom: activeTab === t.name ? "2px solid #fff" : "2px solid transparent",
                 color: activeTab === t.name ? "#fff" : "#555",
                 cursor: "pointer", fontSize: 13,
                 fontWeight: activeTab === t.name ? 600 : 400,
-                whiteSpace: "nowrap", marginBottom: -1,
-                transition: "color 0.15s"
-              }}
-            >
+                whiteSpace: "nowrap", marginBottom: -1, transition: "color 0.15s"
+              }}>
               {t.name}
               <span style={{
                 marginLeft: 6, fontSize: 10,
                 background: "rgba(255,255,255,0.06)",
                 color: "#444", padding: "1px 5px", borderRadius: 10
-              }}>
-                {t.items.length}
-              </span>
+              }}>{t.items.length}</span>
             </button>
           ))}
         </div>
       )}
 
-      {/* ── Type filter ── */}
+      {/* Type filter */}
       {currentItems.length > 0 && (
         <div style={{
           display: "flex", gap: 5, padding: "10px 24px",
@@ -248,18 +269,14 @@ export default function Vault() {
           overflowX: "auto", scrollbarWidth: "none"
         }}>
           {availableTypes.map((t) => (
-            <button
-              key={t}
-              onClick={() => setTypeFilter(t)}
-              style={{
-                padding: "3px 11px",
-                background: typeFilter === t ? "rgba(255,255,255,0.1)" : "transparent",
-                border: `1px solid ${typeFilter === t ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.06)"}`,
-                borderRadius: 20, color: typeFilter === t ? "#fff" : "#555",
-                cursor: "pointer", fontSize: 11, fontWeight: typeFilter === t ? 600 : 400,
-                whiteSpace: "nowrap", transition: "all 0.12s"
-              }}
-            >
+            <button key={t} onClick={() => setTypeFilter(t)} style={{
+              padding: "3px 11px",
+              background: typeFilter === t ? "rgba(255,255,255,0.1)" : "transparent",
+              border: `1px solid ${typeFilter === t ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.06)"}`,
+              borderRadius: 20, color: typeFilter === t ? "#fff" : "#555",
+              cursor: "pointer", fontSize: 11, fontWeight: typeFilter === t ? 600 : 400,
+              whiteSpace: "nowrap", transition: "all 0.12s"
+            }}>
               {t}
               {t !== "All" && typeCounts[t] && (
                 <span style={{ marginLeft: 4, opacity: 0.5 }}>{typeCounts[t]}</span>
@@ -269,32 +286,21 @@ export default function Vault() {
         </div>
       )}
 
-      {/* ── Body ── */}
+      {/* Body */}
       <div style={{ padding: 24 }}>
-        {/* No sheet */}
         {!sheetId && !loading && (
           <div style={{ textAlign: "center", padding: "100px 20px" }}>
             <div style={{ fontSize: 44, marginBottom: 16 }}>📋</div>
-            <div style={{ fontSize: 17, fontWeight: 600, color: "#555", marginBottom: 8 }}>
-              No sheet connected
-            </div>
-            <div style={{ fontSize: 13, color: "#333", marginBottom: 24 }}>
-              Connect a Google Sheet. Each tab becomes a media collection.
-            </div>
-            <button
-              onClick={() => setShowConfig(true)}
-              style={{
-                padding: "11px 22px", background: "#34A853",
-                border: "none", borderRadius: 8, color: "#fff",
-                fontSize: 13, fontWeight: 600, cursor: "pointer"
-              }}
-            >
-              Connect Google Sheet
-            </button>
+            <div style={{ fontSize: 17, fontWeight: 600, color: "#555", marginBottom: 8 }}>No sheet connected</div>
+            <div style={{ fontSize: 13, color: "#333", marginBottom: 24 }}>Connect a Google Sheet. Each tab becomes a media collection.</div>
+            <button onClick={() => setShowConfig(true)} style={{
+              padding: "11px 22px", background: "#34A853",
+              border: "none", borderRadius: 8, color: "#fff",
+              fontSize: 13, fontWeight: 600, cursor: "pointer"
+            }}>Connect Google Sheet</button>
           </div>
         )}
 
-        {/* Loading */}
         {loading && (
           <div style={{ textAlign: "center", padding: "80px 20px" }}>
             <div style={{
@@ -307,21 +313,18 @@ export default function Vault() {
           </div>
         )}
 
-        {/* Error */}
         {error && !loading && (
           <div style={{
-            background: "rgba(255,60,60,0.07)",
-            border: "1px solid rgba(255,60,60,0.18)",
+            background: "rgba(255,60,60,0.07)", border: "1px solid rgba(255,60,60,0.18)",
             borderRadius: 10, padding: "14px 18px", marginBottom: 20
           }}>
             <div style={{ fontSize: 13, color: "#ff6b6b", fontWeight: 500 }}>{error}</div>
             <div style={{ fontSize: 11, color: "#555", marginTop: 6, lineHeight: 1.7 }}>
-              Two steps required: (1) Share as Anyone with link can view. (2) File → Publish to web → Entire Document.
+              Make sure the sheet is shared as Anyone with link can view.
             </div>
           </div>
         )}
 
-        {/* Empty state */}
         {!loading && tabs.length > 0 && filtered.length === 0 && (
           <div style={{ textAlign: "center", padding: "60px 20px" }}>
             <div style={{ fontSize: 30, marginBottom: 10 }}>📭</div>
@@ -331,7 +334,6 @@ export default function Vault() {
           </div>
         )}
 
-        {/* Grid */}
         {!loading && filtered.length > 0 && viewMode === "grid" && (
           <div style={{
             display: "grid",
@@ -344,12 +346,8 @@ export default function Vault() {
           </div>
         )}
 
-        {/* List */}
         {!loading && filtered.length > 0 && viewMode === "list" && (
-          <div style={{
-            background: "#111", borderRadius: 10,
-            border: "1px solid rgba(255,255,255,0.05)", overflow: "hidden"
-          }}>
+          <div style={{ background: "#111", borderRadius: 10, border: "1px solid rgba(255,255,255,0.05)", overflow: "hidden" }}>
             {filtered.map((item) => (
               <Card key={item.id} item={item} onOpen={setActiveItem} viewMode="list" />
             ))}
@@ -360,8 +358,9 @@ export default function Vault() {
       {showConfig && (
         <ConfigModal
           onSave={handleSaveConfig}
-          onClose={() => tabs.length > 0 && setShowConfig(false)}
+          onClose={() => !needsManualTabs && tabs.length > 0 && setShowConfig(false)}
           savedId={sheetId}
+          needsManualTabs={needsManualTabs}
         />
       )}
       {activeItem && <Embed item={activeItem} onClose={() => setActiveItem(null)} />}

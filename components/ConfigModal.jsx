@@ -5,22 +5,25 @@ import { extractSheetId } from "@/lib/utils";
 const isPublishedExportUrl = (val) =>
   /\/spreadsheets\/d\/e\//.test(val) || val.includes("pubhtml") || val.includes("pub?");
 
-export default function ConfigModal({ onSave, onClose, savedId }) {
+export default function ConfigModal({ onSave, onClose, savedId, needsManualTabs }) {
   const [val, setVal] = useState(savedId || "");
-  const [warning, setWarning] = useState("");
+  const [tabsInput, setTabsInput] = useState("");
+  const [warning, setWarning] = useState(needsManualTabs ? "manual" : "");
   const ref = useRef(null);
 
   useEffect(() => {
     ref.current?.focus();
-    const h = (e) => { if (e.key === "Escape" && savedId) onClose(); };
+    const h = (e) => { if (e.key === "Escape" && savedId && !needsManualTabs) onClose(); };
     window.addEventListener("keydown", h);
     return () => window.removeEventListener("keydown", h);
-  }, [onClose, savedId]);
+  }, [onClose, savedId, needsManualTabs]);
 
   const handleChange = (v) => {
     setVal(v);
     if (isPublishedExportUrl(v)) {
-      setWarning("That's the published export URL — it won't work. Open your sheet and copy the URL from the address bar instead.");
+      setWarning("published");
+    } else if (needsManualTabs) {
+      setWarning("manual");
     } else {
       setWarning("");
     }
@@ -28,17 +31,20 @@ export default function ConfigModal({ onSave, onClose, savedId }) {
 
   const handleSave = () => {
     if (!val.trim() || isPublishedExportUrl(val)) return;
-    onSave(extractSheetId(val));
+    const manualTabs = tabsInput.trim()
+      ? tabsInput.split(",").map((t) => t.trim()).filter(Boolean)
+      : null;
+    onSave(extractSheetId(val), manualTabs);
   };
 
   const canSave = val.trim() && !isPublishedExportUrl(val);
 
   return (
     <div
-      onClick={() => savedId && onClose()}
+      onClick={() => savedId && !needsManualTabs && onClose()}
       style={{
         position: "fixed", inset: 0, zIndex: 900,
-        background: "rgba(0,0,0,0.85)", backdropFilter: "blur(6px)",
+        background: "rgba(0,0,0,0.88)", backdropFilter: "blur(6px)",
         display: "flex", alignItems: "center", justifyContent: "center"
       }}
     >
@@ -59,51 +65,43 @@ export default function ConfigModal({ onSave, onClose, savedId }) {
             <line x1="9" y1="3" x2="9" y2="21" stroke="white" strokeWidth="1.5"/>
           </svg>
           <h2 style={{ margin: 0, fontSize: 17, fontWeight: 600, color: "#fff" }}>
-            Connect Google Sheet
+            {needsManualTabs ? "Enter Your Tab Names" : "Connect Google Sheet"}
           </h2>
         </div>
-        <p style={{ margin: "0 0 20px", color: "#555", fontSize: 13, lineHeight: 1.6 }}>
-          Each tab = one collection. Tab name is the collection name.
-        </p>
 
-        {/* Setup steps */}
-        <div style={{
-          background: "#0f0f0f", borderRadius: 10, padding: 16,
-          marginBottom: 20, border: "1px solid rgba(255,255,255,0.06)"
-        }}>
-          <div style={{ fontSize: 10, color: "#34A853", fontWeight: 800, letterSpacing: 1.2, marginBottom: 10 }}>
-            SHEET SETUP
-          </div>
-          <div style={{ fontSize: 12, color: "#666", lineHeight: 2 }}>
-            1. Row 1 of every tab:{" "}
-            {["url", "title", "note"].map((h) => (
-              <span key={h} style={{
-                fontFamily: "monospace", color: "#aaa", background: "#1a1a1a",
-                padding: "1px 7px", borderRadius: 4, marginRight: 4
-              }}>{h}</span>
-            ))}<br />
-            2. Share → <b style={{ color: "#ccc" }}>Anyone with the link can view</b>
-          </div>
-        </div>
+        {needsManualTabs ? (
+          <p style={{ margin: "0 0 20px", color: "#f59e0b", fontSize: 13, lineHeight: 1.6 }}>
+            Tab names could not be detected automatically. Type them below exactly as they appear in your sheet.
+          </p>
+        ) : (
+          <p style={{ margin: "0 0 20px", color: "#555", fontSize: 13, lineHeight: 1.6 }}>
+            Each tab = one collection. Tab name is the collection name.
+          </p>
+        )}
 
-        {/* URL example */}
-        <div style={{
-          background: "#0a1a0a", borderRadius: 8, padding: "10px 14px",
-          marginBottom: 16, border: "1px solid rgba(52,168,83,0.2)"
-        }}>
-          <div style={{ fontSize: 10, color: "#34A853", fontWeight: 700, letterSpacing: 1, marginBottom: 5 }}>
-            COPY THIS TYPE OF URL
+        {!needsManualTabs && (
+          <div style={{
+            background: "#0f0f0f", borderRadius: 10, padding: 16,
+            marginBottom: 20, border: "1px solid rgba(255,255,255,0.06)"
+          }}>
+            <div style={{ fontSize: 10, color: "#34A853", fontWeight: 800, letterSpacing: 1.2, marginBottom: 10 }}>
+              SHEET SETUP
+            </div>
+            <div style={{ fontSize: 12, color: "#666", lineHeight: 2 }}>
+              1. Row 1 of every tab:{" "}
+              {["url", "title", "note"].map((h) => (
+                <span key={h} style={{
+                  fontFamily: "monospace", color: "#aaa", background: "#1a1a1a",
+                  padding: "1px 7px", borderRadius: 4, marginRight: 4
+                }}>{h}</span>
+              ))}<br />
+              2. Share → <b style={{ color: "#ccc" }}>Anyone with the link can view</b>
+            </div>
           </div>
-          <div style={{ fontFamily: "monospace", fontSize: 11, color: "#4a9a5a" }}>
-            docs.google.com/spreadsheets/d/<b style={{ color: "#6abf7a" }}>YOUR_SHEET_ID</b>/edit
-          </div>
-        </div>
+        )}
 
-        <label style={{
-          display: "block", fontSize: 10, color: "#555",
-          fontWeight: 700, letterSpacing: 1, marginBottom: 7
-        }}>
-          PASTE YOUR SHEET URL
+        <label style={{ display: "block", fontSize: 10, color: "#555", fontWeight: 700, letterSpacing: 1, marginBottom: 7 }}>
+          SHEET URL
         </label>
         <input
           ref={ref}
@@ -114,39 +112,57 @@ export default function ConfigModal({ onSave, onClose, savedId }) {
           style={{
             width: "100%", padding: "12px 14px",
             background: "#0f0f0f",
-            border: `1px solid ${warning ? "rgba(255,150,0,0.4)" : "rgba(255,255,255,0.1)"}`,
+            border: `1px solid ${warning === "published" ? "rgba(255,150,0,0.4)" : "rgba(255,255,255,0.1)"}`,
             borderRadius: 8, color: "#fff", fontSize: 13,
             outline: "none", boxSizing: "border-box",
-            fontFamily: "monospace", marginBottom: warning ? 8 : 20
+            fontFamily: "monospace", marginBottom: 16
           }}
         />
 
-        {warning && (
+        {warning === "published" && (
           <div style={{
             fontSize: 12, color: "#f59e0b", marginBottom: 16,
             background: "rgba(245,158,11,0.08)", borderRadius: 6,
             padding: "8px 12px", border: "1px solid rgba(245,158,11,0.2)"
           }}>
-            {warning}
+            That is the published export URL. Open your sheet and copy the URL from the address bar (ends in /edit).
           </div>
         )}
+
+        {/* Manual tab names — always show so user can help if auto-detect fails */}
+        <label style={{ display: "block", fontSize: 10, color: needsManualTabs ? "#f59e0b" : "#444", fontWeight: 700, letterSpacing: 1, marginBottom: 7 }}>
+          TAB NAMES {needsManualTabs ? "(REQUIRED)" : "(OPTIONAL — only needed if auto-detect fails)"}
+        </label>
+        <input
+          value={tabsInput}
+          onChange={(e) => setTabsInput(e.target.value)}
+          placeholder="Star Wars, Cars, Funny Videos, ..."
+          style={{
+            width: "100%", padding: "10px 14px",
+            background: "#0f0f0f",
+            border: `1px solid ${needsManualTabs ? "rgba(245,158,11,0.4)" : "rgba(255,255,255,0.07)"}`,
+            borderRadius: 8, color: "#fff", fontSize: 13,
+            outline: "none", boxSizing: "border-box",
+            marginBottom: 20
+          }}
+        />
 
         <div style={{ display: "flex", gap: 10 }}>
           <button
             onClick={handleSave}
-            disabled={!canSave}
+            disabled={!canSave || (needsManualTabs && !tabsInput.trim())}
             style={{
               flex: 1, padding: 12,
-              background: canSave ? "#34A853" : "#1a1a1a",
-              color: canSave ? "#fff" : "#444",
+              background: (canSave && (!needsManualTabs || tabsInput.trim())) ? "#34A853" : "#1a1a1a",
+              color: (canSave && (!needsManualTabs || tabsInput.trim())) ? "#fff" : "#444",
               border: "none", borderRadius: 8,
               fontSize: 13, fontWeight: 600,
-              cursor: canSave ? "pointer" : "not-allowed"
+              cursor: (canSave && (!needsManualTabs || tabsInput.trim())) ? "pointer" : "not-allowed"
             }}
           >
             Load Collections
           </button>
-          {savedId && (
+          {savedId && !needsManualTabs && (
             <button
               onClick={onClose}
               style={{
