@@ -63,7 +63,12 @@ export default function ThreeViewer({ item, onClose }) {
       const driveId = getGDriveId(item.url);
       if (driveId) fileUrl = `/api/file?id=${driveId}`;
 
-      const ext = (item.url.match(/\.(obj|glb|gltf|stl)(\?|$)/i)?.[1] || item.format3d || "glb").toLowerCase();
+      const ext = (
+        item.format3d ||
+        item.url.match(/\.(obj|glb|gltf|stl)(\?|$)/i)?.[1] ||
+        item.title?.match(/\.(obj|glb|gltf|stl)$/i)?.[1] ||
+        "glb"
+      ).toLowerCase();
 
       const fitAndAdd = (object) => {
         // Center and scale to fit view
