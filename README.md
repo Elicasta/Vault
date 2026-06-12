@@ -1,43 +1,136 @@
-# Media Vault
+# Media Vault v4
 
-Personal media gallery powered by Google Sheets. Each sheet tab = one collection.
+Personal multimedia platform: Google Sheets as the source, Supabase for sync, with VR and 3D viewing.
 
-## Deploy to Vercel (5 minutes)
+## Features
 
-### Option A: Vercel CLI (fastest)
+- Sheet tabs = collections, with tags and VR format columns
+- Auth (Supabase email/password), favorites, watch progress, custom folders — synced across devices
+- Sidebar navigation: collections, media types, favorites, continue watching, your folders
+- Metadata scraper: any link (Mixkit, Reddit, articles) gets real thumbnails and playable video when available
+- Google Drive folder browser
+- 4 gallery views: large grid, small grid, masonry, list + fullscreen slideshow
+- 3D model viewer: OBJ, GLB/GLTF, STL with orbit, lighting, wireframe
+- VR video player: 360, 180, SBS, top-bottom, anaglyph — WebXR with Oculus controller support
+- Mute buttons everywhere video plays
+
+---
+
+## Setup (15 minutes total)
+
+### 1. Supabase (5 min)
+1. Go to supabase.com → New Project
+2. Once created: SQL Editor → paste contents of `sql/schema.sql` → Run
+3. Settings → API → copy your **Project URL** and **anon public key**
+4. Optional: Authentication → Providers → Email → turn OFF "Confirm email" for instant signups
+
+### 2. Deploy to Vercel (5 min)
 ```bash
-npm i -g vercel
-vercel
+npm install
+npx vercel
 ```
-Follow the prompts. Done.
+Then in Vercel dashboard → your project → Settings → Environment Variables, add:
+```
+NEXT_PUBLIC_SUPABASE_URL = https://yourproject.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY = your-anon-key
+```
+Redeploy after adding env vars: `npx vercel --prod`
 
-### Option B: GitHub + Vercel UI
-1. Push this folder to a new GitHub repo
-2. Go to vercel.com → New Project → Import that repo
-3. Framework: Next.js (auto-detected)
-4. Hit Deploy
+### 3. Sheet setup (5 min)
+Row 1 of every tab:
 
-No environment variables needed. Everything runs client-side.
+| url | title | note | tags | format |
+|-----|-------|------|------|--------|
+| https://... | My video | optional | funny, cars | 360 |
 
----
+- **tags**: comma separated, become filter pills
+- **format**: leave blank for normal. For VR content use: `360`, `180`, `sbs`, `sbs360`, `sbs180`, `tb`, or `anaglyph`
 
-## Google Sheet Setup
-
-1. Create a Google Sheet
-2. Name each tab whatever you want — that becomes the collection name
-3. Row 1 of every tab must have these exact headers:
-
-| url | title | note |
-|-----|-------|------|
-| https://... | My video | optional |
-
-4. File → Share → **Anyone with the link can view**
-5. File → **Publish to web** → Entire Document → Publish
-
-Then paste your sheet URL into the app when prompted.
+Share the sheet: Anyone with the link can view.
 
 ---
 
-## Adding new collections
+## VR formats explained
 
-Add a new tab, name it, add URLs. Hit "Sync" in the app.
+| format | What it is |
+|--------|-----------|
+| `360` | Full sphere video, look anywhere |
+| `180` | Half sphere (front only) |
+| `sbs` | 3D side-by-side on a flat virtual screen |
+| `sbs360` | 3D side-by-side, full sphere |
+| `sbs180` | 3D side-by-side, half sphere (most VR content) |
+| `tb` | 3D top-bottom on flat screen |
+| `anaglyph` | Red/cyan 3D — works on any screen with paper glasses |
+
+In headset: **Trigger = play/pause. Grip squeeze = exit VR.** Works in the Quest browser — just open your vault URL.
+
+---
+
+## 3D models
+
+Add a Drive link or direct URL to a `.glb`, `.gltf`, `.obj`, or `.stl` file. Click it in the vault → opens the 3D viewer. GLB files with animations auto-play their first animation. Blender: export as GLB for best results (Blender's .blend files are not web-viewable — always export).
+
+---
+
+## Google Drive automation (Apps Script)
+
+This makes Drive folders self-organize into your sheet:
+- Drop a file in a watched folder → row auto-added to the matching sheet tab
+- Create a new subfolder → new tab auto-created in the sheet
+
+**Setup:**
+1. Open your Google Sheet → Extensions → Apps Script
+2. Paste this code:
+
+```javascript
+// ════════════════════════════════════════════════════
+// MEDIA VAULT DRIVE SYNC
+// Watches a parent Drive folder. Each subfolder = a sheet tab.
+// Files in subfolders auto-append as rows.
+// ════════════════════════════════════════════════════
+
+const PARENT_FOLDER_ID = "PASTE_YOUR_PARENT_FOLDER_ID_HERE";
+
+function syncDriveToSheet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const parent = DriveApp.getFolderById(PARENT_FOLDER_ID);
+  const subfolders = parent.getFolders();
+
+  while (subfolders.hasNext()) {
+    const folder = subfolders.next();
+    const tabName = folder.getName();
+
+    // Create tab if missing
+    let sheet = ss.getSheetByName(tabName);
+    if (!sheet) {
+      sheet = ss.insertSheet(tabName);
+      sheet.appendRow(["url", "title", "note", "tags", "format"]);
+    }
+
+    // Existing URLs in the tab (skip duplicates)
+    const data = sheet.getDataRange().getValues();
+    const existingUrls = new Set(data.slice(1).map(r => r[0]));
+
+    // Add new files
+    const files = folder.getFiles();
+    while (files.hasNext()) {
+      const file = files.next();
+      const url = "https://drive.google.com/file/d/" + file.getId() + "/view";
+      if (!existingUrls.has(url)) {
+        sheet.appendRow([url, file.getName(), "", "", ""]);
+      }
+    }
+  }
+}
+```
+
+3. Replace `PARENT_FOLDER_ID` — it's the long string in your folder's URL: `drive.google.com/drive/folders/THIS_PART`
+4. Run it once manually (it'll ask for permissions, approve)
+5. Automate it: click the clock icon (Triggers) → Add Trigger → `syncDriveToSheet` → Time-driven → Every 10 minutes (or hour)
+
+Now your workflow is: drop files into Drive folders → they appear in your vault on next Sync. Zero manual sheet editing.
+
+---
+
+## Stack
+Next.js 16 · Supabase (auth + data) · Three.js (3D + VR/WebXR) · Google Sheets (content source) · Vercel
