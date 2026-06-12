@@ -84,7 +84,7 @@ export default function DriveBrowser({ onOpenItem }) {
         Google Drive Browser
       </h2>
       <p style={{ margin: "0 0 20px", fontSize: 12, color: "#555" }}>
-        Paste a public Drive folder link. The folder must be shared as "Anyone with the link can view."
+        Paste a public Drive folder link. The folder must be shared as “Anyone with the link can view.”
       </p>
 
       <div style={{ display: "flex", gap: 8, marginBottom: 20, maxWidth: 600 }}>

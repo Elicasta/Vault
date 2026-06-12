@@ -49,11 +49,19 @@ export default function VRViewer({ item, onClose }) {
 
       video.addEventListener("loadstart", () => setStatus("Loading video..."));
       video.addEventListener("loadedmetadata", () => setStatus("Preparing video..."));
+      const clearWhenReady = () => {
+        if (video.readyState >= 2) setStatus("");
+      };
+      video.addEventListener("loadeddata", clearWhenReady);
       video.addEventListener("canplay", () => {
         setStatus("");
         setPlaying(!video.paused);
       });
-      video.addEventListener("waiting", () => setStatus("Buffering video..."));
+      video.addEventListener("canplaythrough", () => setStatus(""));
+      video.addEventListener("timeupdate", clearWhenReady);
+      video.addEventListener("waiting", () => {
+        if (video.readyState < 3) setStatus("Buffering video...");
+      });
       video.addEventListener("playing", () => {
         setStatus("");
         setPlaying(true);
@@ -104,7 +112,10 @@ export default function VRViewer({ item, onClose }) {
 
         if (is360 || is180) {
           const phiLength = is180 ? Math.PI : Math.PI * 2;
-          geometry = new THREE.SphereGeometry(50, 64, 48, is180 ? Math.PI / 2 : 0, phiLength);
+          // For 180° media, center the half-dome in front of the camera.
+          // The previous PI / 2 start put the seam near the initial view,
+          // which looked like a half-video / half-black screen.
+          geometry = new THREE.SphereGeometry(50, 64, 48, is180 ? Math.PI : 0, phiLength);
           geometry.scale(-1, 1, 1); // view from inside
         } else {
           // Flat screen floating in space
@@ -196,7 +207,7 @@ export default function VRViewer({ item, onClose }) {
 
     init();
 
-    const escHandler = (e) => { if (e.key === "Escape") handleClose(); };
+    const escHandler = (e) => { if (e.key === "Escape") onClose(); };
     window.addEventListener("keydown", escHandler);
 
     return () => {

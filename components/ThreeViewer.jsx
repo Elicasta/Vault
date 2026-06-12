@@ -65,12 +65,39 @@ export default function ThreeViewer({ item, onClose }) {
       const driveId = getGDriveId(item.url);
       if (driveId) fileUrl = `/api/file?id=${driveId}`;
 
-      const ext = (
+      let ext = (
         item.format3d ||
         item.url.match(/\.(obj|glb|gltf|stl)(\?|$)/i)?.[1] ||
         item.title?.match(/\.(obj|glb|gltf|stl)$/i)?.[1] ||
-        "glb"
+        item.format?.match(/^(obj|glb|gltf|stl)$/i)?.[1] ||
+        ""
       ).toLowerCase();
+
+      const sniffModelFormat = async () => {
+        if (ext) return ext;
+
+        // Drive share links hide the file extension. Do a tiny ranged read so
+        // OBJ files do not get sent into GLTFLoader and fail with
+        // "Unexpected token '#', '# Blender...' is not valid JSON".
+        try {
+          const res = await fetch(fileUrl, { headers: { Range: "bytes=0-4095" } });
+          const buf = await res.arrayBuffer();
+          const bytes = new Uint8Array(buf);
+          const ascii = new TextDecoder("utf-8", { fatal: false }).decode(bytes);
+          const trimmed = ascii.trimStart();
+
+          if (ascii.slice(0, 4) === "glTF") return "glb";
+          if (trimmed.startsWith("{") && trimmed.includes('"asset"') && trimmed.includes('"gltf"')) return "gltf";
+          if (trimmed.startsWith("solid") && ascii.includes("facet normal")) return "stl";
+          if (trimmed.startsWith("#") || /(^|\n)\s*v\s+[-0-9.eE]+\s+[-0-9.eE]+\s+[-0-9.eE]+/.test(ascii) || /(^|\n)\s*f\s+/.test(ascii)) return "obj";
+        } catch {
+          // Fall through to GLB as the safest modern default.
+        }
+
+        return "glb";
+      };
+
+      ext = await sniffModelFormat();
 
       const normalizeModel = (object, forceDefaultMaterial = false) => {
         const defaultMaterial = new THREE.MeshStandardMaterial({

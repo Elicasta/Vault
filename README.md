@@ -130,6 +130,44 @@ function syncDriveToSheet() {
 
 Now your workflow is: drop files into Drive folders → they appear in your vault on next Sync. Zero manual sheet editing.
 
+## Troubleshooting the current 3D / VR issues
+
+### OBJ Drive links
+
+If a Drive link has no `.obj` extension in the URL, the viewer now sniffs the first few KB of the file before choosing a loader. This prevents OBJ files exported from Blender from being sent into the GLTF loader.
+
+Best sheet setup for OBJ:
+
+| url | title | format |
+|-----|-------|--------|
+| https://drive.google.com/file/d/.../view | cars.obj | obj |
+
+The title or format should include `obj`, `glb`, `gltf`, or `stl` when possible.
+
+### 3D 180 / SBS 180 video
+
+Use `sbs180` for most 3D VR180 files. Use `180` only for mono VR180 files. The desktop preview shows the left eye for stereo files; Quest/WebXR uses both eyes.
+
+Drive videos should be public. The `/api/file` proxy supports browser Range requests so large files can stream instead of waiting for a full download.
+
+### Supabase sync across devices
+
+To see the same sheet, favorites, folders, and progress on every device:
+
+1. Run `sql/schema.sql` in Supabase SQL Editor.
+2. Add these Vercel environment variables:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=YOUR_ANON_PUBLIC_KEY
+```
+
+3. Redeploy Vercel.
+4. Create an account or sign in inside the app.
+5. Connect the Google Sheet once. It saves to the `user_settings` table.
+
+If the app opens without a login screen, Supabase is not configured in the deployed environment.
+
 ---
 
 ## Stack

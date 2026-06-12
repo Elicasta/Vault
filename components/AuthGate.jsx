@@ -4,7 +4,7 @@ import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 export default function AuthGate({ children }) {
   const [session, setSession] = useState(null);
-  const [checking, setChecking] = useState(true);
+  const [checking, setChecking] = useState(isSupabaseConfigured());
   const [mode, setMode] = useState("login"); // login | signup
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -13,10 +13,7 @@ export default function AuthGate({ children }) {
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!isSupabaseConfigured()) {
-      setChecking(false);
-      return;
-    }
+    if (!isSupabaseConfigured()) return;
     supabase.auth.getSession().then(({ data }) => {
       setSession(data.session);
       setChecking(false);
