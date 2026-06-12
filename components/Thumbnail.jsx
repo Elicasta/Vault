@@ -1,5 +1,5 @@
 "use client";
-import { getYouTubeId, getGDriveId, typeColor, typeLabel } from "@/lib/utils";
+import { getYouTubeId, getGDriveId, proxiedMediaUrl, typeColor, typeLabel } from "@/lib/utils";
 
 export default function Thumbnail({ item, scraped }) {
   const { type, url, title } = item;
@@ -24,7 +24,7 @@ export default function Thumbnail({ item, scraped }) {
     return (
       <div style={{ width: "100%", paddingTop: "62%", position: "relative", overflow: "hidden", background: "#111" }}>
         <img
-          src={url} alt={title}
+          src={proxiedMediaUrl(url)} alt={title}
           onError={(e) => { e.currentTarget.style.opacity = "0"; }}
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
         />
@@ -50,7 +50,7 @@ export default function Thumbnail({ item, scraped }) {
     return (
       <div style={{ position: "relative", width: "100%", paddingTop: "56.25%", background: "#111" }}>
         <img
-          src={scraped.image} alt={title}
+          src={proxiedMediaUrl(scraped.image)} alt={title}
           onError={(e) => { e.currentTarget.style.opacity = "0"; }}
           style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover" }}
         />

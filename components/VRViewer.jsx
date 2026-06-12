@@ -44,11 +44,28 @@ export default function VRViewer({ item, onClose }) {
       video.crossOrigin = "anonymous";
       video.loop = true;
       video.playsInline = true;
+      video.preload = "auto";
       video.muted = false;
-      video.addEventListener("canplay", () => setStatus(""));
-      video.addEventListener("error", () => setStatus("Could not load video. Drive files must be shared publicly; direct URLs must allow CORS."));
+
+      video.addEventListener("loadstart", () => setStatus("Loading video..."));
+      video.addEventListener("loadedmetadata", () => setStatus("Preparing video..."));
+      video.addEventListener("canplay", () => {
+        setStatus("");
+        setPlaying(!video.paused);
+      });
+      video.addEventListener("waiting", () => setStatus("Buffering video..."));
+      video.addEventListener("playing", () => {
+        setStatus("");
+        setPlaying(true);
+      });
+      video.addEventListener("pause", () => setPlaying(false));
+      video.addEventListener("error", () => {
+        const code = video.error?.code;
+        setStatus(`Could not load video${code ? ` (media error ${code})` : ""}. Drive files must be public; direct URLs must allow playback.`);
+      });
+      video.load();
       video.play().catch(() => {
-        // Autoplay blocked — needs user gesture, show play state
+        // Autoplay blocked — needs user gesture. Keep the first frame ready.
         setPlaying(false);
         setStatus("Tap play to start");
       });

@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { getYouTubeId, getVimeoId, getGDriveId } from "@/lib/utils";
+import { getYouTubeId, getVimeoId, getGDriveId, proxiedMediaUrl } from "@/lib/utils";
 import { saveProgress } from "@/lib/supabase";
 
 export default function Embed({ item, onClose, userId, resumeAt = 0, scraped }) {
@@ -82,7 +82,7 @@ export default function Embed({ item, onClose, userId, resumeAt = 0, scraped }) 
     if (type === "image") {
       return (
         <img
-          src={url}
+          src={proxiedMediaUrl(url)}
           alt={item.title}
           style={{ maxWidth: "88vw", maxHeight: "84vh", objectFit: "contain", borderRadius: 8, display: "block" }}
         />
@@ -114,7 +114,7 @@ export default function Embed({ item, onClose, userId, resumeAt = 0, scraped }) 
       return (
         <div style={{ textAlign: "center" }}>
           <img
-            src={scraped.image}
+            src={proxiedMediaUrl(scraped.image)}
             alt={item.title}
             style={{ maxWidth: "80vw", maxHeight: "70vh", objectFit: "contain", borderRadius: 8 }}
           />

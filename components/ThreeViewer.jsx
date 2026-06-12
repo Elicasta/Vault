@@ -42,15 +42,17 @@ export default function ThreeViewer({ item, onClose }) {
       controls.autoRotate = true;
       controls.autoRotateSpeed = 1.2;
 
-      // Lighting rig
-      const ambient = new THREE.AmbientLight(0xffffff, 0.4);
-      const key = new THREE.DirectionalLight(0xffffff, 1.5);
+      // Lighting rig. Keep OBJ/STL readable even when the source file has
+      // broken, missing, or black materials.
+      const ambient = new THREE.AmbientLight(0xffffff, 1.1);
+      const hemi = new THREE.HemisphereLight(0xffffff, 0x333333, 1.2);
+      const key = new THREE.DirectionalLight(0xffffff, 2.0);
       key.position.set(3, 4, 2);
-      const fill = new THREE.DirectionalLight(0x8899ff, 0.5);
+      const fill = new THREE.DirectionalLight(0xffffff, 0.9);
       fill.position.set(-3, 1, -2);
-      const rim = new THREE.DirectionalLight(0xffffff, 0.8);
-      rim.position.set(0, -2, -4);
-      scene.add(ambient, key, fill, rim);
+      const rim = new THREE.DirectionalLight(0xffffff, 1.1);
+      rim.position.set(0, 2, -4);
+      scene.add(ambient, hemi, key, fill, rim);
 
       // Ground grid
       const grid = new THREE.GridHelper(10, 20, 0x222222, 0x161616);
@@ -70,16 +72,72 @@ export default function ThreeViewer({ item, onClose }) {
         "glb"
       ).toLowerCase();
 
-      const fitAndAdd = (object) => {
-        // Center and scale to fit view
+      const normalizeModel = (object, forceDefaultMaterial = false) => {
+        const defaultMaterial = new THREE.MeshStandardMaterial({
+          color: 0xb8b8b8,
+          roughness: 0.62,
+          metalness: 0.04,
+          side: THREE.DoubleSide,
+        });
+
+        object.traverse((c) => {
+          if (!c.isMesh) return;
+
+          if (c.geometry && !c.geometry.attributes.normal) {
+            c.geometry.computeVertexNormals();
+          }
+
+          const materials = Array.isArray(c.material) ? c.material : [c.material];
+          const hasBadMaterial = !c.material || materials.some((m) => {
+            if (!m) return true;
+            const color = m.color;
+            const isBlack = color && color.r < 0.02 && color.g < 0.02 && color.b < 0.02;
+            return isBlack && !m.map && !m.emissiveMap;
+          });
+
+          if (forceDefaultMaterial || hasBadMaterial) {
+            c.material = defaultMaterial.clone();
+          } else {
+            materials.forEach((m) => {
+              if (!m) return;
+              m.side = THREE.DoubleSide;
+              m.needsUpdate = true;
+            });
+          }
+
+          c.castShadow = true;
+          c.receiveShadow = true;
+        });
+      };
+
+      const fitAndAdd = (object, options = {}) => {
+        normalizeModel(object, options.forceDefaultMaterial);
+
+        // Center and scale to fit view. Recalculate after scaling so the
+        // camera always looks at the model instead of empty space.
         const box = new THREE.Box3().setFromObject(object);
         const size = box.getSize(new THREE.Vector3());
         const center = box.getCenter(new THREE.Vector3());
         const maxDim = Math.max(size.x, size.y, size.z) || 1;
-        const scale = 2 / maxDim;
+        const scale = 2.4 / maxDim;
+
+        object.position.sub(center);
         object.scale.setScalar(scale);
-        object.position.sub(center.multiplyScalar(scale));
-        object.position.y += (size.y * scale) / 2;
+
+        const scaledBox = new THREE.Box3().setFromObject(object);
+        const scaledSize = scaledBox.getSize(new THREE.Vector3());
+        const scaledCenter = scaledBox.getCenter(new THREE.Vector3());
+        object.position.sub(scaledCenter);
+        object.position.y += scaledSize.y / 2;
+
+        const distance = Math.max(3.2, scaledSize.length() * 1.25);
+        camera.position.set(distance, distance * 0.62, distance);
+        camera.near = Math.max(0.001, distance / 1000);
+        camera.far = Math.max(1000, distance * 100);
+        camera.updateProjectionMatrix();
+        controls.target.set(0, scaledSize.y * 0.45, 0);
+        controls.update();
+
         scene.add(object);
         stateRef.current.model = object;
         setStatus("");
@@ -89,12 +147,7 @@ export default function ThreeViewer({ item, onClose }) {
         if (ext === "obj") {
           const loader = new OBJLoader();
           loader.load(fileUrl, (obj) => {
-            obj.traverse((c) => {
-              if (c.isMesh && !c.material) {
-                c.material = new THREE.MeshStandardMaterial({ color: 0xaaaaaa, roughness: 0.6 });
-              }
-            });
-            fitAndAdd(obj);
+            fitAndAdd(obj, { forceDefaultMaterial: true });
           }, undefined, (e) => setStatus("Failed to load OBJ. " + (e.message || "")));
         } else if (ext === "stl") {
           const loader = new STLLoader();

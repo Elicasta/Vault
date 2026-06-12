@@ -57,6 +57,14 @@ export default function DriveBrowser({ onOpenItem }) {
     const fileType = guessFileType(f.name);
     // Build a vault-compatible item and open it
     const url = `https://drive.google.com/file/d/${f.id}/view`;
+    const lowerName = f.name.toLowerCase();
+    const inferredFormat =
+      fileType === "video" && lowerName.includes("sbs360") ? "sbs360" :
+      fileType === "video" && lowerName.includes("sbs180") ? "sbs180" :
+      fileType === "video" && lowerName.includes("360") ? "360" :
+      fileType === "video" && lowerName.includes("180") ? "180" :
+      "flat";
+
     onOpenItem({
       id: `drive-${f.id}`,
       key: itemKey(url),
@@ -64,7 +72,7 @@ export default function DriveBrowser({ onOpenItem }) {
       title: f.name,
       note: "",
       tags: [],
-      format: "flat",
+      format: inferredFormat,
       type: fileType === "model3d" ? "model3d" : "gdrive",
       tab: "Drive",
     });
