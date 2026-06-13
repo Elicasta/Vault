@@ -376,18 +376,18 @@ export default function Vault() {
           <DriveBrowser onOpenItem={(item) => openItem(item, [item])} mobile={isMobile} onOpenMenu={() => setSidebarOpen(true)} />
         ) : isBrowseView ? (
           <>
-            {isMobile && <MobileTopBar title="Browse" onMenu={() => setSidebarOpen(true)} onSearch={() => { setShowSearch(true); setActiveView("all"); }} syncing={syncing} />}
+            {isMobile && <MobileTopBar title="Browse" onMenu={() => setSidebarOpen(true)} onSearch={() => { setShowSearch(true); setActiveView("all"); }} syncing={syncing} onSync={sheetId ? () => loadSheet(sheetId, manualTabs) : null} onQuickAdd={() => setShowQuickAdd(true)} />}
             <BrowseView allItems={allItems} tabs={tabs} folders={folders} userData={userData} onNavigate={navigate} isMobile={isMobile} />
           </>
         ) : isHomeView ? (
           <>
-            {isMobile && <MobileTopBar title="" onMenu={() => setSidebarOpen(true)} onSearch={() => { setShowSearch(true); setActiveView("all"); }} syncing={syncing} />}
+            {isMobile && <MobileTopBar title="" onMenu={() => setSidebarOpen(true)} onSearch={() => { setShowSearch(true); setActiveView("all"); }} syncing={syncing} onSync={sheetId ? () => loadSheet(sheetId, manualTabs) : null} onQuickAdd={() => setShowQuickAdd(true)} />}
             <HomeView allItems={allItems} tabs={tabs} userData={userData} scrapedMap={scrapedMap} onOpen={(item) => openItem(item, allItems)} onNavigate={navigate} isMobile={isMobile} onQuickAdd={() => setShowQuickAdd(true)} />
           </>
         ) : (
           <>
             {isMobile ? (
-              <MobileTopBar title={viewTitle} onMenu={() => setSidebarOpen(true)} onSearch={() => setShowSearch(!showSearch)} syncing={syncing} searchOpen={showSearch} searchRef={searchRef} search={search} onSearchChange={setSearch} onSort={() => setShowSort(!showSort)} sortBy={sortBy} />
+              <MobileTopBar title={viewTitle} onMenu={() => setSidebarOpen(true)} onSearch={() => setShowSearch(!showSearch)} syncing={syncing} searchOpen={showSearch} searchRef={searchRef} search={search} onSearchChange={setSearch} onSort={() => setShowSort(!showSort)} sortBy={sortBy} onSync={sheetId ? () => loadSheet(sheetId, manualTabs) : null} onQuickAdd={() => setShowQuickAdd(true)} />
             ) : (
               <DesktopTopBar viewTitle={viewTitle} viewItems={viewItems} search={search} onSearch={setSearch} viewMode={viewMode} onViewMode={handleViewModeChange} onSlideshow={() => setShowSlideshow(true)} onSync={sheetId ? () => loadSheet(sheetId, manualTabs) : null} syncing={syncing} sortBy={sortBy} onSortChange={setSortBy} onQuickAdd={() => setShowQuickAdd(true)} installPrompt={installPrompt} onInstall={handleInstall} />
             )}
@@ -497,7 +497,7 @@ export default function Vault() {
 
 // ── Layout components ─────────────────────────────────────────────────────────
 
-function MobileTopBar({ title, onMenu, onSearch, syncing, searchOpen, searchRef, search, onSearchChange, onSort, sortBy }) {
+function MobileTopBar({ title, onMenu, onSearch, syncing, searchOpen, searchRef, search, onSearchChange, onSort, sortBy, onSync, onQuickAdd }) {
   return (
     <div style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 8, borderBottom: `1px solid ${T.borderSub}`, position: "sticky", top: 0, background: "rgba(0,0,0,0.88)", backdropFilter: "blur(16px)", zIndex: 100 }}>
       <button onClick={onMenu} style={iconBtn}><Icon name="menu" size={18} /></button>
@@ -506,6 +506,8 @@ function MobileTopBar({ title, onMenu, onSearch, syncing, searchOpen, searchRef,
         : <div style={{ flex: 1, fontSize: 15, fontWeight: 500, color: T.text1, letterSpacing: -0.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
       }
       {onSort && <button onClick={onSort} style={{ ...iconBtn, background: sortBy !== "default" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.06)" }}><Icon name="sort" size={16} /></button>}
+      {onQuickAdd && <button onClick={onQuickAdd} style={iconBtn} title="Add to Vault"><Icon name="addCircle" size={16} /></button>}
+      {onSync && <button onClick={onSync} disabled={syncing} style={iconBtn} title="Sync"><Icon name="sync" size={16} style={{ animation: syncing ? "spin 0.8s linear infinite" : "none" }} /></button>}
       <button onClick={onSearch} style={iconBtn}><Icon name="audioLines" size={16} /></button>
     </div>
   );

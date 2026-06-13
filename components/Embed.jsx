@@ -24,7 +24,7 @@ export default function Embed({ item, items = [], currentIdx = 0, onNavigate, on
   const { type, url } = item;
   const ytId  = type === "youtube" ? getYouTubeId(url) : null;
   const vimId = type === "vimeo"   ? getVimeoId(url)   : null;
-  const gdId  = type === "gdrive"  ? getGDriveId(url)  : null;
+  const gdId  = getGDriveId(url);
 
   const videoRef  = useRef(null);
   const ytPlayer  = useRef(null);
@@ -180,6 +180,22 @@ export default function Embed({ item, items = [], currentIdx = 0, onNavigate, on
       );
     }
 
+    // Google Drive files must use the Drive preview iframe.
+    // A Drive /view URL will often render blank if we pass it directly to img/video/pdf.
+    if (gdId && url.includes("drive.google.com")) {
+      const isPdfLike = type === "pdf" || /\.pdf($|[?#])/i.test(url) || /pdf/i.test(item.title || "");
+      return (
+        <div style={isPdfLike ? pdfFrameWrap : driveFrameWrap}>
+          <iframe
+            src={`https://drive.google.com/file/d/${gdId}/preview`}
+            title={item.title || "Drive preview"}
+            style={frameStyle}
+            allow="autoplay; fullscreen"
+          />
+        </div>
+      );
+    }
+
     if (type === "image") {
       return (
         <img
@@ -190,22 +206,14 @@ export default function Embed({ item, items = [], currentIdx = 0, onNavigate, on
     }
 
     if (type === "pdf") {
+      const pdfSrc = `https://docs.google.com/gview?embedded=1&url=${encodeURIComponent(url)}`;
       return (
-        <iframe
-          src={url}
-          title={item.title || "PDF"}
-          style={{ width: "min(94vw,1100px)", height: "86vh", border: "none", borderRadius: 8, background: "#fff" }}
-        />
-      );
-    }
-
-    if (type === "gdrive" && gdId) {
-      return (
-        <div style={{ width: "80vw", aspectRatio: "16/9" }}>
+        <div style={pdfFrameWrap}>
           <iframe
-            src={`https://drive.google.com/file/d/${gdId}/preview`}
-            style={{ width: "100%", height: "100%", border: "none", borderRadius: 8 }}
-            allow="autoplay"
+            src={pdfSrc}
+            title={item.title || "PDF"}
+            style={frameStyle}
+            allow="fullscreen"
           />
         </div>
       );
@@ -335,6 +343,32 @@ export default function Embed({ item, items = [], currentIdx = 0, onNavigate, on
     </div>
   );
 }
+
+const driveFrameWrap = {
+  width: "min(94vw,1100px)",
+  height: "min(86vh,720px)",
+  background: "#fff",
+  borderRadius: 8,
+  overflow: "hidden"
+};
+
+const pdfFrameWrap = {
+  width: "min(96vw,1100px)",
+  height: "calc(100dvh - 96px)",
+  maxHeight: "900px",
+  background: "#fff",
+  borderRadius: 8,
+  overflow: "hidden"
+};
+
+const frameStyle = {
+  width: "100%",
+  height: "100%",
+  border: "none",
+  borderRadius: 8,
+  background: "#fff",
+  display: "block"
+};
 
 const ctrlBtn = {
   background: "rgba(255,255,255,0.07)", border: "none",
