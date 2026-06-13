@@ -183,18 +183,18 @@ export default function Embed({ item, items = [], currentIdx = 0, onNavigate, on
     // Google Drive files must use the Drive preview iframe.
     // A Drive /view URL will often render blank if we pass it directly to img/video/pdf.
     if (gdId && url.includes("drive.google.com")) {
-      const isPdfLike = type === "pdf" || /\.pdf($|[?#])/i.test(url) || /pdf/i.test(item.title || "");
-      return (
-        <div style={isPdfLike ? pdfFrameWrap : driveFrameWrap}>
-          <iframe
-            src={`https://drive.google.com/file/d/${gdId}/preview`}
-            title={item.title || "Drive preview"}
-            style={frameStyle}
-            allow="autoplay; fullscreen"
-          />
-        </div>
-      );
-    }
+  const isPdfLike = type === "pdf" || /\.pdf($|[?#])/i.test(url) || /pdf/i.test(item.title || "");
+  return (
+    <div style={isPdfLike ? pdfFrameWrap : driveFrameWrap}>
+      <iframe
+        src={`https://docs.google.com/viewer?embedded=true&url=https://drive.google.com/uc?id=${gdId}`}
+        title={item.title || "Drive preview"}
+        style={frameStyle}
+        allow="autoplay; fullscreen"
+      />
+    </div>
+  );
+}
 
     if (type === "image") {
       return (
