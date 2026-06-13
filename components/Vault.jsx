@@ -446,8 +446,6 @@ export default function Vault() {
         )}
       </div>
 
-        </div>
-
         {/* Desktop detail panel */}
         {selectedItem && !isMobile && (
           <DetailPanel
