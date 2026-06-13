@@ -172,3 +172,33 @@ If the app opens without a login screen, Supabase is not configured in the deplo
 
 ## Stack
 Next.js 16 · Supabase (auth + data) · Three.js (3D + VR/WebXR) · Google Sheets (content source) · Vercel
+
+
+## Torrent resolver integration
+
+This build supports Google Sheet rows where `type` is `torrent` and `url` is either a `magnet:` link or an `https://... .torrent` URL.
+
+Add this env var in Vercel:
+
+```txt
+NEXT_PUBLIC_TORRENT_RESOLVER_URL=https://your-render-service.onrender.com
+```
+
+Sheet example:
+
+```txt
+title | url | type | view | note
+VR Test | magnet:?xt=urn:btih:... | torrent | sbs180 | browser-playable VR video
+PDF Manual | magnet:?xt=urn:btih:... | torrent | pdf | reference PDF
+Poster | magnet:?xt=urn:btih:... | torrent | image | image file
+Model | magnet:?xt=urn:btih:... | torrent | model | 3D model
+```
+
+Phase 1 supports browser-playable torrent files:
+
+- `.mp4`, `.m4v`, `.mov`, `.webm`
+- `.png`, `.jpg`, `.jpeg`, `.webp`, `.gif`, `.avif`, `.bmp`
+- `.pdf`
+- `.obj`, `.glb`, `.gltf`, `.stl`
+
+MKV is intentionally not converted yet. Unsupported files show external open/copy URL fallback.

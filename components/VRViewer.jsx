@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import Icon from "./Icons";
 import { getGDriveId } from "@/lib/utils";
 
 // Supported formats:
@@ -290,7 +291,7 @@ export default function VRViewer({ item, onClose }) {
         borderBottom: "1px solid rgba(255,255,255,0.08)"
       }}>
         <div style={{ color: "#fff", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", display: "flex", alignItems: "center", gap: 8 }}>
-          🥽 {item.title}
+          <Icon name="headset" size={16} /> {item.title}
           <span style={{
             fontSize: 9, background: "#06B6D4", color: "#000",
             padding: "2px 8px", borderRadius: 4, fontWeight: 800, letterSpacing: 0.5
@@ -300,22 +301,22 @@ export default function VRViewer({ item, onClose }) {
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <button onClick={togglePlay} style={toolBtn}>
-            {playing ? "⏸ Pause" : "▶ Play"}
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name={playing ? "pause" : "play"} size={13} /> {playing ? "Pause" : "Play"}</span>
           </button>
           <button onClick={toggleMute} style={toolBtn}>
-            {muted ? "🔇 Unmute" : "🔊 Mute"}
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name={muted ? "volumeOff" : "volume"} size={13} /> {muted ? "Unmute" : "Mute"}</span>
           </button>
           {xrSupported && (
             <button onClick={enterVR} style={{
               ...toolBtn, background: "#06B6D4", color: "#000", fontWeight: 700
             }}>
-              🥽 Enter VR
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="headset" size={13} /> Enter VR</span>
             </button>
           )}
           <button onClick={handleClose} style={{
             ...toolBtn, background: "rgba(255,60,60,0.2)", color: "#ff6b6b"
           }}>
-            ✕ Exit
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="x" size={13} /> Exit</span>
           </button>
         </div>
       </div>

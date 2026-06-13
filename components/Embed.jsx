@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import Icon from "./Icons";
 import { getYouTubeId, getVimeoId, getGDriveId, proxiedMediaUrl } from "@/lib/utils";
 import { saveProgress } from "@/lib/supabase";
 
@@ -88,6 +89,16 @@ export default function Embed({ item, onClose, userId, resumeAt = 0, scraped }) 
         />
       );
     }
+
+    if (type === "pdf") {
+      return (
+        <iframe
+          src={url}
+          title={item.title || "PDF"}
+          style={{ width: "min(94vw, 1100px)", height: "86vh", border: "none", borderRadius: 8, background: "#fff" }}
+        />
+      );
+    }
     if (type === "gdrive" && gdId) {
       return (
         <iframe
@@ -133,7 +144,7 @@ export default function Embed({ item, onClose, userId, resumeAt = 0, scraped }) 
     return null;
   };
 
-  const isWide = ["youtube", "vimeo", "gdrive"].includes(type);
+  const isWide = ["youtube", "vimeo", "gdrive", "pdf"].includes(type);
   const showMute = !!directVideo || type === "youtube" || type === "vimeo";
 
   return (
@@ -156,10 +167,10 @@ export default function Embed({ item, onClose, userId, resumeAt = 0, scraped }) 
             style={ctrlBtn}
             title={muted ? "Unmute" : "Mute"}
           >
-            {muted ? "🔇" : "🔊"}
+            <Icon name={muted ? "volumeOff" : "volume"} size={15} />
           </button>
         )}
-        <button onClick={handleClose} style={ctrlBtn}>✕</button>
+        <button onClick={handleClose} style={ctrlBtn}><Icon name="x" size={15} /></button>
       </div>
 
       <div

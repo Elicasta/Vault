@@ -10,6 +10,14 @@ export default function ConfigModal({ onSave, onClose, savedId, needsManualTabs 
   const [tabsInput, setTabsInput] = useState("");
   const [warning, setWarning] = useState(needsManualTabs ? "manual" : "");
   const ref = useRef(null);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const syncViewport = () => setIsMobile(window.innerWidth < 640);
+    syncViewport();
+    window.addEventListener("resize", syncViewport);
+    return () => window.removeEventListener("resize", syncViewport);
+  }, []);
 
   useEffect(() => {
     ref.current?.focus();
@@ -45,15 +53,17 @@ export default function ConfigModal({ onSave, onClose, savedId, needsManualTabs 
       style={{
         position: "fixed", inset: 0, zIndex: 900,
         background: "rgba(0,0,0,0.88)", backdropFilter: "blur(6px)",
-        display: "flex", alignItems: "center", justifyContent: "center"
+        display: "flex", alignItems: isMobile ? "flex-end" : "center", justifyContent: "center",
+        padding: isMobile ? "12px" : 0
       }}
     >
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "#181818", borderRadius: 16,
+          background: "#181818", borderRadius: isMobile ? 18 : 16,
           border: "1px solid rgba(255,255,255,0.1)",
-          padding: 28, width: 520, maxWidth: "94vw",
+          padding: isMobile ? 22 : 28, width: 520, maxWidth: "100%",
+          maxHeight: isMobile ? "calc(100dvh - 24px)" : "90vh", overflowY: "auto",
           boxShadow: "0 20px 70px rgba(0,0,0,0.8)"
         }}
       >
@@ -64,7 +74,7 @@ export default function ConfigModal({ onSave, onClose, savedId, needsManualTabs 
             <line x1="3" y1="15" x2="21" y2="15" stroke="white" strokeWidth="1.5"/>
             <line x1="9" y1="3" x2="9" y2="21" stroke="white" strokeWidth="1.5"/>
           </svg>
-          <h2 style={{ margin: 0, fontSize: 17, fontWeight: 600, color: "#fff" }}>
+          <h2 style={{ margin: 0, fontSize: isMobile ? 18 : 17, fontWeight: 600, color: "#fff" }}>
             {needsManualTabs ? "Enter Your Tab Names" : "Connect Google Sheet"}
           </h2>
         </div>
@@ -110,10 +120,10 @@ export default function ConfigModal({ onSave, onClose, savedId, needsManualTabs 
           onKeyDown={(e) => { if (e.key === "Enter" && canSave) handleSave(); }}
           placeholder="https://docs.google.com/spreadsheets/d/..."
           style={{
-            width: "100%", padding: "12px 14px",
+            width: "100%", padding: isMobile ? "14px 14px" : "12px 14px",
             background: "#0f0f0f",
             border: `1px solid ${warning === "published" ? "rgba(255,150,0,0.4)" : "rgba(255,255,255,0.1)"}`,
-            borderRadius: 8, color: "#fff", fontSize: 13,
+            borderRadius: 8, color: "#fff", fontSize: isMobile ? 16 : 13,
             outline: "none", boxSizing: "border-box",
             fontFamily: "monospace", marginBottom: 16
           }}
@@ -138,21 +148,21 @@ export default function ConfigModal({ onSave, onClose, savedId, needsManualTabs 
           onChange={(e) => setTabsInput(e.target.value)}
           placeholder="Star Wars, Cars, Funny Videos, ..."
           style={{
-            width: "100%", padding: "10px 14px",
+            width: "100%", padding: isMobile ? "14px 14px" : "10px 14px",
             background: "#0f0f0f",
             border: `1px solid ${needsManualTabs ? "rgba(245,158,11,0.4)" : "rgba(255,255,255,0.07)"}`,
-            borderRadius: 8, color: "#fff", fontSize: 13,
+            borderRadius: 8, color: "#fff", fontSize: isMobile ? 16 : 13,
             outline: "none", boxSizing: "border-box",
             marginBottom: 20
           }}
         />
 
-        <div style={{ display: "flex", gap: 10 }}>
+        <div style={{ display: "flex", gap: 10, flexDirection: isMobile ? "column" : "row" }}>
           <button
             onClick={handleSave}
             disabled={!canSave || (needsManualTabs && !tabsInput.trim())}
             style={{
-              flex: 1, padding: 12,
+              flex: 1, padding: isMobile ? 14 : 12,
               background: (canSave && (!needsManualTabs || tabsInput.trim())) ? "#34A853" : "#1a1a1a",
               color: (canSave && (!needsManualTabs || tabsInput.trim())) ? "#fff" : "#444",
               border: "none", borderRadius: 8,
@@ -166,7 +176,7 @@ export default function ConfigModal({ onSave, onClose, savedId, needsManualTabs 
             <button
               onClick={onClose}
               style={{
-                padding: "12px 18px", background: "transparent",
+                padding: isMobile ? 14 : "12px 18px", background: "transparent",
                 color: "#555", border: "1px solid rgba(255,255,255,0.08)",
                 borderRadius: 8, fontSize: 13, cursor: "pointer"
               }}

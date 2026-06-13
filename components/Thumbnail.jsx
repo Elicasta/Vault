@@ -1,5 +1,6 @@
 "use client";
 import { getYouTubeId, getGDriveId, proxiedMediaUrl, typeColor, typeLabel } from "@/lib/utils";
+import Icon from "./Icons";
 
 export default function Thumbnail({ item, scraped }) {
   const { type, url, title } = item;
@@ -67,17 +68,17 @@ export default function Thumbnail({ item, scraped }) {
         background: "linear-gradient(135deg, #06B6D418, #06B6D435)"
       }}>
         <div style={centerStyle}>
-          <div style={{ fontSize: 30 }}>🧊</div>
+          <Icon name="box" size={34} />
           <span style={{ fontSize: 9, color: "#06B6D4", fontWeight: 800, letterSpacing: 1.2 }}>3D MODEL</span>
         </div>
       </div>
     );
   }
 
-  const emoji = {
-    facebook: "📘", instagram: "📸", tiktok: "🎵", twitter: "🐦",
-    reddit: "👽", vimeo: "🎬", video: "🎥",
-    "gdrive-folder": "📁", link: "🔗", unknown: "🔗"
+  const iconMap = {
+    facebook: "link", instagram: "image", tiktok: "video", twitter: "link",
+    reddit: "link", vimeo: "video", video: "video", torrent: "sync", pdf: "document",
+    "gdrive-folder": "folder", link: "link", unknown: "link"
   };
 
   return (
@@ -86,7 +87,7 @@ export default function Thumbnail({ item, scraped }) {
       background: `linear-gradient(135deg, ${color}18, ${color}30)`
     }}>
       <div style={centerStyle}>
-        <div style={{ fontSize: 28 }}>{emoji[type] || "🔗"}</div>
+        <Icon name={iconMap[type] || "link"} size={30} />
         <span style={{ fontSize: 9, color, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase" }}>
           {typeLabel[type]}
         </span>

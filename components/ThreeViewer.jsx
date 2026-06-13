@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
+import Icon from "./Icons";
 import { getGDriveId } from "@/lib/utils";
 
 export default function ThreeViewer({ item, onClose }) {
@@ -276,8 +277,8 @@ export default function ThreeViewer({ item, onClose }) {
         padding: "10px 16px", background: "#111",
         borderBottom: "1px solid rgba(255,255,255,0.08)"
       }}>
-        <div style={{ color: "#fff", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif" }}>
-          🧊 {item.title}
+        <div style={{ color: "#fff", fontSize: 13, fontWeight: 600, fontFamily: "Inter, sans-serif", display: "flex", alignItems: "center", gap: 8 }}>
+          <Icon name="box" size={16} /> {item.title}
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <label style={ctrlLabel}>
@@ -293,7 +294,7 @@ export default function ThreeViewer({ item, onClose }) {
             Dark
           </label>
           <label style={{ ...ctrlLabel, gap: 6 }}>
-            💡
+            <Icon name="light" size={14} />
             <input
               type="range" min="0" max="4" step="0.1"
               value={lightIntensity}
@@ -306,7 +307,7 @@ export default function ThreeViewer({ item, onClose }) {
             color: "#fff", cursor: "pointer", borderRadius: 7,
             padding: "7px 14px", fontSize: 12, fontWeight: 600
           }}>
-            ✕ Close
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 6 }}><Icon name="x" size={13} /> Close</span>
           </button>
         </div>
       </div>

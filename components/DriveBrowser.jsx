@@ -1,8 +1,9 @@
 "use client";
 import { useState } from "react";
 import { getGDriveFolderId, detectType, itemKey } from "@/lib/utils";
+import Icon from "./Icons";
 
-export default function DriveBrowser({ onOpenItem }) {
+export default function DriveBrowser({ onOpenItem, mobile = false, onOpenMenu }) {
   const [folderInput, setFolderInput] = useState("");
   const [breadcrumbs, setBreadcrumbs] = useState([]); // [{id, name}]
   const [files, setFiles] = useState([]);
@@ -47,7 +48,7 @@ export default function DriveBrowser({ onOpenItem }) {
     return "file";
   };
 
-  const fileEmoji = { image: "🖼", video: "🎥", model3d: "🧊", file: "📄" };
+  const fileIcon = { image: "image", video: "video", model3d: "box", file: "document" };
 
   const handleFileClick = (f) => {
     if (f.isFolder) {
@@ -79,15 +80,27 @@ export default function DriveBrowser({ onOpenItem }) {
   };
 
   return (
-    <div style={{ padding: 24 }}>
-      <h2 style={{ margin: "0 0 6px", fontSize: 18, fontWeight: 700, color: "#fff" }}>
+    <div style={{ padding: mobile ? 12 : 24 }}>
+      {mobile && (
+        <button
+          onClick={onOpenMenu}
+          aria-label="Open navigation"
+          style={{
+            width: 36, height: 36, borderRadius: 9, marginBottom: 12,
+            background: "#141414", color: "#fff",
+            border: "1px solid rgba(255,255,255,0.08)",
+            fontSize: 18, cursor: "pointer"
+          }}
+        ><Icon name="menu" size={18} /></button>
+      )}
+      <h2 style={{ margin: "0 0 6px", fontSize: mobile ? 17 : 18, fontWeight: 700, color: "#fff" }}>
         Google Drive Browser
       </h2>
       <p style={{ margin: "0 0 20px", fontSize: 12, color: "#555" }}>
         Paste a public Drive folder link. The folder must be shared as “Anyone with the link can view.”
       </p>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, maxWidth: 600 }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, maxWidth: 600, flexDirection: mobile ? "column" : "row" }}>
         <input
           value={folderInput}
           onChange={(e) => setFolderInput(e.target.value)}
@@ -96,11 +109,11 @@ export default function DriveBrowser({ onOpenItem }) {
           style={{
             flex: 1, padding: "10px 14px", background: "#141414",
             border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8,
-            color: "#fff", fontSize: 13, outline: "none", fontFamily: "monospace"
+            color: "#fff", fontSize: mobile ? 16 : 13, outline: "none", fontFamily: "monospace"
           }}
         />
         <button onClick={handleLoad} style={{
-          padding: "10px 20px", background: "#34A853",
+          padding: mobile ? "12px 20px" : "10px 20px", background: "#34A853",
           border: "none", borderRadius: 8, color: "#fff",
           fontSize: 13, fontWeight: 600, cursor: "pointer"
         }}>
@@ -144,8 +157,8 @@ export default function DriveBrowser({ onOpenItem }) {
       {!loading && files.length > 0 && (
         <div style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-          gap: 10
+          gridTemplateColumns: mobile ? "repeat(2, minmax(0, 1fr))" : "repeat(auto-fill, minmax(180px, 1fr))",
+          gap: mobile ? 10 : 10
         }}>
           {files.map((f) => {
             const ft = f.isFolder ? "folder" : guessFileType(f.name);
@@ -155,7 +168,7 @@ export default function DriveBrowser({ onOpenItem }) {
                 onClick={() => handleFileClick(f)}
                 style={{
                   display: "flex", flexDirection: "column", alignItems: "center",
-                  gap: 8, padding: "20px 12px",
+                  gap: 8, padding: mobile ? "14px 10px" : "20px 12px",
                   background: "#141414", borderRadius: 10,
                   border: "1px solid rgba(255,255,255,0.05)",
                   cursor: "pointer", transition: "all 0.15s"
@@ -165,7 +178,7 @@ export default function DriveBrowser({ onOpenItem }) {
               >
                 {/* Thumbnail for images/videos via Drive thumbnail API */}
                 {!f.isFolder && (ft === "image" || ft === "video") ? (
-                  <div style={{ width: "100%", height: 80, borderRadius: 6, overflow: "hidden", background: "#0a0a0a" }}>
+                  <div style={{ width: "100%", height: mobile ? 92 : 80, borderRadius: 6, overflow: "hidden", background: "#0a0a0a" }}>
                     <img
                       src={`https://drive.google.com/thumbnail?id=${f.id}&sz=w300`}
                       alt={f.name}
@@ -174,7 +187,7 @@ export default function DriveBrowser({ onOpenItem }) {
                     />
                   </div>
                 ) : (
-                  <div style={{ fontSize: 32 }}>{f.isFolder ? "📁" : fileEmoji[ft]}</div>
+                  <div style={{ color: "#777", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name={f.isFolder ? "folder" : fileIcon[ft]} size={34} /></div>
                 )}
                 <div style={{
                   fontSize: 11, color: "#bbb", textAlign: "center",

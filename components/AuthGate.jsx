@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import Icon from "./Icons";
 
 export default function AuthGate({ children }) {
   const [session, setSession] = useState(null);
@@ -11,6 +12,14 @@ export default function AuthGate({ children }) {
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
   const [busy, setBusy] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    const syncViewport = () => setIsMobile(window.innerWidth < 640);
+    syncViewport();
+    window.addEventListener("resize", syncViewport);
+    return () => window.removeEventListener("resize", syncViewport);
+  }, []);
 
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
@@ -28,7 +37,7 @@ export default function AuthGate({ children }) {
   if (checking) {
     return (
       <div style={{
-        minHeight: "100vh", background: "#0a0a0a",
+        minHeight: "100dvh", background: "#0a0a0a",
         display: "flex", alignItems: "center", justifyContent: "center"
       }}>
         <div style={{
@@ -67,18 +76,18 @@ export default function AuthGate({ children }) {
 
   return (
     <div style={{
-      minHeight: "100vh", background: "#0a0a0a",
+      minHeight: "100dvh", background: "#0a0a0a",
       display: "flex", alignItems: "center", justifyContent: "center",
-      fontFamily: "'Inter', -apple-system, sans-serif"
+      fontFamily: "'Inter', -apple-system, sans-serif", padding: isMobile ? 14 : 0
     }}>
       <div style={{
-        width: 380, maxWidth: "92vw",
+        width: 380, maxWidth: "100%",
         background: "#141414", borderRadius: 18,
         border: "1px solid rgba(255,255,255,0.08)",
-        padding: 36, boxShadow: "0 24px 80px rgba(0,0,0,0.7)"
+        padding: isMobile ? 26 : 36, boxShadow: "0 24px 80px rgba(0,0,0,0.7)"
       }}>
         <div style={{ textAlign: "center", marginBottom: 28 }}>
-          <div style={{ fontSize: 36, marginBottom: 10 }}>🗄️</div>
+          <div style={{ marginBottom: 10, color: "#777", display: "flex", justifyContent: "center" }}><Icon name="vault" size={38} /></div>
           <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700, color: "#fff", letterSpacing: -0.5 }}>
             Media Vault
           </h1>
@@ -92,7 +101,7 @@ export default function AuthGate({ children }) {
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder="Email"
-          style={inputStyle}
+          style={{ ...inputStyle, fontSize: isMobile ? 16 : 14, padding: isMobile ? "14px 14px" : "12px 14px" }}
         />
         <input
           type="password"
@@ -100,7 +109,7 @@ export default function AuthGate({ children }) {
           onChange={(e) => setPassword(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") handleSubmit(); }}
           placeholder="Password"
-          style={{ ...inputStyle, marginBottom: 18 }}
+          style={{ ...inputStyle, marginBottom: 18, fontSize: isMobile ? 16 : 14, padding: isMobile ? "14px 14px" : "12px 14px" }}
         />
 
         {error && (
@@ -120,7 +129,7 @@ export default function AuthGate({ children }) {
           onClick={handleSubmit}
           disabled={busy || !email.trim() || !password.trim()}
           style={{
-            width: "100%", padding: 13,
+            width: "100%", padding: isMobile ? 15 : 13,
             background: busy ? "#1a1a1a" : "#fff",
             color: busy ? "#444" : "#000",
             border: "none", borderRadius: 9,

@@ -106,9 +106,9 @@ export default function Slideshow({ items, onClose, scrapedMap }) {
 
       <div style={{ position: "absolute", top: 18, right: 18, display: "flex", gap: 8 }}>
         <button onClick={() => setPlaying(!playing)} style={topBtn}>
-          {playing ? "⏸" : "▶"}
+          <Icon name={playing ? "pause" : "play"} size={15} />
         </button>
-        <button onClick={onClose} style={topBtn}>✕</button>
+        <button onClick={onClose} style={topBtn}><Icon name="x" size={15} /></button>
       </div>
 
       {/* Progress dots */}

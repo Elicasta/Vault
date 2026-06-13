@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect } from "react";
 import Thumbnail from "./Thumbnail";
+import Icon from "./Icons";
 import { typeColor, typeLabel, isVRFormat } from "@/lib/utils";
 
 export default function Card({
@@ -16,7 +17,7 @@ export default function Card({
   const isVR = isVRFormat(item.format);
   const is3D = item.type === "model3d";
 
-  const canEmbed = ["youtube", "vimeo", "gdrive", "image", "video", "model3d"].includes(item.type)
+  const canEmbed = ["youtube", "vimeo", "gdrive", "image", "video", "model3d", "pdf", "torrent"].includes(item.type)
     || scraped?.video || scraped?.image || isVR;
 
   const handleClick = () => (canEmbed ? onOpen(item) : window.open(item.url, "_blank"));
@@ -43,7 +44,7 @@ export default function Card({
         </div>
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 13, fontWeight: 500, color: "#e8e8e8", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", display: "flex", alignItems: "center", gap: 6 }}>
-            {isFav && <span style={{ color: "#F59E0B", fontSize: 11 }}>★</span>}
+            {isFav && <Icon name="star" size={12} filled style={{ color: "#F59E0B" }} />}
             {scraped?.title || item.title}
             {isVR && <Badge color="#06B6D4">VR</Badge>}
             {is3D && <Badge color="#06B6D4">3D</Badge>}
@@ -61,7 +62,7 @@ export default function Card({
           <button
             onClick={(e) => { e.stopPropagation(); onToggleFavorite(item.key, isFav); }}
             style={{ ...iconBtn, color: isFav ? "#F59E0B" : "#555" }}
-          >★</button>
+          ><Icon name="star" size={14} filled={!!isFav} /></button>
         )}
       </div>
     );
@@ -119,7 +120,7 @@ export default function Card({
                   onClick={(e) => { e.stopPropagation(); setFolderMenu(!folderMenu); }}
                   style={overlayBtn}
                   title="Add to folder"
-                >📁</button>
+                ><Icon name="folder" size={14} /></button>
                 {folderMenu && (
                   <div
                     onClick={(e) => e.stopPropagation()}
@@ -153,7 +154,7 @@ export default function Card({
               onClick={(e) => { e.stopPropagation(); onToggleFavorite(item.key, isFav); }}
               style={{ ...overlayBtn, color: isFav ? "#F59E0B" : "#fff" }}
               title="Favorite"
-            >★</button>
+            ><Icon name="star" size={14} filled={!!isFav} /></button>
           </div>
         )}
 
@@ -163,7 +164,7 @@ export default function Card({
             position: "absolute", top: 7, right: 7,
             color: "#F59E0B", fontSize: 14,
             textShadow: "0 1px 4px rgba(0,0,0,0.8)"
-          }}>★</div>
+          }}><Icon name="star" size={14} filled /></div>
         )}
 
         {/* Watch progress bar */}
