@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 
-// In-memory cache (per serverless instance — fine for this use)
 const cache = new Map();
 const CACHE_TTL = 1000 * 60 * 60; // 1 hour
 
@@ -12,16 +11,15 @@ export async function GET(request) {
     return NextResponse.json({ error: "Invalid url" }, { status: 400 });
   }
 
-  // Cache hit
   const cached = cache.get(url);
   if (cached && Date.now() - cached.at < CACHE_TTL) {
     return NextResponse.json(cached.data);
   }
 
   try {
-    const result = { title: null, image: null, video: null, description: null };
+    const result = { title: null, image: null, images: null, video: null, description: null, embed: null };
 
-    // ── Reddit special handling ──
+    // ── Reddit ──────────────────────────────────────────────────────────────
     if (url.includes("reddit.com")) {
       const jsonUrl = url.replace(/\/?$/, "") + ".json";
       const r = await fetch(jsonUrl, { headers: { "User-Agent": "MediaVault/1.0" } });
@@ -34,10 +32,14 @@ export async function GET(request) {
           if (post.preview?.images?.[0]?.source?.url) {
             result.image = post.preview.images[0].source.url.replace(/&amp;/g, "&");
           }
-          // Reddit hosted video
           const rv = post.media?.reddit_video || post.secure_media?.reddit_video;
-          if (rv?.fallback_url) {
-            result.video = rv.fallback_url.split("?")[0];
+          if (rv?.fallback_url) result.video = rv.fallback_url.split("?")[0];
+          // Reddit gallery
+          if (post.is_gallery && post.media_metadata) {
+            result.images = Object.values(post.media_metadata)
+              .filter((m) => m.status === "valid" && m.e === "Image")
+              .map((m) => (m.s?.u || m.s?.gif || "").replace(/&amp;/g, "&"))
+              .filter(Boolean);
           }
         }
         cache.set(url, { at: Date.now(), data: result });
@@ -45,7 +47,41 @@ export async function GET(request) {
       }
     }
 
-    // ── Generic OG scraping ──
+    // ── Instagram ────────────────────────────────────────────────────────────
+    // Server-side scraping is blocked by Instagram. Use their public embed endpoint.
+    if (url.includes("instagram.com")) {
+      const sc = url.match(/instagram\.com\/(?:p|reel|tv)\/([A-Za-z0-9_-]+)/)?.[1];
+      if (sc) {
+        result.embed = `https://www.instagram.com/p/${sc}/embed/`;
+        result.title = "Instagram Post";
+      }
+      cache.set(url, { at: Date.now(), data: result });
+      return NextResponse.json(result);
+    }
+
+    // ── TikTok ───────────────────────────────────────────────────────────────
+    if (url.includes("tiktok.com")) {
+      try {
+        const oe = await fetch(
+          `https://www.tiktok.com/oembed?url=${encodeURIComponent(url)}`,
+          { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(5000) }
+        );
+        if (oe.ok) {
+          const d = await oe.json();
+          result.title       = d.title || null;
+          result.image       = d.thumbnail_url || null;
+          result.description = d.author_name ? `@${d.author_name}` : null;
+          if (d.html) {
+            const srcMatch = d.html.match(/src="([^"]+)"/);
+            if (srcMatch) result.embed = decodeEntities(srcMatch[1]);
+          }
+        }
+      } catch {}
+      cache.set(url, { at: Date.now(), data: result });
+      return NextResponse.json(result);
+    }
+
+    // ── Generic OG scraping ──────────────────────────────────────────────────
     const res = await fetch(url, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36",
@@ -56,8 +92,7 @@ export async function GET(request) {
     });
 
     if (!res.ok) throw new Error(`Fetch failed: ${res.status}`);
-
-    const html = (await res.text()).slice(0, 200000); // first 200KB is enough for head tags
+    const html = (await res.text()).slice(0, 300000);
 
     const meta = (prop) => {
       const patterns = [
@@ -73,34 +108,55 @@ export async function GET(request) {
       return null;
     };
 
-    result.title = meta("og:title") || meta("twitter:title") || extractTitle(html);
-    result.image = meta("og:image") || meta("og:image:url") || meta("twitter:image");
-    result.video =
-      meta("og:video") || meta("og:video:url") || meta("og:video:secure_url") ||
-      meta("twitter:player:stream");
+    result.title       = meta("og:title") || meta("twitter:title") || extractTitle(html);
+    result.image       = meta("og:image") || meta("og:image:url") || meta("twitter:image");
+    result.video       = meta("og:video") || meta("og:video:url") || meta("og:video:secure_url") || meta("twitter:player:stream");
     result.description = meta("og:description") || meta("description");
 
-    // Some sites (mixkit) embed direct mp4 in <video> or <source> tags
     if (!result.video) {
-      const videoMatch =
-        html.match(/<source[^>]+src=["']([^"']+\.mp4[^"']*)["']/i) ||
-        html.match(/<video[^>]+src=["']([^"']+\.mp4[^"']*)["']/i);
-      if (videoMatch) result.video = decodeEntities(videoMatch[1]);
+      const vm = html.match(/<source[^>]+src=["']([^"']+\.mp4[^"']*)['"]/i) ||
+                 html.match(/<video[^>]+src=["']([^"']+\.mp4[^"']*)['"]/i);
+      if (vm) result.video = decodeEntities(vm[1]);
     }
+
+    // ── Gallery extraction ───────────────────────────────────────────────────
+    const ogImages = [];
+    const ogRx = /<meta[^>]+(?:property=["']og:image["'][^>]+content=["']([^"']+)["']|content=["']([^"']+)["'][^>]+property=["']og:image["'])/gi;
+    let ogM;
+    while ((ogM = ogRx.exec(html)) !== null) {
+      const src = decodeEntities(ogM[1] || ogM[2]);
+      if (src && !ogImages.includes(src)) ogImages.push(src);
+    }
+
+    const pageImages = [];
+    const imgRx = /<img[^>]+src=["']([^"']+)["'][^>]*(?:width=["'](\d+)["'])?/gi;
+    let imgM;
+    while ((imgM = imgRx.exec(html)) !== null) {
+      const src = imgM[1];
+      const w   = imgM[2] ? parseInt(imgM[2]) : 999;
+      if (
+        src && src.startsWith("http") && w > 200 &&
+        !/logo|icon|avatar|sprite|pixel|tracking|badge|button/i.test(src) &&
+        /\.(jpg|jpeg|png|webp|gif|avif)(\?|$)/i.test(src) &&
+        !pageImages.includes(src)
+      ) pageImages.push(src);
+    }
+
+    const allImages = [...new Set([...ogImages, ...pageImages])];
+    if (allImages.length >= 3) result.images = allImages.slice(0, 40);
 
     // Resolve relative URLs
     const base = new URL(url);
-    const absolutize = (u) => {
-      if (!u) return null;
-      try { return new URL(u, base).href; } catch { return u; }
-    };
-    result.image = absolutize(result.image);
-    result.video = absolutize(result.video);
+    const abs = (u) => { if (!u) return null; try { return new URL(u, base).href; } catch { return u; } };
+    result.image  = abs(result.image);
+    result.video  = abs(result.video);
+    result.images = result.images?.map(abs).filter(Boolean) || null;
 
     cache.set(url, { at: Date.now(), data: result });
     return NextResponse.json(result);
+
   } catch (err) {
-    const fallback = { title: null, image: null, video: null, error: err.message };
+    const fallback = { title: null, image: null, images: null, video: null, embed: null, error: err.message };
     cache.set(url, { at: Date.now(), data: fallback });
     return NextResponse.json(fallback);
   }

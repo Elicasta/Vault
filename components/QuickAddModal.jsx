@@ -4,7 +4,7 @@ import Icon from "./Icons";
 import { detectType, typeLabel, itemKey } from "@/lib/utils";
 import { T } from "@/lib/theme";
 
-const SUPPORTED_TYPES = ["youtube","vimeo","video","audio","music","image","pdf","epub","doc","link"];
+const SUPPORTED_TYPES = ["youtube","vimeo","video","audio","music","image","gallery","instagram","tiktok","link"];
 
 export default function QuickAddModal({ onAdd, onClose }) {
   const [url,   setUrl]   = useState("");

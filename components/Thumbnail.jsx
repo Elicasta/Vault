@@ -60,23 +60,27 @@ export default function Thumbnail({ item, scraped }) {
     );
   }
 
-  // Type-specific icon placeholders
+  // Type-specific icon fallback
   const iconMap = {
     facebook:"link", instagram:"image", tiktok:"video", twitter:"link",
     reddit:"link", vimeo:"video", video:"video",
-    audio:"headphones", music:"music",
-    pdf:"file", epub:"bookOpen", doc:"fileText",
+    audio:"headphones", music:"music", gallery:"grid",
     "gdrive-folder":"folder", link:"link", unknown:"link"
   };
 
-  // Reading types get a paper-white background
-  const isReading = ["pdf","epub","doc"].includes(type);
-  const isMusic   = ["audio","music"].includes(type);
-  const bgGradient = isReading
-    ? `linear-gradient(135deg, #1a1a2e, #16213e)`
-    : isMusic
-      ? `linear-gradient(135deg, #2a0a1f, #4a0a35)`
-      : T.bgRaised;
+  const isMusic = ["audio","music"].includes(type);
+  const bg = isMusic ? "linear-gradient(135deg, #2a0a1f, #4a0a35)" : T.bgRaised;
+  const iconName = iconMap[type];
+
+  if (iconName) {
+    return (
+      <div style={{ width:"100%", paddingTop:"56.25%", position:"relative", background: bg }}>
+        <div style={{ position:"absolute", inset:0, display:"flex", alignItems:"center", justifyContent:"center" }}>
+          <Icon name={iconName} size={28} style={{ color:"rgba(235,235,245,0.25)" }} />
+        </div>
+      </div>
+    );
+  }
 
   return <LetterCover title={title} />;
 }

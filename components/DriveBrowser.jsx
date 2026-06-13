@@ -9,15 +9,12 @@ const guessType = (name) => {
   if (/\.(jpg|jpeg|png|gif|webp|heic)$/.test(n)) return "image";
   if (/\.(mp4|mov|webm|m4v)$/.test(n))           return "video";
   if (/\.(mp3|flac|m4a|wav|aac|opus)$/.test(n))  return "audio";
-  if (/\.pdf$/.test(n))                           return "pdf";
-  if (/\.epub$/.test(n))                          return "epub";
-  if (/\.(doc|docx|txt|rtf)$/.test(n))            return "doc";
   return "file";
 };
 
-const typeIcon = { image:"image", video:"video", audio:"headphones", pdf:"file", epub:"bookOpen", doc:"fileText", file:"document" };
+const typeIcon = { image:"image", video:"video", audio:"headphones", file:"document" };
 
-const COLOR = { image:"rgba(235,235,245,0.35)", video:"rgba(235,235,245,0.35)", audio:"rgba(235,235,245,0.35)", pdf:"rgba(235,235,245,0.35)", epub:"rgba(235,235,245,0.35)", doc:"rgba(235,235,245,0.35)", file:"rgba(235,235,245,0.2)" };
+const COLOR = { image:"rgba(235,235,245,0.35)", video:"rgba(235,235,245,0.35)", audio:"rgba(235,235,245,0.35)", file:"rgba(235,235,245,0.2)" };
 
 function formatSize(bytes) {
   if (!bytes) return "";

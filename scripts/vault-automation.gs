@@ -220,14 +220,11 @@ function detectFileType(file) {
   if (mime.startsWith("video/") || /\.(mp4|mov|avi|mkv|webm|m4v)$/.test(name)) return "video";
   if (mime.startsWith("audio/") || /\.(mp3|flac|m4a|wav|aac|opus)$/.test(name)) return "audio";
   if (mime.startsWith("image/") || /\.(jpg|jpeg|png|gif|webp|avif|bmp)$/.test(name)) return "image";
-  if (mime === "application/pdf" || name.endsWith(".pdf")) return "pdf";
-  if (name.endsWith(".epub")) return "epub";
-  if (mime.includes("document") || /\.(doc|docx|txt|rtf|pages)$/.test(name)) return "doc";
   return "link";
 }
 
 function getFileUrl(file) {
-  return `https://drive.google.com/file/d/${file.getId()}/view`;
+  return file.getUrl();
 }
 
 function getProcessedIds() {

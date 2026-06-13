@@ -99,7 +99,7 @@ export default function CardMenu({ item, data, folders, onAssignFolder, onToggle
           {item.isQuickAdd && onRemoveQuickAdd && (
             <MenuItem icon="x" label="Remove from Vault" onPress={() => { onRemoveQuickAdd(item.key); onClose(); }} />
           )}
-          {onMarkWatched && !["pdf","epub","doc","audio","music"].includes(item.type) && (
+          {onMarkWatched && !["audio","music"].includes(item.type) && (
             <MenuItem icon="history" label="Mark as watched" onPress={() => { onMarkWatched(item.key); onClose(); }} />
           )}
           <MenuItem icon="external" label="Open in browser" onPress={openExternal} />

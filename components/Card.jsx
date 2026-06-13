@@ -17,7 +17,7 @@ export default function Card({
   const isFav    = data?.favorite;
   const progress = data?.progress && data?.duration ? data.progress / data.duration : 0;
   const isMusic  = ["audio","music"].includes(item.type);
-  const canEmbed = ["youtube","vimeo","gdrive","image","video","pdf","epub","doc","audio","music"].includes(item.type) || scraped?.video || scraped?.image;
+  const canEmbed = ["youtube","vimeo","gdrive","image","gallery","video","audio","music","instagram","tiktok"].includes(item.type) || scraped?.video || scraped?.image || (scraped?.images?.length >= 3) || scraped?.embed;
 
   const handleClick = (e) => {
     if (menuOpen) return;

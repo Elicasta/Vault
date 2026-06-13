@@ -6,7 +6,6 @@ import ConfigModal from "./ConfigModal";
 import Sidebar from "./Sidebar";
 import DriveBrowser from "./DriveBrowser";
 import Slideshow from "./Slideshow";
-import ReaderModal from "./ReaderModal";
 import MusicPlayer from "./MusicPlayer";
 import BottomNav from "./BottomNav";
 import HomeView from "./HomeView";
@@ -57,8 +56,6 @@ export default function Vault() {
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [activeItem, setActiveItem] = useState(null);
   const [activeItemIdx, setActiveItemIdx] = useState(0);
-  const [showReader, setShowReader] = useState(null);
-  const [readerIdx, setReaderIdx] = useState(0);
   const [showSlideshow, setShowSlideshow] = useState(false);
   const [selectedItem, setSelectedItem] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -259,11 +256,7 @@ export default function Vault() {
   // ── Open item ──────────────────────────────────────────────────────────────
   const openItem = useCallback((item, sourceList) => {
     const list = sourceList || getViewItems();
-    if (["pdf","epub","doc"].includes(item.type)) {
-      const ri = list.filter((i) => ["pdf","epub","doc"].includes(i.type));
-      setShowReader(item); setReaderIdx(Math.max(0, ri.findIndex((i) => i.key === item.key))); return;
-    }
-    const ei = list.filter((i) => !["pdf","epub","doc","audio","music"].includes(i.type));
+    const ei = list.filter((i) => !["audio","music"].includes(i.type));
     setActiveItem(item); setActiveItemIdx(Math.max(0, ei.findIndex((i) => i.key === item.key)));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allItems, activeView, sortBy]);
@@ -307,8 +300,7 @@ export default function Vault() {
   }, [allItems, activeView, typeFilter, search, userData, tabs, quickAdds, sortItems]);
 
   const viewItems   = getViewItems();
-  const readerItems = viewItems.filter((i) => ["pdf","epub","doc"].includes(i.type));
-  const embedItems  = viewItems.filter((i) => !["pdf","epub","doc","audio","music"].includes(i.type));
+  const embedItems  = viewItems.filter((i) => !["audio","music"].includes(i.type));
 
   const counts = {
     all:       allItems.length,
@@ -474,12 +466,7 @@ export default function Vault() {
           resumeAt={userData[activeItem.key]?.progress || 0} scraped={scrapedMap[activeItem.url]} />
       )}
 
-      {showReader && (
-        <ReaderModal item={showReader} items={readerItems} currentIdx={readerIdx}
-          onNavigate={(idx) => { setReaderIdx(idx); setShowReader(readerItems[idx]); }}
-          onClose={() => setShowReader(null)} userId={user?.id}
-          resumeAt={userData[showReader.key]?.progress || 0} />
-      )}
+
 
       {showSlideshow && <Slideshow items={viewItems} onClose={() => setShowSlideshow(false)} scrapedMap={scrapedMap} />}
       {musicOpen && <MusicPlayer queue={musicQueue} currentIdx={musicIdx} onIdxChange={setMusicIdx} onClose={() => setMusicOpen(false)} userId={user?.id} />}

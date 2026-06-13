@@ -8,7 +8,7 @@ const TYPE_SECTIONS = [
   { id: "type:Videos",  icon: "video",    label: "Videos"  },
   { id: "type:Photos",  icon: "image",    label: "Photos"  },
   { id: "type:Music",   icon: "music",    label: "Music"   },
-  { id: "type:Reading", icon: "bookOpen", label: "Reading" },
+  { id: "type:Social",   icon: "link",     label: "Social"   },
   { id: "type:Links",   icon: "link",     label: "Links"   },
 ];
 
