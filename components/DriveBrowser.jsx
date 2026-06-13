@@ -2,35 +2,52 @@
 import { useState } from "react";
 import { getGDriveFolderId, detectType, itemKey } from "@/lib/utils";
 import Icon from "./Icons";
+import { T } from "@/lib/theme";
+
+const guessType = (name) => {
+  const n = name.toLowerCase();
+  if (/\.(jpg|jpeg|png|gif|webp|heic)$/.test(n)) return "image";
+  if (/\.(mp4|mov|webm|m4v)$/.test(n))           return "video";
+  if (/\.(mp3|flac|m4a|wav|aac|opus)$/.test(n))  return "audio";
+  if (/\.pdf$/.test(n))                           return "pdf";
+  if (/\.epub$/.test(n))                          return "epub";
+  if (/\.(doc|docx|txt|rtf)$/.test(n))            return "doc";
+  return "file";
+};
+
+const typeIcon = { image:"image", video:"video", audio:"headphones", pdf:"file", epub:"bookOpen", doc:"fileText", file:"document" };
+
+const COLOR = { image:"rgba(235,235,245,0.35)", video:"rgba(235,235,245,0.35)", audio:"rgba(235,235,245,0.35)", pdf:"rgba(235,235,245,0.35)", epub:"rgba(235,235,245,0.35)", doc:"rgba(235,235,245,0.35)", file:"rgba(235,235,245,0.2)" };
+
+function formatSize(bytes) {
+  if (!bytes) return "";
+  if (bytes > 1e9) return `${(bytes/1e9).toFixed(1)} GB`;
+  if (bytes > 1e6) return `${(bytes/1e6).toFixed(1)} MB`;
+  if (bytes > 1e3) return `${(bytes/1e3).toFixed(1)} KB`;
+  return `${bytes} B`;
+}
 
 export default function DriveBrowser({ onOpenItem, mobile = false, onOpenMenu }) {
   const [folderInput, setFolderInput] = useState("");
-  const [breadcrumbs, setBreadcrumbs] = useState([]); // [{id, name}]
+  const [breadcrumbs, setBreadcrumbs] = useState([]);
   const [files, setFiles] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [sortBy, setSortBy] = useState("name"); // "name" | "type" | "size"
+  const [sortDir, setSortDir] = useState(1); // 1 asc, -1 desc
 
   const loadFolder = async (folderId, name = "Drive") => {
-    setLoading(true);
-    setError("");
+    setLoading(true); setError("");
     try {
       const res = await fetch(`/api/drive?id=${encodeURIComponent(folderId)}`);
       const json = await res.json();
       if (json.error) throw new Error(json.error);
       setFiles(json.files || []);
-
-      // Update breadcrumbs
       const existing = breadcrumbs.findIndex((b) => b.id === folderId);
-      if (existing >= 0) {
-        setBreadcrumbs(breadcrumbs.slice(0, existing + 1));
-      } else {
-        setBreadcrumbs([...breadcrumbs, { id: folderId, name }]);
-      }
-    } catch (e) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
-    }
+      if (existing >= 0) setBreadcrumbs(breadcrumbs.slice(0, existing + 1));
+      else setBreadcrumbs([...breadcrumbs, { id: folderId, name }]);
+    } catch (e) { setError(e.message); }
+    finally { setLoading(false); }
   };
 
   const handleLoad = () => {
@@ -40,102 +57,83 @@ export default function DriveBrowser({ onOpenItem, mobile = false, onOpenMenu })
     loadFolder(id, "Drive");
   };
 
-  const guessFileType = (name) => {
-    const n = name.toLowerCase();
-    if (/\.(jpg|jpeg|png|gif|webp|heic)$/.test(n)) return "image";
-    if (/\.(mp4|mov|webm|m4v|avi)$/.test(n)) return "video";
-    if (/\.(obj|glb|gltf|stl)$/.test(n)) return "model3d";
-    return "file";
-  };
-
-  const fileIcon = { image: "image", video: "video", model3d: "box", file: "document" };
-
   const handleFileClick = (f) => {
-    if (f.isFolder) {
-      loadFolder(f.id, f.name);
-      return;
-    }
-    const fileType = guessFileType(f.name);
-    // Build a vault-compatible item and open it
+    if (f.isFolder) { loadFolder(f.id, f.name); return; }
+    const ft = guessType(f.name);
     const url = `https://drive.google.com/file/d/${f.id}/view`;
-    const lowerName = f.name.toLowerCase();
-    const inferredFormat =
-      fileType === "video" && lowerName.includes("sbs360") ? "sbs360" :
-      fileType === "video" && lowerName.includes("sbs180") ? "sbs180" :
-      fileType === "video" && lowerName.includes("360") ? "360" :
-      fileType === "video" && lowerName.includes("180") ? "180" :
-      "flat";
-
     onOpenItem({
       id: `drive-${f.id}`,
       key: itemKey(url),
-      url,
-      title: f.name,
-      note: "",
-      tags: [],
-      format: inferredFormat,
-      type: fileType === "model3d" ? "model3d" : "gdrive",
+      url, title: f.name, note: "", tags: [],
+      type: ft === "file" ? "gdrive" : ft,
       tab: "Drive",
     });
   };
 
+  const toggleSort = (col) => {
+    if (sortBy === col) setSortDir((d) => -d);
+    else { setSortBy(col); setSortDir(1); }
+  };
+
+  const sorted = [...files].sort((a, b) => {
+    // Folders always first
+    if (a.isFolder !== b.isFolder) return a.isFolder ? -1 : 1;
+    if (sortBy === "type") {
+      const ta = a.isFolder ? "" : guessType(a.name);
+      const tb = b.isFolder ? "" : guessType(b.name);
+      return ta.localeCompare(tb) * sortDir;
+    }
+    if (sortBy === "size") return ((a.size || 0) - (b.size || 0)) * sortDir;
+    return a.name.localeCompare(b.name) * sortDir;
+  });
+
+  const SortHeader = ({ col, label }) => (
+    <button onClick={() => toggleSort(col)} style={{
+      background: "none", border: "none", color: sortBy === col ? "#f5f5f7" : "rgba(235,235,245,0.28)",
+      cursor: "pointer", fontSize: 10, fontWeight: 700, letterSpacing: 1.1,
+      textTransform: "uppercase", display: "flex", alignItems: "center", gap: 3, padding: 0
+    }}>
+      {label}
+      {sortBy === col && <Icon name={sortDir === 1 ? "chevronUp" : "chevronDown"} size={10} />}
+    </button>
+  );
+
   return (
-    <div style={{ padding: mobile ? 12 : 24 }}>
+    <div style={{ padding: mobile ? 12 : 24, fontFamily: "Inter, sans-serif" }}>
       {mobile && (
-        <button
-          onClick={onOpenMenu}
-          aria-label="Open navigation"
-          style={{
-            width: 36, height: 36, borderRadius: 9, marginBottom: 12,
-            background: "#141414", color: "#fff",
-            border: "1px solid rgba(255,255,255,0.08)",
-            fontSize: 18, cursor: "pointer"
-          }}
-        ><Icon name="menu" size={18} /></button>
+        <button onClick={onOpenMenu} aria-label="Open navigation" style={{ width: 36, height: 36, borderRadius: 9, marginBottom: 12, background: "rgba(255,255,255,0.06)", color: "#f5f5f7", border: "1px solid rgba(255,255,255,0.08)", cursor: "pointer" }}>
+          <Icon name="menu" size={18} />
+        </button>
       )}
-      <h2 style={{ margin: "0 0 6px", fontSize: mobile ? 17 : 18, fontWeight: 700, color: "#fff" }}>
-        Google Drive Browser
-      </h2>
-      <p style={{ margin: "0 0 20px", fontSize: 12, color: "#555" }}>
-        Paste a public Drive folder link. The folder must be shared as “Anyone with the link can view.”
+      <h2 style={{ margin: "0 0 4px", fontSize: mobile ? 17 : 18, fontWeight: 700, color: "#f5f5f7" }}>Google Drive</h2>
+      <p style={{ margin: "0 0 16px", fontSize: 12, color: "rgba(235,235,245,0.28)" }}>
+        Paste a public Drive folder link to browse files.
       </p>
 
-      <div style={{ display: "flex", gap: 8, marginBottom: 20, maxWidth: 600, flexDirection: mobile ? "column" : "row" }}>
+      <div style={{ display: "flex", gap: 8, marginBottom: 20, maxWidth: 620, flexDirection: mobile ? "column" : "row" }}>
         <input
           value={folderInput}
           onChange={(e) => setFolderInput(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") handleLoad(); }}
           placeholder="https://drive.google.com/drive/folders/..."
           style={{
-            flex: 1, padding: "10px 14px", background: "#141414",
+            flex: 1, padding: "10px 14px", background: "rgba(255,255,255,0.05)",
             border: "1px solid rgba(255,255,255,0.08)", borderRadius: 8,
-            color: "#fff", fontSize: mobile ? 16 : 13, outline: "none", fontFamily: "monospace"
+            color: "#f5f5f7", fontSize: mobile ? 16 : 13, outline: "none", fontFamily: "monospace"
           }}
         />
-        <button onClick={handleLoad} style={{
-          padding: mobile ? "12px 20px" : "10px 20px", background: "#34A853",
-          border: "none", borderRadius: 8, color: "#fff",
-          fontSize: 13, fontWeight: 600, cursor: "pointer"
-        }}>
+        <button onClick={handleLoad} style={{ padding: mobile ? "12px 20px" : "10px 20px", background: "rgba(255,255,255,0.09)", border: "1px solid rgba(255,255,255,0.1)", borderRadius: 8, color: "#f5f5f7", fontSize: 13, fontWeight: 500, cursor: "pointer" }}>
           Browse
         </button>
       </div>
 
       {/* Breadcrumbs */}
       {breadcrumbs.length > 0 && (
-        <div style={{ display: "flex", gap: 6, marginBottom: 16, fontSize: 12, alignItems: "center", flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: 4, marginBottom: 16, fontSize: 12, alignItems: "center", flexWrap: "wrap" }}>
           {breadcrumbs.map((b, i) => (
-            <span key={b.id} style={{ display: "flex", alignItems: "center", gap: 6 }}>
-              {i > 0 && <span style={{ color: "#333" }}>/</span>}
-              <button
-                onClick={() => loadFolder(b.id, b.name)}
-                style={{
-                  background: "none", border: "none",
-                  color: i === breadcrumbs.length - 1 ? "#fff" : "#34A853",
-                  cursor: "pointer", fontSize: 12, padding: 0,
-                  fontWeight: i === breadcrumbs.length - 1 ? 600 : 400
-                }}
-              >
+            <span key={b.id} style={{ display: "flex", alignItems: "center", gap: 4 }}>
+              {i > 0 && <Icon name="chevronRight" size={11} style={{ color: "#333" }} />}
+              <button onClick={() => loadFolder(b.id, b.name)} style={{ background: "none", border: "none", color: i === breadcrumbs.length - 1 ? "#f5f5f7" : "rgba(235,235,245,0.45)", cursor: "pointer", fontSize: 12, padding: 0, fontWeight: i === breadcrumbs.length - 1 ? 600 : 400 }}>
                 {b.name}
               </button>
             </span>
@@ -143,70 +141,52 @@ export default function DriveBrowser({ onOpenItem, mobile = false, onOpenMenu })
         </div>
       )}
 
-      {loading && <div style={{ color: "#444", fontSize: 13, padding: 40, textAlign: "center" }}>Reading folder...</div>}
+      {loading && <div style={{ color: "rgba(235,235,245,0.25)", fontSize: 13, padding: 40, textAlign: "center" }}>Reading folder...</div>}
+      {error && <div style={{ background: "rgba(255,60,60,0.07)", border: "1px solid rgba(255,60,60,0.18)", borderRadius: 10, padding: "14px 18px", fontSize: 13, color: "#ff6b6b" }}>{error}</div>}
 
-      {error && (
-        <div style={{
-          background: "rgba(255,60,60,0.07)", border: "1px solid rgba(255,60,60,0.18)",
-          borderRadius: 10, padding: "14px 18px", fontSize: 13, color: "#ff6b6b"
-        }}>
-          {error}
-        </div>
-      )}
-
-      {!loading && files.length > 0 && (
-        <div style={{
-          display: "grid",
-          gridTemplateColumns: mobile ? "repeat(2, minmax(0, 1fr))" : "repeat(auto-fill, minmax(180px, 1fr))",
-          gap: mobile ? 10 : 10
-        }}>
-          {files.map((f) => {
-            const ft = f.isFolder ? "folder" : guessFileType(f.name);
+      {/* Table view */}
+      {!loading && sorted.length > 0 && (
+        <div style={{ background: "transparent", borderRadius: 10, border: "1px solid rgba(255,255,255,0.07)", overflow: "hidden" }}>
+          {/* Header */}
+          <div style={{ display: "grid", gridTemplateColumns: "28px 1fr 90px 80px", gap: 12, padding: "10px 14px", borderBottom: "1px solid rgba(255,255,255,0.06)", alignItems: "center", background: "rgba(255,255,255,0.02)" }}>
+            <div />
+            <SortHeader col="name" label="Name" />
+            <SortHeader col="type" label="Type" />
+            <SortHeader col="size" label="Size" />
+          </div>
+          {/* Rows */}
+          {sorted.map((f) => {
+            const ft = f.isFolder ? "folder" : guessType(f.name);
+            const col = f.isFolder ? "#FBBC05" : (COLOR[ft] || "#555");
             return (
-              <button
-                key={f.id}
-                onClick={() => handleFileClick(f)}
-                style={{
-                  display: "flex", flexDirection: "column", alignItems: "center",
-                  gap: 8, padding: mobile ? "14px 10px" : "20px 12px",
-                  background: "#141414", borderRadius: 10,
-                  border: "1px solid rgba(255,255,255,0.05)",
-                  cursor: "pointer", transition: "all 0.15s"
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)"}
-                onMouseLeave={(e) => e.currentTarget.style.borderColor = "rgba(255,255,255,0.05)"}
+              <button key={f.id} onClick={() => handleFileClick(f)} style={{
+                display: "grid", gridTemplateColumns: "28px 1fr 90px 80px", gap: 12,
+                width: "100%", textAlign: "left", padding: "10px 14px",
+                background: "transparent", border: "none", cursor: "pointer",
+                borderBottom: "1px solid rgba(255,255,255,0.04)",
+                alignItems: "center", transition: "background 0.1s"
+              }}
+                onMouseEnter={(e) => e.currentTarget.style.background = "rgba(255,255,255,0.04)"}
+                onMouseLeave={(e) => e.currentTarget.style.background = "transparent"}
               >
-                {/* Thumbnail for images/videos via Drive thumbnail API */}
-                {!f.isFolder && (ft === "image" || ft === "video") ? (
-                  <div style={{ width: "100%", height: mobile ? 92 : 80, borderRadius: 6, overflow: "hidden", background: "#0a0a0a" }}>
-                    <img
-                      src={`https://drive.google.com/thumbnail?id=${f.id}&sz=w300`}
-                      alt={f.name}
-                      onError={(e) => { e.currentTarget.style.display = "none"; }}
-                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                    />
-                  </div>
-                ) : (
-                  <div style={{ color: "#777", display: "flex", alignItems: "center", justifyContent: "center" }}><Icon name={f.isFolder ? "folder" : fileIcon[ft]} size={34} /></div>
-                )}
-                <div style={{
-                  fontSize: 11, color: "#bbb", textAlign: "center",
-                  overflow: "hidden", textOverflow: "ellipsis",
-                  display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
-                  width: "100%"
-                }}>
+                <Icon name={f.isFolder ? "folder" : (typeIcon[ft] || "document")} size={16} style={{ color: col }} />
+                <span style={{ fontSize: 13, color: "rgba(235,235,245,0.75)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {f.name}
-                </div>
+                </span>
+                <span style={{ fontSize: 10, color: col, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.8 }}>
+                  {f.isFolder ? "Folder" : ft.toUpperCase()}
+                </span>
+                <span style={{ fontSize: 10, color: "rgba(235,235,245,0.2)" }}>
+                  {f.size ? formatSize(f.size) : ""}
+                </span>
               </button>
             );
           })}
         </div>
       )}
 
-      {!loading && breadcrumbs.length > 0 && files.length === 0 && !error && (
-        <div style={{ color: "#444", fontSize: 13, padding: 40, textAlign: "center" }}>
-          Folder is empty or files are not publicly visible.
-        </div>
+      {!loading && breadcrumbs.length > 0 && sorted.length === 0 && !error && (
+        <div style={{ color: "rgba(235,235,245,0.25)", fontSize: 13, padding: 40, textAlign: "center" }}>Folder is empty.</div>
       )}
     </div>
   );

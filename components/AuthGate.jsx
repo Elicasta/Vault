@@ -37,7 +37,7 @@ export default function AuthGate({ children }) {
   if (checking) {
     return (
       <div style={{
-        minHeight: "100dvh", background: "#0a0a0a",
+        minHeight: "100dvh", background: "#000000",
         display: "flex", alignItems: "center", justifyContent: "center"
       }}>
         <div style={{
@@ -76,13 +76,13 @@ export default function AuthGate({ children }) {
 
   return (
     <div style={{
-      minHeight: "100dvh", background: "#0a0a0a",
+      minHeight: "100dvh", background: "#000000",
       display: "flex", alignItems: "center", justifyContent: "center",
       fontFamily: "'Inter', -apple-system, sans-serif", padding: isMobile ? 14 : 0
     }}>
       <div style={{
         width: 380, maxWidth: "100%",
-        background: "#141414", borderRadius: 18,
+        background: "#0d0d0d", borderRadius: 16,
         border: "1px solid rgba(255,255,255,0.08)",
         padding: isMobile ? 26 : 36, boxShadow: "0 24px 80px rgba(0,0,0,0.7)"
       }}>
@@ -120,7 +120,7 @@ export default function AuthGate({ children }) {
         )}
         {info && (
           <div style={{
-            fontSize: 12, color: "#34A853", marginBottom: 14,
+            fontSize: 12, color: "rgba(235,235,245,0.35)", marginBottom: 14,
             background: "rgba(52,168,83,0.08)", borderRadius: 6, padding: "8px 12px"
           }}>{info}</div>
         )}
@@ -165,6 +165,6 @@ const inputStyle = {
 };
 
 const linkBtn = {
-  background: "none", border: "none", color: "#34A853",
+  background: "none", border: "none", color: "rgba(235,235,245,0.5)",
   cursor: "pointer", fontSize: 12, fontWeight: 600, padding: 0
 };

@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { getYouTubeId, getGDriveId } from "@/lib/utils";
+import Icon from "./Icons";
+import { T } from "@/lib/theme";
+import { getYouTubeId, getGDriveId, proxiedMediaUrl } from "@/lib/utils";
 
 export default function Slideshow({ items, onClose, scrapedMap }) {
   const [index, setIndex] = useState(0);
@@ -61,10 +63,12 @@ export default function Slideshow({ items, onClose, scrapedMap }) {
   const gdId = item.type === "gdrive" ? getGDriveId(item.url) : null;
 
   const imgSrc =
-    item.type === "image" ? item.url :
+    item.type === "image" ? proxiedMediaUrl(item.url) :
     ytId ? `https://img.youtube.com/vi/${ytId}/maxresdefault.jpg` :
     gdId ? `https://drive.google.com/thumbnail?id=${gdId}&sz=w1920` :
-    scrapedMap?.[item.url]?.image;
+    scrapedMap?.[item.url]?.image
+      ? proxiedMediaUrl(scrapedMap[item.url].image)
+      : null;
 
   return (
     <div style={overlayStyle}>
@@ -87,22 +91,22 @@ export default function Slideshow({ items, onClose, scrapedMap }) {
         textAlign: "center", fontFamily: "Inter, sans-serif",
         opacity: fade ? 1 : 0, transition: "opacity 0.3s"
       }}>
-        <div style={{ fontSize: 16, fontWeight: 600, color: "#fff", textShadow: "0 2px 12px rgba(0,0,0,0.8)" }}>
+        <div style={{ fontSize: 14, fontWeight: 500, color: "#f5f5f7", textShadow: "0 1px 8px rgba(0,0,0,0.9)" }}>
           {item.title}
         </div>
         {item.note && (
-          <div style={{ fontSize: 12, color: "#999", marginTop: 4, textShadow: "0 1px 8px rgba(0,0,0,0.8)" }}>
+          <div style={{ fontSize: 11, color: "rgba(235,235,245,0.45)", marginTop: 3 }}>
             {item.note}
           </div>
         )}
-        <div style={{ fontSize: 11, color: "#555", marginTop: 8 }}>
+        <div style={{ fontSize: 10, color: "rgba(235,235,245,0.25)", marginTop: 6 }}>
           {index + 1} / {visualItems.length}
         </div>
       </div>
 
       {/* Controls */}
-      <button onClick={prev} style={{ ...navBtn, left: 20 }}>‹</button>
-      <button onClick={next} style={{ ...navBtn, right: 20 }}>›</button>
+      <button onClick={prev} style={{ ...navBtn, left: 20 }}><Icon name="chevronLeft" size={22} /></button>
+      <button onClick={next} style={{ ...navBtn, right: 20 }}><Icon name="chevronRight" size={22} /></button>
 
       <div style={{ position: "absolute", top: 18, right: 18, display: "flex", gap: 8 }}>
         <button onClick={() => setPlaying(!playing)} style={topBtn}>
@@ -138,15 +142,15 @@ const overlayStyle = {
 
 const navBtn = {
   position: "absolute", top: "50%", transform: "translateY(-50%)",
-  background: "rgba(255,255,255,0.06)", border: "none",
-  color: "#fff", cursor: "pointer", borderRadius: "50%",
-  width: 48, height: 48, fontSize: 26,
+  background: "rgba(255,255,255,0.06)", backdropFilter: "blur(12px)", border: "1px solid rgba(255,255,255,0.07)",
+  color: "#f5f5f7", cursor: "pointer", borderRadius: "50%",
+  width: 44, height: 44,
   display: "flex", alignItems: "center", justifyContent: "center"
 };
 
 const topBtn = {
-  background: "rgba(255,255,255,0.08)", border: "none",
-  color: "#fff", cursor: "pointer", borderRadius: "50%",
-  width: 40, height: 40, fontSize: 15,
+  background: "rgba(255,255,255,0.07)", backdropFilter: "blur(12px)", border: "none",
+  color: "#f5f5f7", cursor: "pointer", borderRadius: "50%",
+  width: 36, height: 36,
   display: "flex", alignItems: "center", justifyContent: "center"
 };

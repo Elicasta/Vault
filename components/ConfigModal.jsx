@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import { extractSheetId } from "@/lib/utils";
+import { T } from "@/lib/theme";
 
 const isPublishedExportUrl = (val) =>
   /\/spreadsheets\/d\/e\//.test(val) || val.includes("pubhtml") || val.includes("pub?");
@@ -60,8 +61,8 @@ export default function ConfigModal({ onSave, onClose, savedId, needsManualTabs 
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "#181818", borderRadius: isMobile ? 18 : 16,
-          border: "1px solid rgba(255,255,255,0.1)",
+          background: "#0d0d0d", borderRadius: isMobile ? 18 : 16,
+          border: "1px solid rgba(255,255,255,0.07)",
           padding: isMobile ? 22 : 28, width: 520, maxWidth: "100%",
           maxHeight: isMobile ? "calc(100dvh - 24px)" : "90vh", overflowY: "auto",
           boxShadow: "0 20px 70px rgba(0,0,0,0.8)"
@@ -69,12 +70,12 @@ export default function ConfigModal({ onSave, onClose, savedId, needsManualTabs 
       >
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-            <rect x="3" y="3" width="18" height="18" rx="2" fill="#34A853"/>
+            <rect x="3" y="3" width="18" height="18" rx="2" fill="rgba(255,255,255,0.2)"/>
             <line x1="3" y1="9" x2="21" y2="9" stroke="white" strokeWidth="1.5"/>
             <line x1="3" y1="15" x2="21" y2="15" stroke="white" strokeWidth="1.5"/>
             <line x1="9" y1="3" x2="9" y2="21" stroke="white" strokeWidth="1.5"/>
           </svg>
-          <h2 style={{ margin: 0, fontSize: isMobile ? 18 : 17, fontWeight: 600, color: "#fff" }}>
+          <h2 style={{ margin: 0, fontSize: isMobile ? 18 : 17, fontWeight: 600, color: "#f5f5f7" }}>
             {needsManualTabs ? "Enter Your Tab Names" : "Connect Google Sheet"}
           </h2>
         </div>
@@ -84,17 +85,17 @@ export default function ConfigModal({ onSave, onClose, savedId, needsManualTabs 
             Tab names could not be detected automatically. Type them below exactly as they appear in your sheet.
           </p>
         ) : (
-          <p style={{ margin: "0 0 20px", color: "#555", fontSize: 13, lineHeight: 1.6 }}>
+          <p style={{ margin: "0 0 20px", color: "rgba(235,235,245,0.35)", fontSize: 13, lineHeight: 1.6 }}>
             Each tab = one collection. Tab name is the collection name.
           </p>
         )}
 
         {!needsManualTabs && (
           <div style={{
-            background: "#0f0f0f", borderRadius: 10, padding: 16,
+            background: "rgba(255,255,255,0.03)", borderRadius: 10, padding: 16,
             marginBottom: 20, border: "1px solid rgba(255,255,255,0.06)"
           }}>
-            <div style={{ fontSize: 10, color: "#34A853", fontWeight: 800, letterSpacing: 1.2, marginBottom: 10 }}>
+            <div style={{ fontSize: 10, color: "rgba(235,235,245,0.3)", fontWeight: 600, letterSpacing: 0.5, marginBottom: 10 }}>
               SHEET SETUP
             </div>
             <div style={{ fontSize: 12, color: "#666", lineHeight: 2 }}>
@@ -121,7 +122,7 @@ export default function ConfigModal({ onSave, onClose, savedId, needsManualTabs 
           placeholder="https://docs.google.com/spreadsheets/d/..."
           style={{
             width: "100%", padding: isMobile ? "14px 14px" : "12px 14px",
-            background: "#0f0f0f",
+            background: "rgba(255,255,255,0.03)",
             border: `1px solid ${warning === "published" ? "rgba(255,150,0,0.4)" : "rgba(255,255,255,0.1)"}`,
             borderRadius: 8, color: "#fff", fontSize: isMobile ? 16 : 13,
             outline: "none", boxSizing: "border-box",
@@ -149,7 +150,7 @@ export default function ConfigModal({ onSave, onClose, savedId, needsManualTabs 
           placeholder="Star Wars, Cars, Funny Videos, ..."
           style={{
             width: "100%", padding: isMobile ? "14px 14px" : "10px 14px",
-            background: "#0f0f0f",
+            background: "rgba(255,255,255,0.03)",
             border: `1px solid ${needsManualTabs ? "rgba(245,158,11,0.4)" : "rgba(255,255,255,0.07)"}`,
             borderRadius: 8, color: "#fff", fontSize: isMobile ? 16 : 13,
             outline: "none", boxSizing: "border-box",
@@ -163,8 +164,8 @@ export default function ConfigModal({ onSave, onClose, savedId, needsManualTabs 
             disabled={!canSave || (needsManualTabs && !tabsInput.trim())}
             style={{
               flex: 1, padding: isMobile ? 14 : 12,
-              background: (canSave && (!needsManualTabs || tabsInput.trim())) ? "#34A853" : "#1a1a1a",
-              color: (canSave && (!needsManualTabs || tabsInput.trim())) ? "#fff" : "#444",
+              background: (canSave && (!needsManualTabs || tabsInput.trim())) ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.04)",
+              color: (canSave && (!needsManualTabs || tabsInput.trim())) ? "#f5f5f7" : "rgba(235,235,245,0.2)",
               border: "none", borderRadius: 8,
               fontSize: 13, fontWeight: 600,
               cursor: (canSave && (!needsManualTabs || tabsInput.trim())) ? "pointer" : "not-allowed"
