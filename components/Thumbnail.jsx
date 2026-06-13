@@ -78,16 +78,7 @@ export default function Thumbnail({ item, scraped }) {
       ? `linear-gradient(135deg, #2a0a1f, #4a0a35)`
       : T.bgRaised;
 
-  return (
-    <div style={{ width: "100%", paddingTop: "56.25%", position: "relative", background: bgGradient }}>
-      <div style={centerStyle}>
-        <Icon name={iconMap[type] || "link"} size={30} style={{ color: T.text3 }} />
-        <span style={{ fontSize: 9, color: T.text3, fontWeight: 800, letterSpacing: 1.2, textTransform: "uppercase" }}>
-          {typeLabel[type]}
-        </span>
-      </div>
-    </div>
-  );
+  return <LetterCover title={title} />;
 }
 
 const PlayOverlay = ({ color }) => (
@@ -106,6 +97,26 @@ const PlayOverlay = ({ color }) => (
     </div>
   </div>
 );
+
+
+// Deterministic letter cover — uniform placeholder for any item without a natural thumbnail
+function LetterCover({ title }) {
+  const word  = title?.split(" ")[0] || "?";
+  const letter= word[0]?.toUpperCase() || "?";
+  const hash  = Math.abs([...title || ""].reduce((h, c) => ((h << 5) - h + c.charCodeAt(0)) | 0, 0));
+  const hue   = hash % 360;
+  const bg    = `hsl(${hue}, 14%, 10%)`;
+  const fg    = `hsl(${hue}, 30%, 48%)`;
+  return (
+    <div style={{ width: "100%", paddingTop: "56.25%", position: "relative", background: bg }}>
+      <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <span style={{ fontSize: 44, fontWeight: 300, color: fg, lineHeight: 1, userSelect: "none", fontFamily: "Inter, sans-serif" }}>
+          {letter}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 const centerStyle = {
   position: "absolute", inset: 0, display: "flex",

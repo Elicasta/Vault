@@ -86,18 +86,23 @@ export default function ReaderModal({ item, items = [], currentIdx = 0, onNaviga
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const touchStartY2 = useRef(null);
   // Touch swipe handlers
   const onTouchStart = (e) => {
-    touchStart.current = e.touches[0].clientX;
+    touchStart.current  = e.touches[0].clientX;
+    touchStartY2.current = e.touches[0].clientY;
     resetHideTimer();
   };
   const onTouchEnd = (e) => {
     if (touchStart.current === null) return;
-    const delta = touchStart.current - e.changedTouches[0].clientX;
-    touchStart.current = null;
-    if (Math.abs(delta) < 50) return;
-    if (delta > 0 && hasNext) onNavigate(currentIdx + 1);
-    if (delta < 0 && hasPrev) onNavigate(currentIdx - 1);
+    const dx = touchStart.current - e.changedTouches[0].clientX;
+    const dy = (touchStartY2.current || 0) - e.changedTouches[0].clientY;
+    touchStart.current = touchStartY2.current = null;
+    // Swipe down to close
+    if (dy < -70 && Math.abs(dy) > Math.abs(dx) * 1.5) { onClose(); return; }
+    if (Math.abs(dx) < 50) return;
+    if (dx > 0 && hasNext) onNavigate(currentIdx + 1);
+    if (dx < 0 && hasPrev) onNavigate(currentIdx - 1);
   };
 
   const typeLabel = { pdf: "PDF", epub: "eBook", doc: "Document" };

@@ -95,9 +95,10 @@ export default function Sidebar({
 
         <div style={{ flex: 1, overflowY: "auto", padding: "6px 8px" }}>
           <SectionLabel collapsed={collapsed}>Library</SectionLabel>
-          <NavItem id="all"       icon="home"  label="Everything"        count={counts.all}       {...np} />
-          <NavItem id="favorites" icon="star"  label="Favorites"         count={counts.favorites}  {...np} />
-          <NavItem id="continue"  icon="clock" label="Continue Watching"  count={counts.continue}  {...np} />
+          <NavItem id="all"       icon="home"    label="Everything"        count={counts.all}       {...np} />
+          <NavItem id="favorites" icon="star"    label="Favorites"         count={counts.favorites}  {...np} />
+          <NavItem id="continue"  icon="clock"   label="Continue Watching"  count={counts.continue}  {...np} />
+          <NavItem id="history"   icon="history" label="History"                                     {...np} />
 
           <SectionLabel collapsed={collapsed}>Browse</SectionLabel>
           <NavItem id="type:Videos"  icon="video"    label="Videos"  count={counts.Videos}  {...np} />

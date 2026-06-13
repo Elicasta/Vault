@@ -50,3 +50,21 @@ create policy "own user_settings" on user_settings
 -- Index for fast lookups
 create index if not exists idx_user_data_user on user_data(user_id);
 create index if not exists idx_user_data_key on user_data(user_id, item_key);
+
+-- Quick Adds: items added directly in the app (not from Google Sheets)
+-- Synced per-user so they survive across devices and browser clears
+create table if not exists vault_quick_adds (
+  id          uuid default gen_random_uuid() primary key,
+  user_id     uuid references auth.users on delete cascade not null,
+  item_key    text not null,
+  item_data   jsonb not null,
+  created_at  timestamptz default now(),
+  unique(user_id, item_key)
+);
+
+alter table vault_quick_adds enable row level security;
+
+create policy "own vault_quick_adds" on vault_quick_adds
+  for all using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+create index if not exists idx_vault_quick_adds_user on vault_quick_adds(user_id);

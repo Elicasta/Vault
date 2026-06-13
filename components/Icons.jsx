@@ -46,6 +46,11 @@ const paths = {
   inbox:      <><path d="M4 4h16l-2 10h-4a2 2 0 0 1-4 0H6L4 4z"/><path d="M4 14v5h16v-5"/></>,
   table:      <><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M4 10h16"/><path d="M9 5v14"/></>,
   audioLines: <><path d="M2 12h2"/><path d="M6 8v8"/><path d="M10 4v16"/><path d="M14 8v8"/><path d="M18 10v4"/><path d="M22 12h-2"/></>,
+  pip:        <><rect x="3" y="5" width="18" height="14" rx="2"/><rect x="12" y="11" width="8" height="5" rx="1" fill="currentColor" stroke="none"/></>,
+  download:   <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></>,
+  history:    <><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/><path d="M12 7v5l4 2"/></>,
+  sort:       <><path d="M3 6h18"/><path d="M7 12h10"/><path d="M10 18h4"/></>,
+  addCircle:  <><circle cx="12" cy="12" r="9"/><path d="M12 8v8"/><path d="M8 12h8"/></>,
   listMusic:  <><path d="M21 15V6"/><path d="M18.5 18a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z"/><path d="M12 12H3"/><path d="M16 6H3"/><path d="M12 18H3"/></>,
 };
 
