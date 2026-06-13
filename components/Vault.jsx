@@ -12,6 +12,7 @@ import BottomNav from "./BottomNav";
 import HomeView from "./HomeView";
 import QuickAddModal from "./QuickAddModal";
 import BrowseView from "./BrowseView";
+import DetailPanel from "./DetailPanel";
 import Icon from "./Icons";
 import { fetchTabData, mediaCategory, FILTER_CATS, itemKey } from "@/lib/utils";
 import { T } from "@/lib/theme";
@@ -59,6 +60,7 @@ export default function Vault() {
   const [showReader, setShowReader] = useState(null);
   const [readerIdx, setReaderIdx] = useState(0);
   const [showSlideshow, setShowSlideshow] = useState(false);
+  const [selectedItem, setSelectedItem] = useState(null);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [isMobile, setIsMobile]   = useState(false);
@@ -318,7 +320,7 @@ export default function Vault() {
 
   const navigate = (v) => {
     if (v === "settings") { setShowConfig(true); return; }
-    setActiveView(v); setTypeFilter("All"); setSearch(""); setShowSearch(false);
+    setActiveView(v); setTypeFilter("All"); setSearch(""); setShowSearch(false); setSelectedItem(null);
     if (isMobile) setSidebarOpen(false);
   };
 
@@ -368,7 +370,8 @@ export default function Vault() {
         mobile={isMobile} open={isMobile ? sidebarOpen : true} onClose={() => setSidebarOpen(false)}
       />
 
-      <div style={{ flex: 1, minWidth: 0, paddingBottom: bottomPad }}>
+      <div style={{ flex: 1, minWidth: 0, paddingBottom: bottomPad, display: "flex", minHeight: "100dvh" }}>
+        <div style={{ flex: 1, minWidth: 0 }} onClick={(e) => { if (!isMobile && e.target === e.currentTarget) setSelectedItem(null); }}>
         {isDriveView ? (
           <DriveBrowser onOpenItem={(item) => openItem(item, [item])} mobile={isMobile} onOpenMenu={() => setSidebarOpen(true)} />
         ) : isBrowseView ? (
@@ -423,7 +426,9 @@ export default function Vault() {
                   {viewItems.map((item) => (
                     <Card key={item.id || item.key} item={item} onOpen={(i) => openItem(i, viewItems)}
                       viewMode={isMobile && viewMode === "showcase" ? "grid" : viewMode}
-                      scraped={scrapedMap[item.url]} {...cardProps} />
+                      scraped={scrapedMap[item.url]} {...cardProps}
+                      onSelect={!isMobile ? (i) => setSelectedItem(i) : undefined}
+                      selected={!isMobile && selectedItem?.key === item.key} />
                   ))}
                 </div>
               )}
@@ -438,6 +443,23 @@ export default function Vault() {
               )}
             </div>
           </>
+        )}
+      </div>
+
+        </div>
+
+        {/* Desktop detail panel */}
+        {selectedItem && !isMobile && (
+          <DetailPanel
+            item={selectedItem}
+            userData={userData}
+            scraped={scrapedMap[selectedItem.url]}
+            folders={folders}
+            onOpen={(item) => { setSelectedItem(null); openItem(item, viewItems); }}
+            onClose={() => setSelectedItem(null)}
+            onToggleFavorite={handleToggleFavorite}
+            onAssignFolder={handleAssignFolder}
+          />
         )}
       </div>
 
@@ -469,6 +491,7 @@ export default function Vault() {
         ::-webkit-scrollbar { width: 0; height: 0; }
         * { box-sizing: border-box; }
         button, a { -webkit-tap-highlight-color: transparent; }
+        :focus { outline: none; }
       `}</style>
     </div>
   );

@@ -51,7 +51,7 @@ export default function QuickAddModal({ onAdd, onClose }) {
     setPasting(false);
   };
 
-  const handleAdd = () => {
+  const handleAdd = async () => {
     if (!url.trim()) return;
     const finalType = SUPPORTED_TYPES.includes(type) ? type : detectType(url) || "link";
     const item = {
@@ -67,6 +67,20 @@ export default function QuickAddModal({ onAdd, onClose }) {
       addedAt: new Date().toISOString(),
     };
     onAdd(item);
+    // Fire-and-forget — sync to Google Sheet if webhook is configured
+    // This routes the item to the "Quick Adds" tab in your linked sheet
+    fetch("/api/sheets-sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        action: "quick_add",
+        url: item.url,
+        title: item.title,
+        note: item.note,
+        tags: item.tags.join(", "),
+        type: item.type,
+      }),
+    }).catch(() => {}); // never block on this
     onClose();
   };
 

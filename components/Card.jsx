@@ -9,7 +9,7 @@ import { T } from "@/lib/theme";
 export default function Card({
   item, onOpen, viewMode = "grid", userData, onToggleFavorite,
   folders, onAssignFolder, scraped, onPlayMusic, isMobile = false,
-  onRemoveQuickAdd, onMarkWatched
+  onRemoveQuickAdd, onMarkWatched, onSelect, selected = false
 }) {
   const [hov,      setHov]      = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -22,6 +22,18 @@ export default function Card({
   const handleClick = (e) => {
     if (menuOpen) return;
     if (isMusic && onPlayMusic) { onPlayMusic(item); return; }
+    if (!isMobile && onSelect) {
+      // Desktop: single click = select (show in detail panel)
+      onSelect(item);
+    } else {
+      canEmbed ? onOpen(item) : window.open(item.url, "_blank");
+    }
+  };
+
+  const handleDoubleClick = (e) => {
+    if (isMobile || !onSelect) return; // mobile handled by handleClick
+    if (menuOpen) return;
+    if (isMusic && onPlayMusic) { onPlayMusic(item); return; }
     canEmbed ? onOpen(item) : window.open(item.url, "_blank");
   };
 
@@ -31,7 +43,7 @@ export default function Card({
   if (viewMode === "showcase") {
     return (
       <div onMouseEnter={() => setHov(true)} onMouseLeave={() => setHov(false)}
-        onClick={handleClick} style={{ position: "relative", borderRadius: T.r12, overflow: "visible", aspectRatio: "16/9", cursor: "pointer" }}>
+        onClick={handleClick} onDoubleClick={handleDoubleClick} style={{ position: "relative", borderRadius: T.r12, overflow: "visible", aspectRatio: "16/9", cursor: "pointer" }}>
         <div style={{ borderRadius: T.r12, overflow: "hidden", width: "100%", height: "100%", position: "relative", border: `1px solid ${hov ? T.borderHov : T.border}`, boxShadow: hov ? "0 12px 40px rgba(0,0,0,0.6)" : "0 2px 12px rgba(0,0,0,0.4)", transition: "all 0.2s", background: T.bgCard }}>
           <div style={{ position: "absolute", inset: 0 }}><Thumbnail item={item} scraped={scraped} /></div>
           <div style={{ position: "absolute", inset: 0, background: hov ? "linear-gradient(to top,rgba(0,0,0,0.88) 0%,rgba(0,0,0,0.3) 50%,rgba(0,0,0,0.05) 80%)" : "linear-gradient(to top,rgba(0,0,0,0.74) 0%,rgba(0,0,0,0.1) 55%,transparent 80%)", transition: "background 0.2s" }} />
@@ -89,7 +101,7 @@ export default function Card({
 
   // ─── Grid ─────────────────────────────────────────────────────────────────
   return (
-    <div onMouseEnter={() => setHov(true)} onMouseLeave={() => { setHov(false); setMenuOpen(false); }} onClick={handleClick}
+    <div onMouseEnter={() => setHov(true)} onMouseLeave={() => { setHov(false); setMenuOpen(false); }} onClick={handleClick} onDoubleClick={handleDoubleClick}
       style={{ background: T.bgCard, borderRadius: T.r10, overflow: "visible", border: `1px solid ${hov ? T.borderHov : T.border}`, boxShadow: hov ? "0 6px 24px rgba(0,0,0,0.4)" : "none", cursor: "pointer", transition: "border-color 0.15s, box-shadow 0.15s", display: "flex", flexDirection: "column", position: "relative" }}>
       <div style={{ borderRadius: `${T.r10}px ${T.r10}px 0 0`, overflow: "hidden", position: "relative" }}>
         <Thumbnail item={item} scraped={scraped} />
