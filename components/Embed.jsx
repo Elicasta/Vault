@@ -181,14 +181,12 @@ export default function Embed({ item, items = [], currentIdx = 0, onNavigate, on
     }
 
     // Google Drive files.
-    // PDFs: Google Docs Viewer with a properly encoded download URL avoids the
-    // /preview auth wall that breaks on mobile and cross-account sessions.
-    // Non-PDFs: /preview is fine.
+    // PDFs: use /api/file endpoint to serve via proxy
+    // Non-PDFs: use Google Drive /preview
     if (gdId && url.includes("drive.google.com")) {
       const isPdfLike = type === "pdf" || /\.pdf($|[?#])/i.test(url) || /pdf/i.test(item.title || "");
-      const innerUrl  = `https://drive.google.com/uc?export=download&id=${gdId}`;
       const embedSrc  = isPdfLike
-        ? `https://docs.google.com/viewer?embedded=true&url=${encodeURIComponent(innerUrl)}`
+        ? `/api/file?id=${gdId}`
         : `https://drive.google.com/file/d/${gdId}/preview`;
       return (
         <div style={isPdfLike ? pdfFrameWrap : driveFrameWrap}>
@@ -319,7 +317,7 @@ export default function Embed({ item, items = [], currentIdx = 0, onNavigate, on
           </button>
         )}
         {canAudioMode && (
-          <button onClick={(e) => { e.stopPropagation(); setAudioMode((m) => !m); }} style={{ ...ctrlBtn, background: audioMode ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.07)" }} title="Audio only">
+          <button onClick={(e) => { e.stopPropagation(); setAudioMode((m) => !m); }} style={{ ...ctrlBtn, background: audioMode ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.07)" }} title="Audio mode">
             <Icon name="headphones" size={15} />
           </button>
         )}
