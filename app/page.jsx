@@ -1,10 +1,2 @@
-import Vault from "@/components/Vault";
-import AuthGate from "@/components/AuthGate";
-
-export default function Page() {
-  return (
-    <AuthGate>
-      <Vault />
-    </AuthGate>
-  );
-}
+import VaultExperience from "@/components/VaultExperience";
+export default function Page(){ return <VaultExperience route="home" />; }

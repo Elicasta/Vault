@@ -1,0 +1,163 @@
+import { NextResponse } from "next/server";
+import { safeFetch, readTextLimited } from "@/lib/server/safe-url";
+import { guardProxyRequest, securityErrorResponse } from "@/lib/server/proxy-guard";
+
+const MAX_CSV_BYTES = 5 * 1024 * 1024;
+const MAX_REQUEST_BYTES = 256 * 1024;
+
+function itemKey(url) {
+  let h = 0;
+  const s = String(url || "");
+  for (let i = 0; i < s.length; i++) { h = ((h << 5) - h) + s.charCodeAt(i); h |= 0; }
+  return `k${Math.abs(h)}`;
+}
+
+function normalizeUrl(value) {
+  const raw = String(value || "").trim().replace(/^"|"$/g, "");
+  if (!raw) return "";
+  if (/^https?:\/\//i.test(raw)) return raw;
+  if (/^(www\.|drive\.google\.com|youtu\.be|youtube\.com|vimeo\.com)/i.test(raw)) return `https://${raw}`;
+  return "";
+}
+
+function parseCSV(csv) {
+  const rows = [];
+  let row = [], cur = "", inQuotes = false;
+  for (let i = 0; i < csv.length; i++) {
+    const ch = csv[i];
+    const next = csv[i + 1];
+    if (ch === '"' && inQuotes && next === '"') { cur += '"'; i++; continue; }
+    if (ch === '"') { inQuotes = !inQuotes; continue; }
+    if (ch === "," && !inQuotes) { row.push(cur); cur = ""; continue; }
+    if ((ch === "\n" || ch === "\r") && !inQuotes) {
+      if (ch === "\r" && next === "\n") i++;
+      row.push(cur); rows.push(row); row = []; cur = ""; continue;
+    }
+    cur += ch;
+  }
+  row.push(cur); rows.push(row);
+  return rows.filter((r) => r.some((c) => String(c || "").trim()));
+}
+
+function headerIndex(headers, aliases) {
+  return headers.findIndex((h) => aliases.includes(h));
+}
+
+function parseSheetRows(csv, tabName) {
+  const rows = parseCSV(csv);
+  if (rows.length < 2) return { items: [], skipped: 0 };
+  const headers = rows[0].map((h) => String(h || "").trim().toLowerCase().replace(/\s+/g, "_"));
+  const urlIdx = headerIndex(headers, ["url", "link", "file", "file_url", "drive_link", "gdrive", "google_drive", "source_url"]);
+  const titleIdx = headerIndex(headers, ["title", "name", "label", "file_name"]);
+  const folderIdx = headerIndex(headers, ["folder", "gallery", "gallery_name", "tab", "category", "collection", "section"]);
+  const tagsIdx = headerIndex(headers, ["tags", "tag", "keywords"]);
+  const noteIdx = headerIndex(headers, ["note", "notes", "description", "desc", "caption", "comment"]);
+  const typeIdx = headerIndex(headers, ["type", "media_type"]);
+  const sourceIdx = headerIndex(headers, ["source", "platform", "provider"]);
+  const folderKindIdx = headerIndex(headers, ["folder_kind", "folder_type", "bucket_type", "is_gallery"]);
+  const thumbIdx = headerIndex(headers, ["thumbnail", "thumb", "image", "poster", "cover", "cover_url", "custom_cover"]);
+  const coverModeIdx = headerIndex(headers, ["cover_mode", "cover_behavior", "use_original_cover"]);
+  const coverFitIdx = headerIndex(headers, ["cover_fit", "cover_sizing", "sizing", "fit"]);
+  const coverXIdx = headerIndex(headers, ["cover_x", "cover_position_x", "crop_x", "x"]);
+  const coverYIdx = headerIndex(headers, ["cover_y", "cover_position_y", "crop_y", "y"]);
+
+  if (urlIdx < 0) return { items: [], skipped: Math.max(0, rows.length - 1), warning: `No URL column found on ${tabName}.` };
+
+  const items = [];
+  let skipped = 0;
+  const clean = (row, idx) => idx >= 0 ? String(row[idx] || "").trim() : "";
+
+  for (const row of rows.slice(1)) {
+    const url = normalizeUrl(clean(row, urlIdx));
+    if (!url) { skipped++; continue; }
+    const title = clean(row, titleIdx) || url;
+    const folder = clean(row, folderIdx) || tabName;
+    const tags = clean(row, tagsIdx).split(/[,;]/).map((t) => t.trim()).filter(Boolean);
+    const thumb = clean(row, thumbIdx);
+    const rawCoverMode = clean(row, coverModeIdx).toLowerCase();
+    const rawFolderKind = clean(row, folderKindIdx).toLowerCase();
+    const folderKind = ["gallery", "yes", "true", "1"].includes(rawFolderKind) ? "gallery" : "folder";
+    const coverMode = thumb ? "manual" : ["original", "source", "keep", "true", "yes", "1"].includes(rawCoverMode) ? "original" : "auto";
+    const fit = clean(row, coverFitIdx).toLowerCase() === "contain" || clean(row, coverFitIdx).toLowerCase() === "fit" ? "contain" : "cover";
+    const posX = Number(clean(row, coverXIdx));
+    const posY = Number(clean(row, coverYIdx));
+    items.push({
+      key: itemKey(url),
+      id: `${tabName}-${itemKey(url)}`,
+      url,
+      title,
+      folder: folder === "Vault Library" || folder === "Vault Import" ? null : folder,
+      folder_kind: folderKind,
+      tags,
+      note: clean(row, noteIdx),
+      type: clean(row, typeIdx) || "link",
+      source: clean(row, sourceIdx) || undefined,
+      thumbnail: thumb,
+      thumbnail_source: thumb ? "sheet" : null,
+      cover_mode: coverMode,
+      cover_fit: fit,
+      cover_position_x: Number.isFinite(posX) ? Math.max(0, Math.min(100, posX)) : 50,
+      cover_position_y: Number.isFinite(posY) ? Math.max(0, Math.min(100, posY)) : 50,
+      importedFrom: tabName,
+      addedAt: new Date().toISOString(),
+      isVaultItem: true,
+    });
+  }
+  return { items, skipped };
+}
+
+function normalizeTabRef(tabName) {
+  const raw = String(tabName || "").trim();
+  if (!raw) return { label: "Vault Import", qs: `sheet=${encodeURIComponent("Vault Import")}` };
+  const gidMatch = raw.match(/^(?:gid:|gid=)?([0-9]{2,})$/i) || raw.match(/[?&#]gid=([0-9]+)/i);
+  if (gidMatch) return { label: `gid:${gidMatch[1]}`, qs: `gid=${encodeURIComponent(gidMatch[1])}` };
+  return { label: raw, qs: `sheet=${encodeURIComponent(raw)}` };
+}
+
+async function fetchTab(sheetId, tabName) {
+  const ref = normalizeTabRef(tabName);
+  const url = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv&${ref.qs}`;
+  const res = await safeFetch(url, { headers: { "User-Agent": "Mozilla/5.0" }, timeoutMs: 10000, maxBytes: MAX_CSV_BYTES });
+  if (!res.ok) throw new Error(`Could not fetch tab "${ref.label}" (${res.status}). Share the sheet as Anyone with link can view.`);
+  const text = await readTextLimited(res, MAX_CSV_BYTES);
+  if (text.trim().startsWith("<!")) throw new Error(`Tab "${ref.label}" is not public or does not exist.`);
+  return text;
+}
+
+export async function POST(request) {
+  try {
+    await guardProxyRequest(request, "file");
+    const declared = Number(request.headers.get("content-length") || 0);
+    if (declared > MAX_REQUEST_BYTES) return NextResponse.json({ error: "Import request too large" }, { status: 413 });
+    const raw = await request.text();
+    if (new TextEncoder().encode(raw).byteLength > MAX_REQUEST_BYTES) return NextResponse.json({ error: "Import request too large" }, { status: 413 });
+    const { sheetId, tabNames = [], gid, tab } = JSON.parse(raw || "{}");
+    if (!sheetId) return NextResponse.json({ error: "Missing sheetId" }, { status: 400 });
+    if (!/^[A-Za-z0-9_-]{20,160}$/.test(String(sheetId))) return NextResponse.json({ error: "Invalid sheetId" }, { status: 400 });
+    const incomingTabs = Array.isArray(tabNames) && tabNames.length ? tabNames : [];
+    if (tab) incomingTabs.unshift(tab);
+    if (gid) incomingTabs.unshift(`gid:${gid}`);
+    const tabs = incomingTabs.length ? [...new Set(incomingTabs.map((t) => String(t || "").trim()).filter(Boolean))] : ["Vault Import", "Vault Library"];
+    const all = [];
+    const errors = [];
+    let skipped = 0;
+
+    for (const tabName of tabs) {
+      try {
+        const csv = await fetchTab(sheetId, tabName);
+        const parsed = parseSheetRows(csv, tabName);
+        all.push(...parsed.items);
+        skipped += parsed.skipped || 0;
+        if (parsed.warning) errors.push(parsed.warning);
+      } catch (e) {
+        errors.push(e.message);
+      }
+    }
+
+    const byKey = new Map();
+    all.forEach((item) => byKey.set(item.key, item));
+    return NextResponse.json({ items: [...byKey.values()], skipped, errors });
+  } catch (e) {
+    return securityErrorResponse(e, "Sheet import failed");
+  }
+}

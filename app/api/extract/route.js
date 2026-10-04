@@ -1,4 +1,9 @@
 import { NextResponse } from "next/server";
+import { safeFetch, validatePublicUrl, readTextLimited } from "@/lib/server/safe-url";
+import { guardProxyRequest, securityErrorResponse } from "@/lib/server/proxy-guard";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 // Last-resort video extractor. Fetches a page server-side, looks for direct
 // video URLs in <video>/<source> tags, OpenGraph meta tags, Twitter player
@@ -16,28 +21,33 @@ import { NextResponse } from "next/server";
 //     long-running worker, which is intentionally out of scope.
 
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+const MAX_HTML_BYTES = 1_000_000;
+const MAX_JSON_BYTES = 1_000_000;
 
 export async function GET(request) {
   const target = new URL(request.url).searchParams.get("url");
   if (!target) return NextResponse.json({ error: "Missing url" }, { status: 400 });
+  try { await guardProxyRequest(request, "discovery"); }
+  catch (error) { return securityErrorResponse(error, "Extraction unavailable"); }
 
-  let parsed;
-  try { parsed = new URL(target); }
-  catch { return NextResponse.json({ error: "Invalid url" }, { status: 400 }); }
-  if (!["http:", "https:"].includes(parsed.protocol)) {
-    return NextResponse.json({ error: "Unsupported scheme" }, { status: 400 });
-  }
+  const checked = await validatePublicUrl(target);
+  if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: checked.status });
+  const parsed = checked.url;
 
   try {
-    const res = await fetch(parsed.href, {
+    const redditSources = await extractRedditSources(parsed);
+    if (redditSources.sources.length) {
+      return NextResponse.json(redditSources, { headers: { "Cache-Control": "no-store" } });
+    }
+
+    const res = await safeFetch(parsed.href, {
       headers: {
         "User-Agent": UA,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9",
         "Referer": parsed.origin + "/",
       },
-      redirect: "follow",
-      signal: AbortSignal.timeout(9000),
+      timeoutMs: 9000,
     });
 
     if (!res.ok) {
@@ -48,16 +58,17 @@ export async function GET(request) {
     if (!ct.includes("html") && !ct.includes("xml")) {
       // Sometimes the URL IS the video. If it's a direct video CT, just hand it back.
       if (/^(video|application\/(x-mpegurl|vnd\.apple\.mpegurl))/i.test(ct)) {
+        try { await res.body?.cancel(); } catch {}
         return NextResponse.json({
-          sources: [{ url: parsed.href, resolution: null, type: ct }],
+          sources: [{ url: res.url || parsed.href, resolution: null, type: ct }],
           title: null,
         }, { headers: { "Cache-Control": "no-store" } });
       }
       return NextResponse.json({ error: `Not an HTML page (${ct})` }, { status: 415 });
     }
 
-    const html = await res.text();
-    const sources = extractSources(html, parsed.href);
+    const html = await readTextLimited(res, MAX_HTML_BYTES);
+    const sources = extractSources(html, res.url || parsed.href);
     const title = extractTitle(html);
 
     if (sources.length === 0) {
@@ -71,7 +82,47 @@ export async function GET(request) {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (e) {
-    return NextResponse.json({ error: e.message || "Extraction failed" }, { status: 502 });
+    return securityErrorResponse(e, "Extraction failed");
+  }
+}
+
+
+async function extractRedditSources(parsed) {
+  const host = parsed.hostname.replace(/^www\./, "");
+  if (!/(^|\.)reddit\.com$/i.test(host)) return { sources: [] };
+  if (!/\/comments\//i.test(parsed.pathname)) return { sources: [] };
+
+  const jsonUrl = parsed.href.replace(/\/?(?:\?.*)?$/, ".json");
+  try {
+    const res = await safeFetch(jsonUrl, {
+      headers: {
+        "User-Agent": UA,
+        "Accept": "application/json,text/plain,*/*",
+        "Accept-Language": "en-US,en;q=0.9",
+      },
+      timeoutMs: 9000,
+    });
+    if (!res.ok) return { sources: [] };
+    const data = JSON.parse(await readTextLimited(res, MAX_JSON_BYTES));
+    const post = data?.[0]?.data?.children?.[0]?.data;
+    if (!post) return { sources: [] };
+    const rv = post.secure_media?.reddit_video || post.media?.reddit_video || post.preview?.reddit_video_preview;
+    const found = [];
+    const add = (url, resolution, type) => {
+      if (!url) return;
+      const clean = String(url).replace(/&amp;/g, "&");
+      if (!found.some((s) => s.url === clean)) found.push({ url: clean, resolution: resolution || null, type: type || null });
+    };
+    add(rv?.hls_url, rv?.height, "application/vnd.apple.mpegurl");
+    add(rv?.fallback_url, rv?.height, "video/mp4");
+    add(rv?.dash_url, rv?.height, "application/dash+xml");
+    // Prefer HLS/fallback over DASH because the current browser player handles those.
+    return {
+      sources: found.filter((s) => !/dash\+xml|\.mpd/i.test(s.type || s.url)),
+      title: post.title || null,
+    };
+  } catch {
+    return { sources: [] };
   }
 }
 
@@ -141,7 +192,7 @@ function extractSources(html, base) {
 
   // Last-ditch: scan the page for inlined .mp4 / .m3u8 / .webm URLs in JS strings.
   // Tight bounds to keep this from matching documentation links etc.
-  for (const m of html.matchAll(/["'](https?:\/\/[^"'\s<>]+\.(?:mp4|m3u8|webm)(?:\?[^"'\s<>]*)?)["']/gi)) {
+  for (const m of html.matchAll(/["'](https?:\/\/[^"'\s<>]+\.(?:mp4|m3u8|webm|m4v|mov|ogg|ogv)(?:\?[^"'\s<>]*)?)["']/gi)) {
     add(m[1], null, null);
   }
 
@@ -149,8 +200,8 @@ function extractSources(html, base) {
 }
 
 function isLikelyVideo(url, type) {
-  if (type && /^(?:video|application\/(?:x-mpegurl|vnd\.apple\.mpegurl|dash\+xml))/i.test(type)) return true;
-  return /\.(mp4|webm|m3u8|mov|m4v|ogg|ogv|mpd)(\?|$)/i.test(url);
+  if (type && /^(?:video|application\/(?:x-mpegurl|vnd\.apple\.mpegurl))/i.test(type)) return true;
+  return /\.(mp4|webm|m3u8|mov|m4v|ogg|ogv)(\?|$)/i.test(url);
 }
 
 function absolutize(u, base) {

@@ -3,7 +3,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import Icon from "./Icons";
 import { T } from "@/lib/theme";
 import { getEmbed } from "@/lib/sources";
-import { saveProgress } from "@/lib/supabase";
+import { proxiedMediaUrl, proxiedStreamUrl } from "@/lib/utils";
+import { saveProgress, getItemComments, addItemComment, deleteItemComment } from "@/lib/supabase";
 
 // ─── YouTube IFrame API loader (one-time, page-wide) ─────────────────────────
 let ytApiLoaded = false;
@@ -45,45 +46,176 @@ function loadTwitterWidgets(cb) {
 
 // ─── Main Player ────────────────────────────────────────────────────────────
 
-export default function Player({ item, items = [], currentIdx = 0, onNavigate, onClose, userId, resumeAt = 0 }) {
+export default function Player({ item, items = [], currentIdx = 0, onNavigate, onClose, userId, resumeAt = 0, rating = 0, onRate, onAddMoment, oilCount = 0, onOil, variant = "legacy" }) {
+  const integrated = variant === "integrated";
   const [muted, setMuted]   = useState(false);
   const [isPiP, setIsPiP]   = useState(false);
   const [parent, setParent] = useState("localhost");
+  const [useRelay, setUseRelay] = useState(false);
+  const [relayReason, setRelayReason] = useState("");
+  const [playbackIssue, setPlaybackIssue] = useState("");
+  const [enhanceMode, setEnhanceMode] = useState("off");
+  const [qualityLevels, setQualityLevels] = useState([]);
+  const [quality, setQuality] = useState("auto");
+  const [showComments, setShowComments] = useState(false);
+  const [markNotice, setMarkNotice] = useState("");
+  const [isTouchDevice, setIsTouchDevice] = useState(false);
+  const [driveFallback, setDriveFallback] = useState(false);
+  const [oilBursts, setOilBursts] = useState([]);
+  const backdropTap = useRef(0);
 
   // Extraction state (used when source.id === "extract")
   const [extracted, setExtracted] = useState(null); // { url, type, resolution } | null
   const [extractErr, setExtractErr] = useState("");
   const [extracting, setExtracting] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshCount = useRef(0); // bail after too many auto-refresh attempts
+  const hlsRecoverCount = useRef(0); // recover once before falling back to relay
+  const markNoticeTimer = useRef(null);
+  const relayNoticeTimer = useRef(null);
+  const seekTarget = useRef(0);   // where to resume after a refresh
+
+  // Reset relay mode when changing items. Direct playback is always tried first.
+  useEffect(() => {
+    setUseRelay(false);
+    setRelayReason("");
+    setPlaybackIssue("");
+    setQualityLevels([]);
+    setMediaOrientation(/youtube\.com\/shorts\//i.test(item.url || "") ? "portrait" : "wide");
+    setQuality("auto");
+    hlsRecoverCount.current = 0;
+    setMarkNotice("");
+    setDriveFallback(false);
+  }, [item.url]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") setIsTouchDevice(window.matchMedia?.("(pointer: coarse)")?.matches || window.innerWidth < 820);
+  }, []);
 
   // Set Twitch parent param from current hostname (required by Twitch embeds)
   useEffect(() => {
     if (typeof window !== "undefined") setParent(window.location.hostname || "localhost");
   }, []);
 
+  const showRelayNotice = useCallback((message, timeoutMs = 2600) => {
+    setRelayReason(message);
+    if (relayNoticeTimer.current) clearTimeout(relayNoticeTimer.current);
+    relayNoticeTimer.current = setTimeout(() => setRelayReason(""), timeoutMs);
+  }, []);
+
   const baseEmbed = getEmbed(item.url, { muted, parent });
 
-  // When the source is the catch-all "extract", call /api/extract and
-  // synthesize a video/hls embed from whatever it returns.
+  // Callable extractor. cacheBust=true forces a fresh request so we can
+  // re-extract when the previous signed URL expires mid-playback.
+  const runExtract = useCallback(async ({ cacheBust = false } = {}) => {
+    setExtractErr("");
+    const u = `/api/extract?url=${encodeURIComponent(item.url)}${cacheBust ? `&t=${Date.now()}` : ""}`;
+    try {
+      const r = await fetch(u, { cache: "no-store" });
+      const j = await r.json();
+      if (!r.ok || !j.sources?.length) {
+        setExtractErr(j.error || "Could not find a video on that page.");
+        return null;
+      }
+      return j.sources[0]; // highest resolution, sorted server-side
+    } catch (e) {
+      setExtractErr(e.message || "Extraction failed.");
+      return null;
+    }
+  }, [item.url]);
+
+  // Initial extraction on open / item change
   useEffect(() => {
     if (baseEmbed?.kind !== "extract") return;
     let cancelled = false;
-    setExtracted(null); setExtractErr(""); setExtracting(true);
-    fetch(`/api/extract?url=${encodeURIComponent(item.url)}`)
-      .then((r) => r.json().then((j) => ({ ok: r.ok, j })))
-      .then(({ ok, j }) => {
-        if (cancelled) return;
-        if (!ok || !j.sources?.length) {
-          setExtractErr(j.error || "Could not find a video on that page.");
-        } else {
-          // sources arrive sorted by resolution desc; pick highest
-          setExtracted(j.sources[0]);
-        }
-      })
-      .catch((e) => { if (!cancelled) setExtractErr(e.message || "Extraction failed."); })
-      .finally(() => { if (!cancelled) setExtracting(false); });
+    refreshCount.current = 0;
+    setExtracted(null); setExtracting(true);
+    runExtract().then((s) => {
+      if (cancelled) return;
+      if (s) setExtracted(s);
+      setExtracting(false);
+    });
     return () => { cancelled = true; };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item.url, baseEmbed?.kind]);
+
+  // Refresh the stream: keep current playback position, re-extract, swap src.
+  const refreshStream = useCallback(async ({ preserveRelay = false } = {}) => {
+    if (baseEmbed?.kind !== "extract") return;
+    if (refreshing) return;
+    seekTarget.current = videoRef.current?.currentTime || 0;
+    setRefreshing(true);
+    const next = await runExtract({ cacheBust: true });
+    if (next) {
+      setExtracted(null);
+      setUseRelay(preserveRelay);
+      setPlaybackIssue("");
+      setTimeout(() => setExtracted(next), 0);
+      refreshCount.current += 1;
+      if (preserveRelay) showRelayNotice("Secure stream refreshed.");
+    }
+    setRefreshing(false);
+  }, [baseEmbed?.kind, refreshing, runExtract, showRelayNotice]);
+
+  // After a refresh, when the new <video> mounts, seek back to where we left off.
+  // Triggered by onLoadedMetadata in the video element below.
+  const onLoadedMetadata = () => {
+    const video = videoRef.current;
+    if (video?.videoWidth && video?.videoHeight) {
+      const ratio = video.videoWidth / video.videoHeight;
+      setMediaOrientation(ratio < 0.86 ? "portrait" : ratio < 1.12 ? "square" : "wide");
+    }
+    if (seekTarget.current > 2 && video) {
+      video.currentTime = seekTarget.current;
+      seekTarget.current = 0;
+    }
+  };
+
+  const validateRelayVideoTrack = () => {
+    const v = videoRef.current;
+    if (!v || !useRelay) return;
+    setTimeout(() => {
+      const current = videoRef.current;
+      if (!current || !useRelay || current.error) return;
+      if (current.readyState >= 2 && current.videoWidth === 0 && current.videoHeight === 0) {
+        setPlaybackIssue("Audio is available, but this browser could not decode the video track. Try Open original or another browser/device.");
+      } else if (current.videoWidth > 0 && current.videoHeight > 0) {
+        setPlaybackIssue("");
+      }
+    }, 350);
+  };
+
+  // <video> error handler. Most common cause: signed URL expired mid-playback.
+  // Auto-refresh up to 2 times before giving up.
+  const handleVideoError = () => {
+    if ((embed?.kind === "video" || embed?.kind === "hls") && embed?.src && /^https?:\/\//i.test(embed.src) && !useRelay) {
+      setPlaybackIssue("");
+      setUseRelay(true);
+      showRelayNotice("Direct playback was blocked. Secure relay enabled.");
+      return;
+    }
+
+    if (useRelay && baseEmbed?.kind === "extract" && refreshCount.current < 2) {
+      showRelayNotice("Refreshing the secure stream…");
+      refreshStream({ preserveRelay: true });
+      return;
+    }
+
+    if (useRelay) {
+      setPlaybackIssue("The secure relay reached the media, but this browser could not play the video track. Open the original source or try another browser/device.");
+      return;
+    }
+
+    if (baseEmbed?.kind !== "extract") {
+      setPlaybackIssue("Playback failed. Open the original source or use the secure relay.");
+      return;
+    }
+    if (refreshCount.current >= 2) {
+      setExtractErr("Stream keeps expiring. Try opening the original.");
+      return;
+    }
+    refreshStream();
+  };
 
   // Effective embed: extraction result overrides "extract" placeholder
   const embed = (() => {
@@ -96,6 +228,10 @@ export default function Player({ item, items = [], currentIdx = 0, onNavigate, o
       : { kind: "video", src: extracted.url, source: baseEmbed.source };
   })();
 
+  const mediaSrc = (embed?.kind === "video" || embed?.kind === "hls") && useRelay
+    ? proxiedStreamUrl(embed.src)
+    : embed?.src;
+
   const hasNext = currentIdx < items.length - 1;
   const hasPrev = currentIdx > 0;
 
@@ -104,8 +240,27 @@ export default function Player({ item, items = [], currentIdx = 0, onNavigate, o
   const ytSlot   = useRef(null);
   const twSlot   = useRef(null);
   const hlsRef   = useRef(null);
+  const stageRef = useRef(null);
   const lastSave = useRef(0);
   const touch    = useRef({ x: null, y: null });
+
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [mediaOrientation, setMediaOrientation] = useState("wide");
+
+  // Track native fullscreen state so the button reflects reality
+  useEffect(() => {
+    const handler = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener("fullscreenchange", handler);
+    return () => document.removeEventListener("fullscreenchange", handler);
+  }, []);
+
+  const toggleFullscreen = async () => {
+    try {
+      if (document.fullscreenElement) await document.exitFullscreen();
+      else if (stageRef.current?.requestFullscreen) await stageRef.current.requestFullscreen();
+    } catch {}
+  };
+  const canFullscreen = typeof document !== "undefined" && document.fullscreenEnabled;
 
   // ── Keyboard + scroll lock ──────────────────────────────────────────────
   const handleClose = useCallback(() => {
@@ -126,6 +281,11 @@ export default function Player({ item, items = [], currentIdx = 0, onNavigate, o
     document.body.style.overflow = "hidden";
     return () => { window.removeEventListener("keydown", onKey); document.body.style.overflow = ""; };
   }, [hasNext, hasPrev, currentIdx, onNavigate, handleClose]);
+
+  useEffect(() => () => {
+    if (markNoticeTimer.current) clearTimeout(markNoticeTimer.current);
+    if (relayNoticeTimer.current) clearTimeout(relayNoticeTimer.current);
+  }, []);
 
   // ── YouTube IFrame setup + progress save on unmount ─────────────────────
   useEffect(() => {
@@ -179,7 +339,7 @@ export default function Player({ item, items = [], currentIdx = 0, onNavigate, o
 
     // Native HLS (Safari + iOS): just set src
     if (v.canPlayType("application/vnd.apple.mpegurl")) {
-      v.src = embed.src;
+      v.src = mediaSrc;
       if (resumeAt > 2) v.currentTime = resumeAt;
       v.play().catch(() => {});
       return;
@@ -191,12 +351,33 @@ export default function Player({ item, items = [], currentIdx = 0, onNavigate, o
       const Hls = (await import("hls.js")).default;
       if (destroyed) return;
       if (Hls.isSupported()) {
-        const hls = new Hls();
+        const hls = new Hls({
+          enableWorker: true,
+          lowLatencyMode: false,
+          backBufferLength: 30,
+          maxBufferLength: 45,
+          maxMaxBufferLength: 90,
+        });
         hlsRef.current = hls;
-        hls.loadSource(embed.src);
+        hls.loadSource(mediaSrc);
         hls.attachMedia(v);
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          const levels = (hls.levels || []).map((l, idx) => ({ idx, height: l.height, bitrate: l.bitrate })).filter((l) => l.height || l.bitrate);
+          setQualityLevels(levels);
+        });
         if (resumeAt > 2) v.currentTime = resumeAt;
         v.play().catch(() => {});
+        // Hand fatal errors (mostly expired-token segment 403s) to the
+        // same refresh path the <video> element uses for direct MP4s.
+        hls.on(Hls.Events.ERROR, (_evt, data) => {
+          if (!data?.fatal) return;
+          if (data.type === Hls.ErrorTypes.MEDIA_ERROR && hlsRecoverCount.current < 1) {
+            hlsRecoverCount.current += 1;
+            hls.recoverMediaError();
+            return;
+          }
+          handleVideoError();
+        });
       }
     })();
     return () => {
@@ -205,15 +386,27 @@ export default function Player({ item, items = [], currentIdx = 0, onNavigate, o
       hlsRef.current = null;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [embed?.src]);
+  }, [mediaSrc]);
+
+  useEffect(() => {
+    const hls = hlsRef.current;
+    if (!hls) return;
+    hls.currentLevel = quality === "auto" ? -1 : Number(quality);
+  }, [quality]);
 
   // ── Direct video resume ─────────────────────────────────────────────────
   useEffect(() => {
-    if (embed?.kind === "video" && videoRef.current && resumeAt > 2) {
+    if ((embed?.kind === "video" || embed?.kind === "drive") && videoRef.current && resumeAt > 2) {
       videoRef.current.currentTime = resumeAt;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [embed?.src]);
+  }, [mediaSrc]);
+
+  useEffect(() => {
+    const hls = hlsRef.current;
+    if (!hls) return;
+    hls.currentLevel = quality === "auto" ? -1 : Number(quality);
+  }, [quality]);
 
   // ── Periodic progress save for direct/HLS video ────────────────────────
   const onTimeUpdate = () => {
@@ -228,7 +421,7 @@ export default function Player({ item, items = [], currentIdx = 0, onNavigate, o
 
   // ── Picture-in-Picture (direct/HLS only) ────────────────────────────────
   const pipSupported = typeof document !== "undefined" && "pictureInPictureEnabled" in document;
-  const canPip = (embed?.kind === "video" || embed?.kind === "hls") && pipSupported;
+  const canPip = (embed?.kind === "video" || embed?.kind === "hls" || (embed?.kind === "drive" && !driveFallback)) && pipSupported;
   const togglePiP = async () => {
     try {
       if (document.pictureInPictureElement) { await document.exitPictureInPicture(); setIsPiP(false); }
@@ -237,7 +430,7 @@ export default function Player({ item, items = [], currentIdx = 0, onNavigate, o
   };
 
   // ── Mute (best-effort across embed types) ───────────────────────────────
-  const canMute = embed?.kind === "video" || embed?.kind === "hls" || embed?.kind === "youtube-api";
+  const canMute = embed?.kind === "video" || embed?.kind === "hls" || embed?.kind === "youtube-api" || (embed?.kind === "drive" && !driveFallback);
   const toggleMute = () => {
     setMuted((m) => {
       const next = !m;
@@ -256,11 +449,43 @@ export default function Player({ item, items = [], currentIdx = 0, onNavigate, o
     const dx = touch.current.x - e.changedTouches[0].clientX;
     const dy = touch.current.y - e.changedTouches[0].clientY;
     touch.current.x = touch.current.y = null;
-    if (dy < -70 && Math.abs(dy) > Math.abs(dx) * 1.5) { handleClose(); return; }
+    if (!isTouchDevice && dy < -70 && Math.abs(dy) > Math.abs(dx) * 1.5) { handleClose(); return; }
     if (Math.abs(dx) < 60) return;
     if (dx > 0 && hasNext) onNavigate?.(currentIdx + 1);
     if (dx < 0 && hasPrev) onNavigate?.(currentIdx - 1);
   };
+
+  const enhanceFilter = enhanceMode === "crisp" ? "contrast(1.24) saturate(1.1) brightness(1.04)" : enhanceMode === "cinema" ? "contrast(1.14) saturate(0.96) brightness(0.98)" : enhanceMode === "soft" ? "contrast(1.05) saturate(1.03) brightness(1.01)" : "none";
+
+  const markMoment = async () => {
+    const seconds = videoRef.current?.currentTime || ytPlayer.current?.getCurrentTime?.() || Number(resumeAt || 0) || 0;
+    const markRating = rating || null;
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60).toString().padStart(2, "0");
+    try {
+      await Promise.resolve(onAddMoment?.({ seconds, rating: markRating }));
+      setMarkNotice(`Marked ${mins}:${secs}${markRating ? ` · ★ ${markRating}` : ""}`);
+    } catch {
+      setMarkNotice("Could not save this Moment Mark.");
+    }
+    if (markNoticeTimer.current) clearTimeout(markNoticeTimer.current);
+    markNoticeTimer.current = setTimeout(() => setMarkNotice(""), 1800);
+  };
+
+  const triggerOil = useCallback((e) => {
+    e?.stopPropagation?.();
+    const id = Date.now() + Math.random();
+    setOilBursts((prev) => [...prev.slice(-3), { id }]);
+    onOil?.();
+    setTimeout(() => setOilBursts((prev) => prev.filter((b) => b.id !== id)), 1050);
+  }, [onOil]);
+
+  const openPopout = useCallback(() => {
+    const target = (embed?.kind === "video" || embed?.kind === "hls") ? (mediaSrc || embed.src) :
+      embed?.kind === "drive" && !driveFallback ? embed.src : item.url;
+    try { window.open(target || item.url, "vaultPopout", "popup=yes,width=960,height=640,noopener,noreferrer"); }
+    catch { window.open(target || item.url, "_blank", "noopener,noreferrer"); }
+  }, [embed, mediaSrc, item.url, driveFallback]);
 
   // ── Render ──────────────────────────────────────────────────────────────
   const renderStage = () => {
@@ -268,7 +493,8 @@ export default function Player({ item, items = [], currentIdx = 0, onNavigate, o
       return (
         <div style={{ textAlign: "center", padding: "32px 24px", maxWidth: 320 }}>
           <Icon name="alert" size={28} style={{ color: T.text3, marginBottom: 12 }} />
-          <div style={{ fontSize: 14, color: T.text2, marginBottom: 6 }}>This URL can't be played inside the vault.</div>
+          <div style={{ fontSize: 14, color: T.text2, marginBottom: 6 }}>This source does not expose an embeddable player.</div>
+          <div style={{ fontSize: 11, color: T.text4, lineHeight: 1.45, marginBottom: 14 }}>The vault saved the reference, but this site has to open outside the internal player.</div>
           <div style={{ fontSize: 11, color: T.text4, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.url}</div>
         </div>
       );
@@ -287,31 +513,45 @@ export default function Player({ item, items = [], currentIdx = 0, onNavigate, o
         <div style={{ textAlign: "center", padding: "32px 24px", maxWidth: 360 }}>
           <Icon name="alert" size={28} style={{ color: T.text3, marginBottom: 12 }} />
           <div style={{ fontSize: 14, color: T.text2, marginBottom: 8 }}>{extractErr || "Couldn't find a playable video."}</div>
+          <div style={{ fontSize: 11, color: T.text4, margin: "0 auto 18px", lineHeight: 1.45, maxWidth: 310 }}>Some sites hide media behind login, DRM, split streams, or anti-bot systems. The vault kept the link, but playback needs an outside window.</div>
           <div style={{ fontSize: 11, color: T.text4, marginBottom: 18, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.url}</div>
-          <a href={item.url} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px", background: "rgba(255,255,255,0.08)", border: `1px solid ${T.border}`, borderRadius: 20, color: T.text1, fontSize: 12, textDecoration: "none" }}>
-            Open original <Icon name="external" size={12} />
-          </a>
+          <div style={{ display: "flex", gap: 8, justifyContent: "center", flexWrap: "wrap" }}>
+            <button onClick={(e) => { e.stopPropagation(); openPopout(); }} style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px", background: "rgba(255,255,255,0.10)", border: `1px solid ${T.border}`, borderRadius: 20, color: T.text1, fontSize: 12, cursor: "pointer" }}>
+              Pop out <Icon name="external" size={12} />
+            </button>
+            <a href={item.url} target="_blank" rel="noreferrer" style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "8px 16px", background: "rgba(255,255,255,0.08)", border: `1px solid ${T.border}`, borderRadius: 20, color: T.text1, fontSize: 12, textDecoration: "none" }}>
+              Open original <Icon name="external" size={12} />
+            </a>
+          </div>
         </div>
       );
     }
 
     if (embed.kind === "youtube-api") {
+      const ytWrap = /youtube\.com\/shorts\//i.test(item.url || "") ? stagePortrait : stageWide;
       return (
-        <div style={stageWide}>
+        <div style={ytWrap}>
           <div ref={ytSlot} style={frameInner} />
         </div>
       );
     }
 
     if (embed.kind === "iframe") {
-      const wrap = embed.portrait ? stagePortrait : stageWide;
+      const wrap =
+        embed.sizing === "portrait" ? stagePortrait :
+        embed.sizing === "tall"     ? stageTall :
+        embed.sizing === "drive"    ? stageDrive(isFullscreen) :
+                                      stageWide;
+      // "tall" content (Reddit posts, Facebook embeds) often needs scroll
+      // inside the iframe to surface video controls hidden below the fold.
+      const allowScroll = embed.sizing === "tall";
       return (
         <div style={wrap}>
           <iframe
             src={embed.src}
             allow="autoplay; fullscreen; picture-in-picture; encrypted-media; accelerometer; gyroscope"
             allowFullScreen
-            scrolling="no"
+            scrolling={allowScroll ? "yes" : "no"}
             style={frameInner}
           />
         </div>
@@ -332,100 +572,512 @@ export default function Player({ item, items = [], currentIdx = 0, onNavigate, o
 
     if (embed.kind === "video") {
       return (
-        <video
-          ref={videoRef}
-          src={embed.src}
-          controls autoPlay playsInline
-          muted={muted}
-          onTimeUpdate={onTimeUpdate}
-          style={{ maxWidth: "92vw", maxHeight: "86vh", borderRadius: 8, display: "block", background: "#000" }}
-        />
+        <div style={mediaShell(isFullscreen, mediaOrientation)}>
+          <video
+            ref={videoRef}
+            src={mediaSrc}
+            poster={item.display_thumbnail ? proxiedMediaUrl(item.display_thumbnail) : (item.thumbnail ? proxiedMediaUrl(item.thumbnail) : undefined)}
+            controls autoPlay playsInline preload="metadata"
+            muted={muted}
+            onTimeUpdate={onTimeUpdate}
+            onError={handleVideoError}
+            onLoadedMetadata={onLoadedMetadata}
+            onCanPlay={validateRelayVideoTrack}
+            style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: isFullscreen ? 0 : 8, display: "block", background: "#000", filter: enhanceFilter }}
+          />
+          {relayReason && <RelayBadge text={relayReason} active={useRelay} />}
+          {playbackIssue && <PlaybackIssue text={playbackIssue} onOpenOriginal={() => window.open(item.url, "_blank", "noopener,noreferrer")} />}
+          {refreshing && <RefreshOverlay />}
+        </div>
       );
     }
 
     if (embed.kind === "hls") {
       return (
-        <video
-          ref={videoRef}
-          controls autoPlay playsInline
-          muted={muted}
-          onTimeUpdate={onTimeUpdate}
-          style={{ maxWidth: "92vw", maxHeight: "86vh", borderRadius: 8, display: "block", background: "#000" }}
-        />
+        <div style={mediaShell(isFullscreen, mediaOrientation)}>
+          <video
+            ref={videoRef}
+            poster={item.display_thumbnail ? proxiedMediaUrl(item.display_thumbnail) : (item.thumbnail ? proxiedMediaUrl(item.thumbnail) : undefined)}
+            controls autoPlay playsInline preload="metadata"
+            muted={muted}
+            onTimeUpdate={onTimeUpdate}
+            onError={handleVideoError}
+            onLoadedMetadata={onLoadedMetadata}
+            onCanPlay={validateRelayVideoTrack}
+            style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: isFullscreen ? 0 : 8, display: "block", background: "#000", filter: enhanceFilter }}
+          />
+          {relayReason && <RelayBadge text={relayReason} active={useRelay} />}
+          {playbackIssue && <PlaybackIssue text={playbackIssue} onOpenOriginal={() => window.open(item.url, "_blank", "noopener,noreferrer")} />}
+          {refreshing && <RefreshOverlay />}
+        </div>
       );
     }
 
-    if (embed.kind === "image") {
+
+    if (embed.kind === "drive") {
+      if (driveFallback) {
+        return (
+          <div style={stageDrive(isFullscreen)}>
+            <iframe src={embed.preview} allow="autoplay; fullscreen; picture-in-picture" allowFullScreen scrolling="no" style={frameInner} />
+            <RelayBadge text="Google Drive preview mode. Progress and Enhance only work when Drive allows direct playback." active={false} />
+          </div>
+        );
+      }
       return (
-        <img
-          src={embed.src}
-          alt={item.title || ""}
-          style={{ maxWidth: "92vw", maxHeight: "88vh", objectFit: "contain", borderRadius: 8, display: "block" }}
-        />
+        <div style={mediaShell(isFullscreen, mediaOrientation)}>
+          <video
+            ref={videoRef}
+            src={embed.src}
+            poster={item.display_thumbnail ? proxiedMediaUrl(item.display_thumbnail) : (item.thumbnail ? proxiedMediaUrl(item.thumbnail) : undefined)}
+            controls autoPlay playsInline preload="metadata"
+            muted={muted}
+            onTimeUpdate={onTimeUpdate}
+            onError={() => setDriveFallback(true)}
+            onLoadedMetadata={onLoadedMetadata}
+            style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: isFullscreen ? 0 : 8, display: "block", background: "#000", filter: enhanceFilter }}
+          />
+        </div>
       );
+    }
+
+    if (embed.kind === "pdf") {
+      return <PdfViewer src={embed.src} userId={userId} itemKey={item.key} resumeAt={resumeAt} />;
+    }
+
+    if (embed.kind === "image") {
+      return <ImageViewer src={proxiedMediaUrl(embed.src)} alt={item.title || ""} contained={integrated} />;
     }
 
     return null;
   };
 
+  const handleBackdropClick = (e) => {
+    if (e.target !== e.currentTarget) return;
+    if (!isTouchDevice) { handleClose(); return; }
+    const now = Date.now();
+    if (now - backdropTap.current < 320) handleClose();
+    backdropTap.current = now;
+  };
+
+  const timeBasedMedia = embed?.kind === "video" || embed?.kind === "hls" || embed?.kind === "youtube-api" || (embed?.kind === "drive" && !driveFallback);
+  const actionBtn = integrated ? integratedCtrlBtn : ctrlBtn;
+  const controlBar = (
+    <>
+      {timeBasedMedia && (
+        <select value={enhanceMode} onChange={(e) => { e.stopPropagation(); setEnhanceMode(e.target.value); }} onClick={(e) => e.stopPropagation()} style={integrated ? integratedSelectBtn : selectBtn} title="View enhancement" aria-label="View enhancement">
+          <option value="off">Enhance Off</option>
+          <option value="soft">Soft</option>
+          <option value="crisp">Crisp</option>
+          <option value="cinema">Cinema</option>
+        </select>
+      )}
+      {qualityLevels.length > 0 && (
+        <select value={quality} onChange={(e) => { e.stopPropagation(); setQuality(e.target.value); }} onClick={(e) => e.stopPropagation()} style={integrated ? integratedSelectBtn : selectBtn} title="HLS quality" aria-label="HLS quality">
+          <option value="auto">Auto</option>
+          {qualityLevels.map((l) => <option key={l.idx} value={l.idx}>{l.height ? `${l.height}p` : `${Math.round(l.bitrate / 1000)}kbps`}</option>)}
+        </select>
+      )}
+      {!integrated && (
+        <div style={{ display: "flex", alignItems: "center", gap: 2, background: "rgba(255,255,255,0.07)", borderRadius: 999, padding: "0 8px", height: 38, backdropFilter: "blur(12px)" }}>
+          {[1,2,3,4,5].map((n) => <button key={n} onClick={(e) => { e.stopPropagation(); onRate?.(rating === n ? null : n); }} style={{ background: "transparent", border: "none", color: n <= rating ? T.amber : T.text4, cursor: "pointer", fontSize: 16, padding: 1 }}>★</button>)}
+        </div>
+      )}
+      {timeBasedMedia && (
+        <button onClick={(e) => { e.stopPropagation(); markMoment(); }} style={{ ...actionBtn, width: "auto", minWidth: 44, padding: "0 12px", borderRadius: 12, fontSize: 11, gap: 6 }} title="Mark this timestamp" aria-label="Mark this moment">
+          <Icon name="clock" size={14} /> Mark
+        </button>
+      )}
+      <button onClick={(e) => { e.stopPropagation(); setShowComments((v) => !v); }} style={{ ...actionBtn, background: showComments ? "rgba(255,255,255,0.16)" : actionBtn.background }} title="Comments" aria-label="Comments">
+        <Icon name="comment" size={15} />
+      </button>
+      <button onClick={(e) => { e.stopPropagation(); openPopout(); }} style={actionBtn} title="Pop out" aria-label="Pop out media">
+        <Icon name="external" size={14} />
+      </button>
+      {(embed?.kind === "video" || embed?.kind === "hls") && embed?.src && /^https?:\/\//i.test(embed.src) && (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setPlaybackIssue("");
+            if (!useRelay) {
+              setUseRelay(true);
+              showRelayNotice("Secure relay enabled.");
+            } else {
+              setUseRelay(false);
+              showRelayNotice("Direct playback restored.");
+            }
+          }}
+          style={{ ...actionBtn, background: useRelay ? "rgba(93,220,122,0.14)" : actionBtn.background, color: useRelay ? "#a7efb6" : actionBtn.color }}
+          title={useRelay ? "Use direct playback" : "Use secure relay"}
+          aria-label={useRelay ? "Disable secure relay" : "Enable secure relay"}
+        >
+          <Icon name="sync" size={15} />
+        </button>
+      )}
+      {baseEmbed?.kind === "extract" && extracted && (
+        <button onClick={(e) => { e.stopPropagation(); refreshCount.current = 0; refreshStream({ preserveRelay: useRelay }); }} style={actionBtn} title="Refresh stream" aria-label="Refresh stream">
+          <Icon name="sync" size={15} style={{ animation: refreshing ? "spin 0.8s linear infinite" : "none" }} />
+        </button>
+      )}
+      {canPip && (
+        <button onClick={(e) => { e.stopPropagation(); togglePiP(); }} style={{ ...actionBtn, background: isPiP ? "rgba(255,255,255,0.16)" : actionBtn.background }} title="Picture in Picture" aria-label="Picture in Picture">
+          <Icon name="pip" size={15} />
+        </button>
+      )}
+      {canFullscreen && (
+        <button onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }} style={{ ...actionBtn, background: isFullscreen ? "rgba(255,255,255,0.16)" : actionBtn.background }} title={isFullscreen ? "Exit fullscreen" : "Fullscreen"} aria-label={isFullscreen ? "Exit fullscreen" : "Fullscreen"}>
+          <Icon name="fullscreen" size={15} />
+        </button>
+      )}
+      {canMute && (
+        <button onClick={(e) => { e.stopPropagation(); toggleMute(); }} style={actionBtn} title={muted ? "Unmute" : "Mute"} aria-label={muted ? "Unmute" : "Mute"}>
+          <Icon name={muted ? "volumeOff" : "volume"} size={15} />
+        </button>
+      )}
+      <a href={item.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ ...actionBtn, textDecoration: "none" }} title="Open original" aria-label="Open original source">
+        <Icon name="external" size={14} />
+      </a>
+      <button onClick={handleClose} style={actionBtn} title="Close" aria-label="Close player"><Icon name="x" size={15} /></button>
+    </>
+  );
+
   return (
     <div
-      onClick={handleClose}
+      onClick={handleBackdropClick}
       onTouchStart={onTouchStart}
       onTouchEnd={onTouchEnd}
       style={{
         position: "fixed", inset: 0, zIndex: 999,
-        background: "rgba(0,0,0,0.95)",
+        background: integrated ? "rgba(3,3,4,0.84)" : "rgba(0,0,0,0.95)",
         display: "flex", alignItems: "center", justifyContent: "center",
-        backdropFilter: "blur(12px)",
+        padding: integrated ? "max(10px, env(safe-area-inset-top)) 10px max(10px, env(safe-area-inset-bottom))" : 0,
+        backdropFilter: integrated ? "blur(22px)" : "blur(12px)",
       }}
     >
-      {/* Top controls */}
-      <div style={{ position: "absolute", top: 16, right: 16, zIndex: 1001, display: "flex", gap: 8 }}>
-        {canPip && (
-          <button onClick={(e) => { e.stopPropagation(); togglePiP(); }} style={{ ...ctrlBtn, background: isPiP ? "rgba(255,255,255,0.18)" : "rgba(255,255,255,0.07)" }} title="Picture in Picture">
-            <Icon name="pip" size={15} />
-          </button>
-        )}
-        {canMute && (
-          <button onClick={(e) => { e.stopPropagation(); toggleMute(); }} style={ctrlBtn} title={muted ? "Unmute" : "Mute"}>
-            <Icon name={muted ? "volumeOff" : "volume"} size={15} />
-          </button>
-        )}
-        <a href={item.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} style={{ ...ctrlBtn, textDecoration: "none" }} title="Open original">
-          <Icon name="external" size={14} />
-        </a>
-        <button onClick={handleClose} style={ctrlBtn} title="Close"><Icon name="x" size={15} /></button>
-      </div>
-
-      {/* Title chip (bottom) */}
-      {item.title && (
-        <div style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", maxWidth: "78vw", padding: "6px 14px", background: "rgba(0,0,0,0.55)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 999, color: T.text2, fontSize: 12, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", backdropFilter: "blur(10px)" }}>
-          {item.title}
-        </div>
-      )}
-
-      {/* Nav arrows */}
       {hasPrev && (
-        <button onClick={(e) => { e.stopPropagation(); onNavigate?.(currentIdx - 1); }} style={{ ...arrowBtn, left: 12 }}>
+        <button onClick={(e) => { e.stopPropagation(); onNavigate?.(currentIdx - 1); }} style={{ ...arrowBtn, left: integrated ? 8 : 12 }} aria-label="Previous item">
           <Icon name="chevronLeft" size={22} />
         </button>
       )}
       {hasNext && (
-        <button onClick={(e) => { e.stopPropagation(); onNavigate?.(currentIdx + 1); }} style={{ ...arrowBtn, right: 12 }}>
+        <button onClick={(e) => { e.stopPropagation(); onNavigate?.(currentIdx + 1); }} style={{ ...arrowBtn, right: integrated ? 8 : 12 }} aria-label="Next item">
           <Icon name="chevronRight" size={22} />
         </button>
       )}
 
-      <div onClick={(e) => e.stopPropagation()}>{renderStage()}</div>
+      {integrated ? (
+        <section onClick={(e) => e.stopPropagation()} style={isFullscreen ? fullscreenStage : integratedPlayerSurface} aria-label={item.title || "Media player"}>
+          {!isFullscreen && (
+            <header style={integratedPlayerHeader}>
+              <div style={integratedPlayerIdentity}>
+                <div style={integratedPlayerTitle} title={item.title || item.url}>{item.title || item.url}</div>
+                <div style={integratedPlayerMeta}>{embed?.source?.name || "Saved media"}{useRelay ? " · Secure relay" : ""}</div>
+              </div>
+              <div style={integratedControls}>{controlBar}</div>
+            </header>
+          )}
+          {isFullscreen && <div style={topControls}>{controlBar}</div>}
+          {markNotice && <div style={integrated ? integratedMarkToast : markToast} role="status">{markNotice}</div>}
+          <div ref={stageRef} style={isFullscreen ? fullscreenStage : integratedStage}>{renderStage()}</div>
+        </section>
+      ) : (
+        <>
+          <div style={topControls}>{controlBar}</div>
+          {markNotice && <div style={markToast}>{markNotice}</div>}
+          {item.title && (
+            <div style={{ position: "absolute", bottom: 16, left: "50%", transform: "translateX(-50%)", maxWidth: "78vw", padding: "6px 14px", background: "rgba(0,0,0,0.55)", border: "1px solid rgba(255,255,255,0.08)", borderRadius: 999, color: T.text2, fontSize: 12, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", backdropFilter: "blur(10px)" }}>
+              {item.title}
+            </div>
+          )}
+          <button onClick={triggerOil} style={oilBtn} title="Web squirt" aria-label="Web squirt">
+            <span style={oilDropIcon} />
+            {oilCount > 0 && <span style={oilCountBadge}>{oilCount}</span>}
+          </button>
+          {oilBursts.map((burst, idx) => <div key={burst.id} style={{ ...oilSplash, bottom: `${118 + idx * 8}px` }}><span style={oilDripOne} /><span style={oilDripTwo} /><span style={oilDripThree} /></div>)}
+          <div ref={stageRef} onClick={(e) => e.stopPropagation()} style={isFullscreen ? fullscreenStage : undefined}>{renderStage()}</div>
+        </>
+      )}
+
+      {showComments && (
+        <CommentsPanel
+          userId={userId}
+          itemKey={item.key}
+          title={item.title || item.url}
+          onClose={() => setShowComments(false)}
+        />
+      )}
+      <style jsx global>{`@keyframes vaultWebSquirt { 0% { opacity: 0; transform: translateX(64px) scaleX(0.08) scaleY(0.72) rotate(-8deg); filter: blur(5px); } 16% { opacity: 0.98; filter: blur(0.3px); } 62% { opacity: 0.86; transform: translateX(-18vw) scaleX(1.08) scaleY(1) rotate(-4deg); filter: blur(0.6px); } 100% { opacity: 0; transform: translateX(-24vw) scaleX(1.18) scaleY(1.08) rotate(-2deg); filter: blur(3px); } } @keyframes vaultWebDrip { 0% { transform: translateY(-7px); opacity: 0; } 28% { opacity: 0.92; } 100% { transform: translateY(28px); opacity: 0; } }`}</style>
+    </div>
+  );
+}
+
+function CommentsPanel({ userId, itemKey, title, onClose }) {
+  const [comments, setComments] = useState([]);
+  const [body, setBody] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const load = useCallback(async () => {
+    if (!userId || !itemKey) return;
+    setLoading(true); setError("");
+    try { setComments(await getItemComments(userId, itemKey)); }
+    catch (e) { setError(e.message || "Could not load comments."); }
+    finally { setLoading(false); }
+  }, [userId, itemKey]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const add = async () => {
+    const text = body.trim();
+    if (!text || !userId) return;
+    setSaving(true); setError("");
+    try {
+      const row = await addItemComment(userId, itemKey, text);
+      if (row) setComments((prev) => [...prev, row]);
+      setBody("");
+    } catch (e) { setError(e.message || "Could not save comment."); }
+    finally { setSaving(false); }
+  };
+
+  const remove = async (id) => {
+    if (!userId) return;
+    const ok = window.confirm("Delete this comment?");
+    if (!ok) return;
+    setComments((prev) => prev.filter((c) => c.id !== id));
+    await deleteItemComment(userId, id).catch(() => {});
+  };
+
+  return (
+    <div onClick={(e) => e.stopPropagation()} style={commentsPanel}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12, marginBottom: 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 14, color: T.text1, fontWeight: 700 }}>Comments</div>
+          <div style={{ fontSize: 11, color: T.text4, marginTop: 3, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
+        </div>
+        <button onClick={onClose} style={miniBtn}><Icon name="x" size={14} /></button>
+      </div>
+
+      {!userId && <div style={commentNotice}>Sign in to save comments.</div>}
+      {error && <div style={{ ...commentNotice, color: "#ff9b9b" }}>{error}</div>}
+
+      <div style={{ display: "grid", gap: 8, maxHeight: "42dvh", overflow: "auto", marginBottom: 12 }}>
+        {loading && <div style={commentNotice}>Loading...</div>}
+        {!loading && comments.length === 0 && <div style={commentNotice}>No comments yet.</div>}
+        {comments.map((c) => (
+          <div key={c.id} style={commentRow}>
+            <div style={{ fontSize: 12, color: T.text2, lineHeight: 1.45, whiteSpace: "pre-wrap" }}>{c.body}</div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 7, gap: 8 }}>
+              <div style={{ fontSize: 10, color: T.text4 }}>{new Date(c.created_at).toLocaleString()}</div>
+              <button onClick={() => remove(c.id)} style={{ ...miniBtn, width: 26, height: 26 }}><Icon name="trash" size={12} /></button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Add a comment..." rows={3} style={commentInput} />
+      <button onClick={add} disabled={!body.trim() || saving || !userId} style={{ ...commentSave, opacity: body.trim() && userId ? 1 : 0.45 }}>{saving ? "Saving..." : "Add comment"}</button>
+    </div>
+  );
+}
+
+
+function PdfViewer({ src, userId, itemKey, resumeAt = 0 }) {
+  const [page, setPage] = useState(Math.max(1, Math.floor(Number(resumeAt || 1))));
+  const pageRef = useRef(page);
+
+  useEffect(() => { pageRef.current = page; }, [page]);
+  useEffect(() => () => { if (userId && itemKey) saveProgress(userId, itemKey, pageRef.current || 1, 0); }, [userId, itemKey]);
+
+  const setAndSave = (next) => {
+    const safe = Math.max(1, next);
+    setPage(safe);
+    if (userId && itemKey) saveProgress(userId, itemKey, safe, 0);
+  };
+
+  const pdfSrc = `${src}#page=${page}&toolbar=1&navpanes=0&view=FitH`;
+  return (
+    <div style={pdfShell}>
+      <iframe src={pdfSrc} title="PDF viewer" style={frameInner} />
+      <div style={pdfControls}>
+        <button onClick={(e) => { e.stopPropagation(); setAndSave(page - 1); }} style={pdfBtn}>Prev</button>
+        <div style={{ color: T.text1, fontSize: 12, minWidth: 72, textAlign: "center" }}>Page {page}</div>
+        <button onClick={(e) => { e.stopPropagation(); setAndSave(page + 1); }} style={pdfBtn}>Next</button>
+      </div>
     </div>
   );
 }
 
 // ─── Styles ─────────────────────────────────────────────────────────────────
 
+const pdfShell = { position: "relative", width: "min(96vw, 980px)", height: "min(86dvh, 900px)", background: "#111", borderRadius: 12, overflow: "hidden" };
+const pdfControls = { position: "absolute", left: "50%", bottom: 10, transform: "translateX(-50%)", display: "flex", alignItems: "center", gap: 8, background: "rgba(0,0,0,0.62)", border: "1px solid rgba(255,255,255,0.10)", borderRadius: 999, padding: 5, backdropFilter: "blur(12px)" };
+const pdfBtn = { padding: "7px 11px", borderRadius: 999, background: "rgba(255,255,255,0.10)", border: "none", color: T.text1, cursor: "pointer", fontSize: 12, fontWeight: 700 };
+
+const fullscreenStage = { width: "100vw", height: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "#000" };
+
+const integratedPlayerSurface = {
+  position: "relative",
+  width: "fit-content",
+  maxWidth: "96vw",
+  maxHeight: "94dvh",
+  display: "flex",
+  flexDirection: "column",
+  background: "rgba(10,10,11,0.98)",
+  border: "1px solid rgba(255,255,255,0.10)",
+  borderRadius: 18,
+  overflow: "hidden",
+  boxShadow: "0 30px 100px rgba(0,0,0,0.62)",
+};
+
+const integratedPlayerHeader = {
+  minHeight: 66,
+  display: "flex",
+  alignItems: "center",
+  gap: 14,
+  padding: "9px 10px 9px 16px",
+  borderBottom: "1px solid rgba(255,255,255,0.08)",
+  background: "rgba(13,13,14,0.96)",
+};
+
+const integratedPlayerIdentity = {
+  minWidth: 0,
+  width: "min(32vw, 300px)",
+  flexShrink: 0,
+};
+
+const integratedPlayerTitle = {
+  color: "#f5f5f7",
+  fontSize: 13,
+  lineHeight: 1.25,
+  fontWeight: 680,
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const integratedPlayerMeta = {
+  color: "rgba(235,235,245,0.58)",
+  fontSize: 10,
+  marginTop: 4,
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+const integratedControls = {
+  minWidth: 0,
+  flex: 1,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "flex-end",
+  gap: 6,
+  overflowX: "auto",
+  overflowY: "hidden",
+  paddingBottom: 1,
+  scrollbarWidth: "none",
+};
+
+const integratedStage = {
+  position: "relative",
+  minWidth: 0,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  background: "#050506",
+};
+
+const integratedCtrlBtn = {
+  background: "rgba(255,255,255,0.055)",
+  border: "1px solid rgba(255,255,255,0.085)",
+  color: "#f5f5f7",
+  cursor: "pointer",
+  borderRadius: 11,
+  width: 44,
+  height: 44,
+  minWidth: 44,
+  flexShrink: 0,
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  backdropFilter: "blur(12px)",
+};
+
+const integratedSelectBtn = {
+  height: 44,
+  flexShrink: 0,
+  background: "rgba(255,255,255,0.055)",
+  border: "1px solid rgba(255,255,255,0.085)",
+  color: "#f5f5f7",
+  borderRadius: 11,
+  padding: "0 10px",
+  fontSize: 11,
+};
+
+const integratedMarkToast = {
+  position: "absolute",
+  top: 74,
+  right: 12,
+  zIndex: 1002,
+  padding: "8px 11px",
+  borderRadius: 10,
+  background: "rgba(14,14,15,0.92)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  color: "#f5f5f7",
+  fontSize: 11,
+  boxShadow: "0 12px 36px rgba(0,0,0,0.42)",
+  backdropFilter: "blur(14px)",
+};
+
+const topControls = {
+  position: "absolute", top: 16, left: 16, right: 16, zIndex: 1001,
+  display: "flex", gap: 8, alignItems: "center", justifyContent: "flex-end",
+  maxWidth: "calc(100vw - 32px)", overflowX: "auto", overflowY: "hidden",
+  paddingBottom: 5, WebkitOverflowScrolling: "touch", scrollbarWidth: "thin",
+};
+
+const markToast = {
+  position: "absolute", top: 66, right: 16, zIndex: 1002,
+  padding: "7px 11px", borderRadius: 999, background: "rgba(0,0,0,0.72)",
+  border: "1px solid rgba(255,255,255,0.12)", color: T.text1, fontSize: 12,
+  boxShadow: "0 12px 40px rgba(0,0,0,0.45)", backdropFilter: "blur(12px)",
+};
+
+const mediaShell = (fullscreen, orientation = "wide") => {
+  if (fullscreen) return {
+    position: "relative", width: "100vw", height: "100vh", maxHeight: "100vh",
+    background: "#000", borderRadius: 0, overflow: "hidden",
+  };
+  if (orientation === "portrait") return {
+    position: "relative",
+    width: "min(88vw, 520px)",
+    height: "min(78dvh, 900px)",
+    maxHeight: "78dvh",
+    background: "#000",
+    borderRadius: 10,
+    overflow: "hidden",
+  };
+  if (orientation === "square") return {
+    position: "relative",
+    width: "min(90vw, 760px)",
+    height: "min(76dvh, 760px)",
+    maxHeight: "76dvh",
+    background: "#000",
+    borderRadius: 10,
+    overflow: "hidden",
+  };
+  return {
+    position: "relative",
+    width: "min(94vw, 1280px)",
+    height: "min(78dvh, calc(94vw * 9 / 16))",
+    maxHeight: "78dvh",
+    background: "#000",
+    borderRadius: 10,
+    overflow: "hidden",
+  };
+};
+
 const stageWide = {
-  width: "min(92vw, 1280px)",
+  width: "min(94vw, 1280px)",
   aspectRatio: "16 / 9",
   maxHeight: "86vh",
   background: "#000",
@@ -441,12 +1093,112 @@ const stagePortrait = {
   overflow: "hidden",
 };
 
+// Post-style content (Reddit, Facebook) — full height, narrower to feel mobile-native
+const stageTall = {
+  width: "min(94vw, 540px)",
+  height: "min(88vh, 820px)",
+  background: "#fff",
+  borderRadius: 10,
+  overflow: "hidden",
+};
+
+const stageDrive = (fullscreen) => ({
+  width: fullscreen ? "100vw" : "min(96vw, 980px)",
+  height: fullscreen ? "100vh" : "min(78vh, 860px)",
+  background: "#000",
+  borderRadius: fullscreen ? 0 : 10,
+  overflow: "hidden",
+});
+
 const frameInner = {
   width: "100%",
   height: "100%",
   border: "none",
   display: "block",
   background: "#000",
+};
+
+const selectBtn = {
+  height: 38,
+  background: "rgba(255,255,255,0.07)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  color: "#f5f5f7",
+  borderRadius: 18,
+  padding: "0 10px",
+  fontSize: 11,
+  backdropFilter: "blur(12px)",
+};
+
+
+const commentsPanel = {
+  position: "absolute",
+  right: 14,
+  bottom: 14,
+  width: "min(380px, calc(100vw - 28px))",
+  maxHeight: "72dvh",
+  background: "rgba(14,14,14,0.96)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: 16,
+  padding: 14,
+  zIndex: 1002,
+  boxShadow: "0 24px 80px rgba(0,0,0,0.72)",
+  backdropFilter: "blur(18px)",
+};
+
+const commentRow = {
+  padding: 10,
+  borderRadius: 11,
+  background: "rgba(255,255,255,0.055)",
+  border: "1px solid rgba(255,255,255,0.08)",
+};
+
+const commentNotice = {
+  padding: 10,
+  borderRadius: 10,
+  background: "rgba(255,255,255,0.045)",
+  color: T.text4,
+  fontSize: 12,
+  lineHeight: 1.45,
+};
+
+const commentInput = {
+  width: "100%",
+  resize: "vertical",
+  minHeight: 78,
+  padding: 10,
+  background: "rgba(255,255,255,0.07)",
+  border: "1px solid rgba(255,255,255,0.12)",
+  borderRadius: 11,
+  color: T.text1,
+  fontSize: 12,
+  outline: "none",
+  marginBottom: 8,
+};
+
+const commentSave = {
+  width: "100%",
+  padding: "10px 12px",
+  background: "rgba(255,255,255,0.13)",
+  border: "1px solid rgba(255,255,255,0.14)",
+  color: T.text1,
+  borderRadius: 11,
+  cursor: "pointer",
+  fontSize: 12,
+  fontWeight: 700,
+};
+
+const miniBtn = {
+  width: 32,
+  height: 32,
+  borderRadius: "50%",
+  background: "rgba(255,255,255,0.075)",
+  border: "1px solid rgba(255,255,255,0.09)",
+  color: T.text2,
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  flexShrink: 0,
 };
 
 const ctrlBtn = {
@@ -469,3 +1221,222 @@ const arrowBtn = {
   display: "flex", alignItems: "center", justifyContent: "center",
   zIndex: 1001, backdropFilter: "blur(16px)",
 };
+
+function RelayBadge({ text, active }) {
+  return (
+    <div style={{ position: "absolute", left: 10, bottom: 10, right: 10, display: "flex", justifyContent: "center", pointerEvents: "none" }}>
+      <div style={{ padding: "6px 10px", borderRadius: 999, background: active ? "rgba(50,215,75,0.16)" : "rgba(255,255,255,0.10)", border: `1px solid ${active ? "rgba(50,215,75,0.24)" : T.border}`, color: active ? "rgba(205,255,214,0.92)" : T.text2, fontSize: 11, backdropFilter: "blur(12px)", maxWidth: "min(82vw, 520px)", textAlign: "center" }}>
+        {text}
+      </div>
+    </div>
+  );
+}
+
+function PlaybackIssue({ text, onOpenOriginal }) {
+  return (
+    <div style={{
+      position: "absolute", left: 12, right: 12, bottom: 12, zIndex: 4,
+      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+      padding: "10px 12px", borderRadius: 12,
+      background: "rgba(28,20,18,0.94)", border: "1px solid rgba(255,132,105,0.28)",
+      color: "rgba(255,220,212,0.96)", backdropFilter: "blur(16px)",
+      boxShadow: "0 14px 40px rgba(0,0,0,0.35)",
+    }} role="alert">
+      <span style={{ fontSize: 11, lineHeight: 1.4 }}>{text}</span>
+      <button type="button" onClick={onOpenOriginal} style={{ ...miniBtn, width: "auto", minWidth: 44, padding: "0 11px", borderRadius: 10, color: "#fff" }}>Original</button>
+    </div>
+  );
+}
+
+function RefreshOverlay() {
+  return (
+    <div style={{
+      position: "absolute", inset: 0,
+      background: "rgba(0,0,0,0.55)",
+      backdropFilter: "blur(4px)",
+      display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
+      borderRadius: 8, gap: 12, pointerEvents: "none",
+    }}>
+      <div style={{ width: 28, height: 28, border: "2px solid rgba(255,255,255,0.15)", borderTopColor: "#fff", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      <div style={{ fontSize: 12, color: "#fff", fontWeight: 500, letterSpacing: 0.3 }}>Refreshing stream...</div>
+    </div>
+  );
+}
+
+// ─── Image viewer with pinch/wheel zoom and drag pan ────────────────────────
+function ImageViewer({ src, alt, contained = false }) {
+  const [scale, setScale] = useState(1);
+  const [pos, setPos] = useState({ x: 0, y: 0 });
+  const dragState  = useRef(null);
+  const pinchState = useRef(null);
+  const lastTap    = useRef(0);
+
+  const clamp = (s) => Math.max(1, Math.min(8, s));
+
+  const reset = () => { setScale(1); setPos({ x: 0, y: 0 }); };
+
+  // Mouse wheel zoom
+  const onWheel = (e) => {
+    e.preventDefault();
+    setScale((s) => {
+      const next = clamp(s + (-e.deltaY * 0.002) * s);
+      if (next === 1) setPos({ x: 0, y: 0 });
+      return next;
+    });
+  };
+
+  // Touch: pinch zoom + one-finger pan + double-tap reset
+  const onTouchStart = (e) => {
+    e.stopPropagation();
+    if (e.touches.length === 2) {
+      const [a, b] = e.touches;
+      pinchState.current = { d: Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY), scale };
+      dragState.current = null;
+    } else if (e.touches.length === 1) {
+      const now = Date.now();
+      if (now - lastTap.current < 280) { reset(); lastTap.current = 0; return; }
+      lastTap.current = now;
+      if (scale > 1) dragState.current = { x: e.touches[0].clientX - pos.x, y: e.touches[0].clientY - pos.y };
+    }
+  };
+  const onTouchMove = (e) => {
+    e.stopPropagation();
+    if (e.touches.length === 2 && pinchState.current) {
+      e.preventDefault();
+      const [a, b] = e.touches;
+      const d = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+      setScale(clamp((d / pinchState.current.d) * pinchState.current.scale));
+    } else if (e.touches.length === 1 && dragState.current) {
+      e.preventDefault();
+      setPos({
+        x: e.touches[0].clientX - dragState.current.x,
+        y: e.touches[0].clientY - dragState.current.y,
+      });
+    }
+  };
+  const onTouchEnd = (e) => { e?.stopPropagation?.(); pinchState.current = null; dragState.current = null; };
+
+  // Mouse drag pan
+  const onMouseDown = (e) => {
+    e.preventDefault();
+    if (scale > 1) dragState.current = { x: e.clientX - pos.x, y: e.clientY - pos.y };
+  };
+  const onMouseMove = (e) => {
+    if (dragState.current) setPos({ x: e.clientX - dragState.current.x, y: e.clientY - dragState.current.y });
+  };
+  const onMouseUp = () => { dragState.current = null; };
+  const onDoubleClick = () => { scale === 1 ? setScale(2.5) : reset(); };
+
+  const zoomBy = (factor) => {
+    setScale((s) => {
+      const next = clamp(s * factor);
+      if (next === 1) setPos({ x: 0, y: 0 });
+      return next;
+    });
+  };
+
+  return (
+    <div style={contained
+      ? { position: "relative", width: "min(92vw, 1100px)", height: "min(76dvh, 820px)", overflow: "hidden", borderRadius: 14, background: "#09090a" }
+      : { position: "fixed", inset: 0, width: "100vw", height: "100dvh" }
+    }>
+      <div
+        onWheel={onWheel}
+        onTouchStart={onTouchStart}
+        onTouchMove={onTouchMove}
+        onTouchEnd={onTouchEnd}
+        onMouseDown={onMouseDown}
+        onMouseMove={onMouseMove}
+        onMouseUp={onMouseUp}
+        onMouseLeave={onMouseUp}
+        onDoubleClick={onDoubleClick}
+        style={{
+          width: contained ? "100%" : "100vw", height: contained ? "100%" : "100dvh",
+          overflow: "hidden",
+          display: "flex", alignItems: "center", justifyContent: "center",
+          cursor: scale > 1 ? (dragState.current ? "grabbing" : "grab") : "zoom-in",
+          userSelect: "none",
+          touchAction: "none",
+          background: "#000",
+        }}
+      >
+        <img
+          src={src}
+          alt={alt}
+          draggable={false}
+          style={{
+            width: contained ? "100%" : "100vw", height: contained ? "100%" : "100dvh",
+            objectFit: "contain", display: "block",
+            transform: `translate(${pos.x}px, ${pos.y}px) scale(${scale})`,
+            transformOrigin: "center",
+            transition: (dragState.current || pinchState.current) ? "none" : "transform 0.12s ease-out",
+            pointerEvents: "none",
+          }}
+        />
+      </div>
+
+      {/* Zoom controls (visible only when not at default scale, or on desktop hover) */}
+      <div style={{
+        position: "absolute", bottom: 10, left: "50%", transform: "translateX(-50%)",
+        display: "flex", gap: 6,
+        background: "rgba(0,0,0,0.55)", borderRadius: 999, padding: 4,
+        border: "1px solid rgba(255,255,255,0.08)",
+        backdropFilter: "blur(10px)",
+      }}>
+        <button onClick={(e) => { e.stopPropagation(); zoomBy(1/1.5); }} style={zoomBtn} title="Zoom out">
+          <Icon name="zoomOut" size={14} />
+        </button>
+        <div style={{ fontSize: 11, color: "#fff", padding: "0 8px", alignSelf: "center", fontVariantNumeric: "tabular-nums", minWidth: 36, textAlign: "center" }}>
+          {Math.round(scale * 100)}%
+        </div>
+        <button onClick={(e) => { e.stopPropagation(); zoomBy(1.5); }} style={zoomBtn} title="Zoom in">
+          <Icon name="zoomIn" size={14} />
+        </button>
+        {scale !== 1 && (
+          <button onClick={(e) => { e.stopPropagation(); reset(); }} style={zoomBtn} title="Reset">
+            <Icon name="x" size={13} />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+const zoomBtn = {
+  background: "rgba(255,255,255,0.08)",
+  border: "none",
+  color: "#fff",
+  cursor: "pointer",
+  borderRadius: "50%",
+  width: 30, height: 30,
+  display: "flex", alignItems: "center", justifyContent: "center",
+};
+
+const oilBtn = {
+  position: "absolute", right: 22, bottom: 24, zIndex: 9,
+  width: 46, height: 46, borderRadius: "50%", border: "1px solid rgba(255,255,255,0.34)",
+  background: "radial-gradient(circle at 35% 27%, #fff 0 18%, rgba(255,255,255,0.86) 42%, rgba(255,255,255,0.42) 100%)",
+  color: "#080808", boxShadow: "0 16px 38px rgba(0,0,0,0.44), inset 0 1px 9px rgba(255,255,255,0.7)", cursor: "pointer", display: "grid", placeItems: "center",
+  backdropFilter: "blur(10px)",
+};
+const oilDropIcon = {
+  width: 16, height: 20, borderRadius: "55% 55% 62% 38% / 62% 62% 45% 45%",
+  background: "linear-gradient(145deg, #fff, rgba(255,255,255,0.86))",
+  transform: "rotate(36deg)",
+  boxShadow: "0 0 10px rgba(255,255,255,0.75)",
+};
+const oilCountBadge = {
+  position: "absolute", right: -5, top: -5, minWidth: 18, height: 18, padding: "0 5px", borderRadius: 999,
+  background: "#fff", color: "#000", border: "1px solid rgba(0,0,0,0.18)", fontSize: 10, fontWeight: 800, display: "grid", placeItems: "center",
+};
+const oilSplash = {
+  position: "absolute", right: 54, zIndex: 8,
+  width: "min(46vw, 420px)", height: 128, borderRadius: "60% 36% 58% 42% / 42% 64% 36% 58%",
+  pointerEvents: "none",
+  background: "radial-gradient(ellipse at 7% 50%, rgba(255,255,255,0.98) 0 4%, transparent 5%), radial-gradient(ellipse at 22% 52%, rgba(255,255,255,0.96) 0 8%, transparent 9%), radial-gradient(ellipse at 42% 47%, rgba(255,255,255,0.92) 0 5%, transparent 6%), radial-gradient(ellipse at 68% 49%, rgba(255,255,255,0.94) 0 7%, transparent 8%), linear-gradient(92deg, transparent 0 7%, rgba(255,255,255,0.96) 10% 18%, transparent 20% 26%, rgba(255,255,255,0.88) 29% 54%, transparent 58% 63%, rgba(255,255,255,0.92) 67% 100%)",
+  mixBlendMode: "screen", opacity: 0, transformOrigin: "right center", animation: "vaultWebSquirt 0.78s cubic-bezier(.16,.84,.2,1) forwards",
+  filter: "drop-shadow(0 0 10px rgba(255,255,255,0.45))",
+};
+const oilDripOne = { position: "absolute", left: "24%", top: "58%", width: 6, height: 18, borderRadius: 999, background: "rgba(255,255,255,0.92)", animation: "vaultWebDrip 0.82s 0.12s ease-out forwards" };
+const oilDripTwo = { position: "absolute", left: "52%", top: "50%", width: 4, height: 15, borderRadius: 999, background: "rgba(255,255,255,0.82)", animation: "vaultWebDrip 0.78s 0.18s ease-out forwards" };
+const oilDripThree = { position: "absolute", left: "76%", top: "56%", width: 5, height: 22, borderRadius: 999, background: "rgba(255,255,255,0.88)", animation: "vaultWebDrip 0.9s 0.08s ease-out forwards" };
