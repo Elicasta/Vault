@@ -6,6 +6,8 @@ import { isPlayableVideoSource, uniqueVideoSources, prepareVideoToSave } from "@
 import VideoPreviewModal from "./VideoPreviewModal";
 import GalleryImporter, { ImageDetailPanel } from "./GalleryImporter";
 import SourceInspector from "./SourceInspector";
+import ImageAccessPanel from "./ImageAccessPanel";
+import { isDirectImageUrl, shouldRememberSiteDenied } from "@/lib/media-access-fallback.mjs";
 import CapturedMediaImport from "./CapturedMediaImport";
 import { isEliteBabesUrl } from "@/lib/server/site-adapters/elitebabes.mjs";
 import { siteNeedsBrowser, markSiteBrowserFirst, clearBrowserFirst, isWebsiteAccessDenial, isUnsupportedDiscoveryResponse } from "@/lib/browser-first-fallback.mjs";
@@ -52,7 +54,7 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
     const ticket = ++seq.current;
     setStatus("loading"); setResult(null); setSelected([]); setExtra([]); setResolvedSources({});
     setError(""); setSaveReport("");
-    if (!force && siteNeedsBrowser(url)) {
+    if (!force && shouldRememberSiteDenied(url) && siteNeedsBrowser(url)) {
       setStatus("browser");
       setError("This site has already declined automated scanning in this browser session. Use browser capture or retry once.");
       return;
@@ -68,7 +70,7 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         if (isWebsiteAccessDenial(response, data)) {
-          markSiteBrowserFirst(url);
+          if (shouldRememberSiteDenied(url)) markSiteBrowserFirst(url);
           setStatus("browser");
           setError(data.error || "The site denied server-side scanning. Use browser capture.");
           return;
@@ -318,6 +320,14 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
     </div>
 
     {status === "loading" && <div className="vv-media-message" role="status">Inspecting images, video players and individual media links…</div>}
+    {(isDirectImageUrl(pageUrl)||focusedVideo?.type==="image") &&
+      (status === "browser" || status === "error" || result?.pageLevel === "image") &&
+      <ImageAccessPanel
+        imageUrl={isDirectImageUrl(pageUrl)?(result?.media?.find(x=>x.type==="image")?.url||pageUrl):(focusedVideo?.thumbnail||"")}
+        title={focusedVideo?.title||result?.pageTitle||"Original image"}
+        denied={status==="browser"} sourcePage={pageUrl}
+        coverOnly={!isDirectImageUrl(pageUrl)}/>} 
+
     {(status === "error" || status === "browser") && <div className="vv-media-message" role="alert">{error}
       <button type="button" onClick={() => { clearBrowserFirst(pageUrl); scan(pageUrl,true); }}>Retry scan</button>
       <button type="button" onClick={() => onLoginToWebsite?.()}>Open original website</button>
