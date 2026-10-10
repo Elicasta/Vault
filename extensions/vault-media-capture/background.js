@@ -76,7 +76,24 @@ chrome.tabs.onUpdated.addListener((tabId, change) => {
   chrome.storage.session.remove("vault_media_" + tabId).catch(() => {});
 });
 
+
+const STUDIO_URLS = {
+  venice: "https://venice.ai/",
+  perchance: "https://perchance.org/ai-text-to-image-generator",
+};
+async function launchStudio(site) {
+  if (!Object.prototype.hasOwnProperty.call(STUDIO_URLS,site)) throw new Error("Unknown site");
+  const tab = await chrome.tabs.create({url:STUDIO_URLS[site],active:true});
+  await chrome.sidePanel.setOptions({tabId:tab.id,path:"studio-panel.html",enabled:true});
+  try {await chrome.sidePanel.open({tabId:tab.id});return {opened:true,panel:true};}
+  catch {return {opened:true,panel:false,error:"Use the Vault extension's Studio panel button to open controls."};}
+}
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "VAULT_STUDIO_OPEN") {
+    launchStudio(message.site).then(sendResponse).catch(e=>sendResponse({opened:false,error:e.message}));
+    return true;
+  }
+
   if (message?.type === "VAULT_SMART_PICK") {
     const tabId=sender.tab?.id;
     const rect=message.rect;
