@@ -5,6 +5,7 @@ import { guardProxyRequest, securityErrorResponse } from "@/lib/server/proxy-gua
 import { discoverMedia } from "@/lib/server/media-discovery.mjs";
 import { isEliteBabesUrl, enrichEliteBabesDiscovery } from "@/lib/server/site-adapters/elitebabes.mjs";
 import { classifyKnownMime, normalizedMime, inspectAmbiguousBody } from "@/lib/server/media-response-classifier.mjs";
+import { discoverLinkedGalleryPages, galleryPageLevel } from "@/lib/server/gallery-navigation.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -73,6 +74,7 @@ export async function GET(request) {
       return NextResponse.json({
         pageUrl: finalUrl,
         pageTitle: title,
+        browsePages: [], pageLevel: type === "image" ? "image" : "video", directFile: true,
         media: [{ url: finalUrl, type, title, sourcePage: finalUrl, sourceKind: "direct-media",
           thumbnail: type === "image" ? finalUrl : "", confidence: "high" }],
         counts: { videos: type === "video" ? 1 : 0, images: type === "image" ? 1 : 0 },
@@ -95,7 +97,14 @@ export async function GET(request) {
     }
     if (!html) html = await readTextLimited(response, MAX_HTML_BYTES);
     const result = enrichEliteBabesDiscovery(discoverMedia(html, finalUrl), html, finalUrl);
-    return NextResponse.json(result, { headers: NO_STORE });
+    // Linked category and gallery cards represent *navigation*, never
+    // image files to save. Only enable bulk import after arriving at a gallery.
+    const browsePages = discoverLinkedGalleryPages(html, finalUrl);
+    const pageLevel = galleryPageLevel({ ...result, browsePages });
+    return NextResponse.json({
+      ...result, browsePages, pageLevel,
+      galleryDetected: pageLevel === "gallery" && result.galleryDetected,
+    }, { headers: NO_STORE });
   } catch (error) {
     return securityErrorResponse(error, "Could not inspect this page");
   }
