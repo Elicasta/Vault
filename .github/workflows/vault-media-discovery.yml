@@ -13,6 +13,7 @@ on:
       - "feat/elitebabes-browser-gallery-*"
       - "fix/discovery-nonhtml-fallback-*"
       - "feat/gallery-page-navigation-*"
+      - "fix/gallery-image-403-viewer-*"
   pull_request:
     branches:
       - "fix/relay-search-hardening-*"
