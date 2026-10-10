@@ -337,7 +337,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
             <button type="button" aria-pressed={viewMode === "media"} onClick={() => { setViewMode("media"); setShowHistory(false); }}>Media</button>
             <button type="button" aria-pressed={viewMode === "page"} onClick={() => { setViewMode("page"); setShowHistory(false); }}>Page preview</button>
           </div>}
-          {isMobile && <button type="button" className="vv-browser-save-toggle" aria-expanded={showQuickSave} onClick={() => { setShowQuickSave((v) => !v); setShowHistory(false); }}>{showQuickSave ? "Close save options" : "Save options"}</button>}
+          {isMobile && <button type="button" className="vv-browser-save-toggle" aria-expanded={showQuickSave} onClick={() => { setShowQuickSave((v) => !v); setShowHistory(false); }}>{showQuickSave ? "Close" : "Save URL"}</button>}
         </div>
 
         {showHistory && (
@@ -408,7 +408,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
             ...(isMobile && !showQuickSave ? { display: "none" } : {}),
           }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: T.text1 }}>Quick save</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.text1 }}>Save URL to Vault</div>
               {isMobile && <button type="button" onClick={() => setShowQuickSave(false)} className="vv-close-save">Close</button>}
               {metaState === "checking" && <span style={{ fontSize: 11, color: T.text4 }}>Reading link...</span>}
               {metaState === "fail" && <span style={{ fontSize: 11, color: T.text4 }}>Manual save</span>}
@@ -422,7 +422,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
             <FolderPicker folders={folders} folder={folder} setFolder={setFolder} newFolderName={newFolderName} setNewFolderName={setNewFolderName} handleCreateFolder={handleCreateFolder} creatingFolder={creatingFolder} />
 
             <button onClick={saveCurrent} disabled={!currentUrl || saving} style={{ width: "100%", padding: "12px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.18)", background: currentUrl ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.04)", color: currentUrl ? T.text1 : T.text4, cursor: currentUrl ? "pointer" : "not-allowed", fontWeight: 700, fontSize: 14 }}>
-              {saving ? "Saving..." : "Save current link"}
+              {saving ? "Saving..." : "Save URL to Vault"}
             </button>
 
             <details className="vv-browser-drive-tools">
@@ -478,8 +478,8 @@ function SearchResults({ state, error, query, results, onPreview, onSave, onOpen
         <div style={{ color: T.text4, fontSize: 11, marginTop: 5 }}>{r.host}</div>
         {r.snippet && <div style={{ color: T.text3, fontSize: 12, lineHeight: 1.45, marginTop: 7 }}>{r.snippet}</div>}
         <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-          <button onClick={() => onPreview(r)} style={{ ...smallAction, background:"rgba(255,255,255,.18)", fontWeight:800 }}>Find media</button>
-          <button onClick={() => onSave(r)} disabled={saving} style={smallAction}>{saving ? "Saving..." : "Save page"}</button>
+          <button onClick={() => onSave(r)} disabled={saving} style={{ ...smallAction, background:"rgba(255,255,255,.22)", fontWeight:800 }}>{saving ? "Saving..." : "Save URL to Vault"}</button>
+          <button onClick={() => onPreview(r)} style={smallAction}>Find media</button>
           <button onClick={() => onOpen(r.url)} style={smallAction}>Open site</button>
         </div>
       </div>)}
