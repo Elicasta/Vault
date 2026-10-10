@@ -259,3 +259,39 @@
 .vv-browser-drive-tools[open] summary { border-bottom:1px solid rgba(255,255,255,.13); }
 .vv-browser-drive-tools > p { margin:9px 12px 13px; color:#b8bbcb; font-size:12px; line-height:1.5; }
 .vv-browser-drive-tools .vv-drive-fallback { margin:10px; }
+
+/* Search discovery v3: clear safety modes, media filters and source curation. */
+.vv-search-filters{display:grid;gap:10px;flex-shrink:0;padding:10px 13px 11px;border-bottom:1px solid rgba(255,255,255,.13);background:#15161c}
+.vv-search-mode-row{display:flex;flex-wrap:wrap;align-items:center;gap:12px}
+.vv-search-mode-row>span{color:#d0d3de;font-size:11px;font-weight:750;white-space:nowrap}
+.vv-search-modes,.vv-search-scopes{display:flex;flex-wrap:wrap;align-items:center;gap:5px;min-width:0}
+.vv-search-modes button,.vv-search-scopes button{border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:8px 12px;background:#22242e;color:#aeb3c5;font-size:11px;font-weight:720;cursor:pointer;white-space:nowrap;min-height:34px}
+.vv-search-modes button[aria-pressed="true"],.vv-search-scopes button[aria-pressed="true"]{color:#17181d;background:#ecedf3;border-color:#f1f1f5}
+.vv-search-mode-nsfw[aria-pressed="true"]{background:#f3d5a8!important;border-color:#f3d5a8!important}
+.vv-search-mode-unrestricted[aria-pressed="true"]{background:#d3c8f5!important;border-color:#d3c8f5!important}
+.vv-search-filter-description{font-size:11px;line-height:1.45;color:#c3c5d0;max-width:800px}
+.vv-search-filter-description span{color:#9095a5}
+.vv-search-results{padding:16px;max-width:1050px;margin:auto;min-height:250px}
+.vv-search-results-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px}
+.vv-search-results-heading h3{margin:0 0 5px;color:#f0f0f4;font-size:18px;font-weight:770}
+.vv-search-results-heading p{margin:0;color:#a7acb9;font-size:12px;line-height:1.4}
+.vv-search-results-heading>span{white-space:nowrap;font-size:11px;color:#c9cbd5;border:1px solid rgba(255,255,255,.15);border-radius:8px;padding:7px}
+.vv-search-providers{display:flex;flex-wrap:wrap;gap:7px;color:#9b9fae;font-size:11px;margin:11px 0}
+.vv-search-providers span{max-width:100%;overflow-wrap:anywhere}
+.vv-search-host-filter{display:flex;flex-wrap:wrap;align-items:center;gap:9px;font-size:11px;color:#c7cbd7;margin:12px 0}
+.vv-search-host-filter select{min-width:0;max-width:100%;border:1px solid #444752;background:#262833;color:#f3f4f6;border-radius:9px;padding:10px;font-size:12px}
+.vv-search-warning{font-size:11px;color:#d9bc9b;background:#2a2520;border-radius:8px;padding:8px 10px;line-height:1.5}
+.vv-search-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,245px),1fr));gap:11px}
+.vv-search-result-card{background:#1a1b21;border:1px solid rgba(255,255,255,.12);border-radius:13px;padding:14px;min-width:0;display:flex;flex-direction:column;gap:8px}
+.vv-search-result-title{background:none;border:0;color:#f0f2f5;text-align:left;font-size:14px;font-weight:740;line-height:1.4;cursor:pointer;padding:0;overflow-wrap:anywhere}
+.vv-search-result-card p{font-size:12px;line-height:1.55;color:#adb1bf;margin:0;flex:1}
+.vv-search-result-metadata{display:flex;flex-wrap:wrap;gap:8px;font-size:11px;color:#a0a9bb;overflow-wrap:anywhere}
+.vv-search-result-metadata span:last-child{border:1px solid #464a57;padding:2px 6px;border-radius:5px}
+.vv-search-result-actions{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-top:5px}
+.vv-search-result-actions button{border-radius:8px;padding:8px 10px;color:#e5e7ee;background:#30323d;border:1px solid rgba(255,255,255,.12);font-size:11px;cursor:pointer;font-weight:690}
+.vv-search-result-actions button.vv-search-save-primary{background:#ebecf1;color:#111218;flex-grow:1}
+.vv-search-result-actions button:disabled{opacity:.5}
+.vv-search-pages{display:flex;align-items:center;justify-content:center;gap:12px;margin-top:18px;color:#b8bdc9;font-size:12px}
+.vv-search-pages button{background:#292c37;border:1px solid rgba(255,255,255,.17);border-radius:8px;color:#eff0f4;padding:9px 12px;font-size:12px;cursor:pointer}
+.vv-search-pages button:disabled{opacity:.45;cursor:not-allowed}
+@media(max-width:650px){.vv-search-filters{padding:8px 10px}.vv-search-modes button,.vv-search-scopes button{padding:8px 9px}.vv-search-mode-row{gap:7px}.vv-search-results{padding:12px}.vv-search-card-grid{grid-template-columns:minmax(0,1fr)}}
