@@ -14,6 +14,7 @@ on:
       - "fix/discovery-nonhtml-fallback-*"
       - "feat/gallery-page-navigation-*"
       - "fix/gallery-image-403-viewer-*"
+      - "feat/universal-browser-gallery-capture-*"
   pull_request:
     branches:
       - "fix/relay-search-hardening-*"
