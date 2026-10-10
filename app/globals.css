@@ -236,3 +236,8 @@ input[type="range"] { accent-color: #fff; }
  .vv-gallery-navigation-items{grid-template-columns:repeat(2,minmax(0,1fr))}
  .vv-browser-page-path{max-width:55vw}
 }
+
+.vv-gallery-advanced-import{padding:12px 14px;border-radius:11px;background:#262d3c;border:1px solid rgba(255,255,255,.17);display:grid;gap:10px}
+.vv-gallery-advanced-import p{margin:0;color:#d1d8e8;line-height:1.5;font-size:12px}
+.vv-gallery-advanced-import button{justify-self:start;background:#eef0f6;color:#1a1d28;border:0;border-radius:9px;padding:10px 12px;font-size:12px;font-weight:720;cursor:pointer}
+.vv-gallery-advanced-import button[aria-pressed="true"]{background:#3e4557;color:#f0f2f8;border:1px solid #72788b}
