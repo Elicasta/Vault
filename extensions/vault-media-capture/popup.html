@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vault Media Capture</title>
+<link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <header>
+    <span class="kicker">VAULT</span>
+    <h1>Media Capture</h1>
+    <p>Actual image and video requests from this tab.</p>
+  </header>
+  <div class="toolbar">
+    <button id="scan">Scan page</button>
+    <button id="all">Select all</button>
+    <button id="clear">Clear</button>
+  </div>
+  <div class="toolbar filter" role="group" aria-label="Media filter">
+    <button data-filter="all" aria-pressed="true">All</button>
+    <button data-filter="video">Videos</button>
+    <button data-filter="image">Images</button>
+  </div>
+  <p id="state" role="status">Reading the active tab…</p>
+  <div id="items"></div>
+  <footer>
+    <small id="selected">0 selected</small>
+    <button id="copy" disabled>Copy selected for Vault</button>
+    <p>No requests are modified. Captured URLs stay in the extension until copied and may contain short-lived tokens.</p>
+  </footer>
+<script src="popup.js"></script>
+</body>
+</html>
