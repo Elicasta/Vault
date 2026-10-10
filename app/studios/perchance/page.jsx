@@ -1,2 +1,2 @@
-import VaultExperience from "@/components/VaultExperience";
-export default function Page(){ return <VaultExperience route="perchance" />; }
+import { redirect } from "next/navigation";
+export default function Page(){ redirect("/import"); }
