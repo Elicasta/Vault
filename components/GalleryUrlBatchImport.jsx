@@ -1,7 +1,7 @@
 "use client";
 import {useMemo,useRef,useState} from "react";
 import {ensureProxySession,SECURITY_V2_ENABLED} from "@/lib/security-session";
-import {itemKey} from "@/lib/utils";
+import {itemKey,DEFAULT_SHEET_SOURCE} from "@/lib/utils";
 import {parseInAppUrlBatch,galleryPageLinkItem} from "@/lib/in-app-url-batch.mjs";
 
 export default function GalleryUrlBatchImport({folder="",onSave,onCreateFolder,existingUrls=[]}){
@@ -30,8 +30,8 @@ export default function GalleryUrlBatchImport({folder="",onSave,onCreateFolder,e
   try{const body=await file.text();setRaw(body);preview(body);}
   catch(e){setError(e?.message||"Could not read file.");}
  };
- const loadSheet=async()=>{
-  const source=String(sheetUrl||"").trim();
+ const loadSheet=async(sourceOverride="")=>{
+  const source=String(sourceOverride||sheetUrl||"").trim();
   let u;try{u=new URL(source);}catch{setError("Enter a Google Sheets link.");return;}
   const match=u.hostname==="docs.google.com"&&u.pathname.match(/^\/spreadsheets\/d\/([A-Za-z0-9_-]{20,160})/);
   if(!match){setError("Enter a valid Google Sheets document link.");return;}
@@ -110,7 +110,12 @@ export default function GalleryUrlBatchImport({folder="",onSave,onCreateFolder,e
       placeholder="https://docs.google.com/spreadsheets/d/.../edit?gid=..."
       aria-label="Google Sheet URL"/>
    </label>
-   <button type="button" disabled={!sheetUrl.trim()||busy} onClick={loadSheet}>Load Sheet URL list</button>
+   <div className="vv-generator-primary-actions">
+    <button type="button" disabled={!sheetUrl.trim()||busy} onClick={()=>loadSheet()}>Load Sheet URL list</button>
+    <button type="button" disabled={busy} onClick={()=>{setSheetUrl(DEFAULT_SHEET_SOURCE.url);loadSheet(DEFAULT_SHEET_SOURCE.url);}}>
+      Load existing Vault Sheet
+    </button>
+   </div>
   </div>
   {!!entries.length&&<>
    <div className="vv-url-list-toolbar">
