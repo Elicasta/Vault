@@ -276,3 +276,21 @@ input[type="range"] { accent-color: #fff; }
 .vv-gallery-browser-recovery>p{font-size:12px;line-height:1.6;color:#c9d1de}
 .vv-gallery-browser-recovery .vv-capture-import{background:transparent;border:0;padding:0}
 @media(max-width:650px){.vv-browser-capture-install{grid-template-columns:minmax(0,1fr)}}
+
+
+/* Original-file recovery: site access 403 cannot affect user-picked files. */
+.vv-local-gallery-recovery{display:grid;gap:13px;margin:14px 0 19px;padding:19px;border:1px solid rgba(255,255,255,.2);background:#202a36;border-radius:16px;min-width:0}
+.vv-local-gallery-recovery>div:first-child{display:grid;gap:6px}
+.vv-local-gallery-recovery h3{margin:0;color:#f6f8fb;font-size:17px}
+.vv-local-gallery-recovery p{margin:0;font-size:12px;color:#cfdae9;line-height:1.6}
+.vv-local-gallery-actions{display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.vv-local-gallery-actions button,.vv-local-gallery-actions a{min-height:42px;border-radius:9px;padding:11px 13px;border:1px solid rgba(255,255,255,.19);background:#414a59;color:#f3f7ff;text-decoration:none;cursor:pointer;font-size:12px;font-weight:700;text-align:center}
+.vv-local-gallery-actions button:first-child{background:#f2f5fb;color:#111827}
+.vv-local-gallery-actions button:disabled{opacity:.4;cursor:not-allowed}
+.vv-local-gallery-recovery .vv-local-gallery-tip{color:#c3d2e6;font-size:11px}
+.vv-local-gallery-recovery.is-compact{padding:14px;margin:9px 0;background:#242d3a;border-color:rgba(255,255,255,.16)}
+.vv-local-gallery-recovery.is-compact h3{font-size:14px}
+@media(max-width:650px){
+ .vv-local-gallery-recovery{padding:14px}
+ .vv-local-gallery-actions button,.vv-local-gallery-actions a{flex:1 1 140px}
+}
