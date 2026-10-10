@@ -87,10 +87,33 @@ export default function GalleryImporter({ result, folder, onSave, existingUrls =
     let saved = 0, skipped = 0, unresolved = 0, processed = 0;
     const seen = new Set(existingUrls);
     const entries = [...images];
+    const galleries = new Set([result.pageUrl]);
+    const pageCards = [...pages];
+    let nextPage = result.nextPageUrl || "";
+    // Bounded pagination of the same gallery. No site-wide crawling.
+    for (let pageIndex = 1; pageIndex < 6 && nextPage && !cancelRef.cancelled; pageIndex++) {
+      if (galleries.has(nextPage) || new URL(nextPage).hostname !== new URL(result.pageUrl).hostname) break;
+      galleries.add(nextPage);
+      try {
+        if (SECURITY_V2_ENABLED) await ensureProxySession();
+        const fetchPage = () => fetch("/api/media-discovery?url=" + encodeURIComponent(nextPage), { cache: "no-store", credentials: "same-origin" });
+        let res = await fetchPage();
+        if (res.status === 401 && SECURITY_V2_ENABLED) {
+          await ensureProxySession(null, { force: true }); res = await fetchPage();
+        }
+        const another = await res.json();
+        if (!res.ok) break;
+        for (const media of another.media || []) if (media.type === "image") entries.push(media);
+        for (const card of another.imagePages || []) if (!pageCards.some((p) => p.url === card.url)) pageCards.push(card);
+        nextPage = another.nextPageUrl || "";
+        setProgress({ stage: "Scanning gallery page " + (pageIndex + 1), saved, skipped, unresolved, processed });
+        if (entries.length + pageCards.length >= 160) break;
+      } catch { break; }
+    }
     let lookupError = "";
     try {
-      for (let index = 0; index < pages.length && !cancelRef.cancelled; index += 8) {
-        const batch = pages.slice(index, index + 8);
+      for (let index = 0; index < Math.min(pageCards.length,160) && !cancelRef.cancelled; index += 8) {
+        const batch = pageCards.slice(index, index + 8);
         try {
           const resolutions = await postLookup(batch);
           for (const entry of resolutions) {
@@ -100,15 +123,15 @@ export default function GalleryImporter({ result, folder, onSave, existingUrls =
         } catch (e) { unresolved += batch.length; lookupError = e.message || "One batch could not be inspected"; }
         setProgress({ stage: "Discovering originals", saved, skipped, unresolved, processed });
       }
-      // One click imports all *detected* images from this gallery, bounded to
-      // the server scan cap. Pagination remains manual to avoid unbounded crawl.
+      // Deduplicate originals by URL. A linked detail page is identified by
+      // sourcePage, but direct image elements share a gallery sourcePage.
       const bestBySource = new Map();
       for (const entry of entries) {
-        const key = entry.sourcePage || entry.url;
+        const key = entry.resolution ? (entry.sourcePage || entry.url) : entry.url;
         const old = bestBySource.get(key);
         if (!old || (entry.resolution === "high-confidence" && old.resolution !== "high-confidence")) bestBySource.set(key, entry);
       }
-      const final = [...bestBySource.values()].slice(0, 96);
+      const final = [...bestBySource.values()].slice(0, 160);
       for (const media of final) {
         if (cancelRef.cancelled) break;
         processed++;
@@ -148,7 +171,7 @@ export default function GalleryImporter({ result, folder, onSave, existingUrls =
         <input value={newFolder} onChange={(e) => setNewFolder(e.target.value)} placeholder="New folder name" aria-label="New gallery folder"/>
         <button type="button" onClick={makeFolder} disabled={!newFolder.trim() || working}>Create folder</button>
       </div>
-      <p>Imports the images detected on this page, including full-size files found on linked photo pages. Duplicates are skipped. Vault saves media URLs, not downloaded file copies.</p>
+      <p>Scans up to 6 linked gallery pages and 160 media candidates, preferring full-resolution image links. Existing URLs are skipped. Vault saves links, not downloaded copies.</p>
       <div className="vv-gallery-actions">
         <button type="button" onClick={importGallery} disabled={working}>{working ? "Importing gallery…" : "Save entire gallery (" + count + " candidates)"}</button>
         {working && <button type="button" onClick={() => { cancelRef.cancelled = true; }}>Cancel</button>}
