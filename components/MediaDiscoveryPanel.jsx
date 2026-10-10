@@ -333,7 +333,10 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
       <button type="button" onClick={() => onLoginToWebsite?.()}>Open original website</button>
       <p>Some addresses return downloads, API data, or browser-only pages rather than readable HTML. Other sites block server access. Website cookies cannot be transferred to Vault's server scanner. Open the original page to use its own Download action, or import Chrome-captured URLs; saving the page URL is always available.</p>
     </div>}
-    {status === "browser" && <><p className="vv-media-note">{isEliteBabesUrl(pageUrl) ? "This site has a gallery adapter; when its page is unavailable to Vault, use the original website and capture accessible media in your own browser." : "This page requires a browser-first import. Review and save accessible media from the original website below."}</p>
+    {status === "browser" && <>
+      <p className="vv-media-note"><a href={"/import?url="+encodeURIComponent(pageUrl)}>Open file-first import — choose images already saved to Photos or Files</a></p>
+      <p className="vv-media-note">The original website denied this gallery to Vault's server. You can still save the actual image files from your regular browser and import them without scanning again.</p>
+      <p className="vv-media-note">{isEliteBabesUrl(pageUrl) ? "This site has a gallery adapter; when its page is unavailable to Vault, use the original website and capture accessible media in your own browser." : "This page requires a browser-first import. Review and save accessible media from the original website below."}</p>
       <CapturedMediaImport pageUrl={pageUrl} folder={folder} onSave={onSave} existingUrls={[...existingUrls,...savedThisSession]}/></>}
     {status === "done" && !items.length && !(result?.videoPages || []).length && !(result?.imagePages || []).length && !(result?.browsePages || []).length && <div className="vv-media-message">No links were visible in this page's HTML. Some sites load them dynamically; try the Chrome capture extension or visit the individual video page.</div>}
     {result?.truncated && <p className="vv-media-note">This page contains more media than the current scan limit. The highest-confidence matches are shown.</p>}
