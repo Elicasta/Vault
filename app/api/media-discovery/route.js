@@ -4,6 +4,7 @@ import { fetchWithRegionFallback } from "@/lib/server/region-fallback.js";
 import { guardProxyRequest, securityErrorResponse } from "@/lib/server/proxy-guard";
 import { discoverMedia } from "@/lib/server/media-discovery.mjs";
 import { isEliteBabesUrl, enrichEliteBabesDiscovery } from "@/lib/server/site-adapters/elitebabes.mjs";
+import { classifyKnownMime, normalizedMime, inspectAmbiguousBody } from "@/lib/server/media-response-classifier.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -47,26 +48,49 @@ export async function GET(request) {
       }, { status: denied ? 403 : 502, headers: NO_STORE });
     }
 
-    const contentType = String(response.headers.get("content-type") || "").toLowerCase();
-    if (/^image\/(?!svg)/.test(contentType) || /^video\//.test(contentType)) {
-      await response.body?.cancel().catch(() => {});
-      const type = contentType.startsWith("image/") ? "image" : "video";
-      const title = decodeURIComponent(new URL(finalUrl).pathname.split("/").pop() || type);
+    const contentType = normalizedMime(response.headers.get("content-type"));
+    let kind = classifyKnownMime(contentType);
+    let html = "";
+    // Some public sites send a real HTML page as text/plain or
+    // application/octet-stream. Inspect bounded signatures, never guess
+    // that every successful HTTP response is a readable HTML gallery.
+    if (kind === "unknown") {
+      const inspected = await inspectAmbiguousBody(response, MAX_HTML_BYTES);
+      kind = inspected.kind;
+      html = inspected.html || "";
+    }
+    if (kind === "image" || kind === "video") {
+      if (classifyKnownMime(contentType) !== "unknown") {
+        await response.body?.cancel().catch(() => {});
+      }
+      const type = kind;
+      const rawName = new URL(finalUrl).pathname.split("/").pop() || type;
+      let title=rawName;
+      try{title=decodeURIComponent(rawName);}catch{}
       return NextResponse.json({
         pageUrl: finalUrl,
         pageTitle: title,
-        media: [{ url: finalUrl, type, title, sourcePage: finalUrl, sourceKind: "direct-media", thumbnail: type === "image" ? finalUrl : "", confidence: "high" }],
+        media: [{ url: finalUrl, type, title, sourcePage: finalUrl, sourceKind: "direct-media",
+          thumbnail: type === "image" ? finalUrl : "", confidence: "high" }],
         counts: { videos: type === "video" ? 1 : 0, images: type === "image" ? 1 : 0 },
         filteredAds: 0, truncated: false,
       }, { headers: NO_STORE });
     }
-
-    if (!/(html|xml)/i.test(contentType)) {
-      await response.body?.cancel().catch(() => {});
-      return NextResponse.json({ error: "This page is not HTML or supported media. Save its original link instead." }, { status: 415, headers: NO_STORE });
+    if (kind !== "html") {
+      // Do not fall through and parse JSON, downloads or a bot challenge as
+      // a photo gallery. Give the client a browser-first import action.
+      return NextResponse.json({
+        error: "This address didn't return a readable HTML gallery or a supported image/video file. " +
+          "The website responded with " + (contentType || "an unspecified content type") +
+          ". Open the original page or import a permitted downloaded file.",
+        code: "SITE_NON_HTML",
+        sourceUrl: checked.url.href,
+        receivedType: contentType || "unknown",
+        guidance: "Open the website in your browser. Save the URL, or use Vault Media Capture on desktop Chrome " +
+          "and import the captured URLs. On iPhone, use the site's download action and upload a permanent copy.",
+      }, { status: 415, headers: NO_STORE });
     }
-
-    const html = await readTextLimited(response, MAX_HTML_BYTES);
+    if (!html) html = await readTextLimited(response, MAX_HTML_BYTES);
     const result = enrichEliteBabesDiscovery(discoverMedia(html, finalUrl), html, finalUrl);
     return NextResponse.json(result, { headers: NO_STORE });
   } catch (error) {
