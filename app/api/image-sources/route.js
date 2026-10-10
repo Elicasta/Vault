@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { guardProxyRequest, securityErrorResponse } from "@/lib/server/proxy-guard";
-import { safeFetch, validatePublicUrl, readTextLimited } from "@/lib/server/safe-url";
+import { validatePublicUrl, readTextLimited } from "@/lib/server/safe-url";
 import { fetchWithRegionFallback } from "@/lib/server/region-fallback.js";
 import { discoverMedia } from "@/lib/server/media-discovery.mjs";
 import { chooseBestImage, isImageFileUrl } from "@/lib/server/image-resolution.mjs";
