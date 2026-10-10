@@ -5,6 +5,7 @@ import { uploadVaultMedia, deleteVaultMedia } from "@/lib/supabase";
 import { itemKey } from "@/lib/utils";
 import { buildGeneratorUrlItem, normalizeGeneratorPublicUrl } from "@/lib/generator-save-url.mjs";
 import StudioLiveBrowser from "./StudioLiveBrowser";
+import SourceInspector from "./SourceInspector";
 
 export const GENERATOR_SITES = Object.freeze({
   venice: {
@@ -185,6 +186,8 @@ export default function GeneratorWorkspace({ site = "venice", userId, folders = 
       </div>
       <p className="vv-generator-caution">URL saving does not download a file. If the generator uses a temporary blob: URL or deleting browser data could erase the result, use Permanent Copy below.</p>
     </section>
+    <SourceInspector pageUrl={sourceUrl || config.url} folder={selectedFolder}
+      onSave={onSave} existingUrls={items.map(item=>item.url||item.canonical_url).filter(Boolean)}/>
     <div className="vv-generator-grid">
       <div className="vv-generator-section">
         <h3>2. Browse, generate and inspect</h3>
