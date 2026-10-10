@@ -35,3 +35,7 @@ This Chrome companion outputs the `vault-media-capture-v1` JSON format consumed 
 ## Per-item verification
 
 In Vault's Media Collector, use **Copy URL** or **Open URL** on any detected asset before selecting it. The exact asset URL, along with the page of origin, is saved into the Vault library when you choose **Save to Vault**.
+
+## Video and cover pairing
+
+The playable MP4/WebM/HLS URL is stored as the Vault item URL, while the poster/image URL is the cover. Use Preview to verify a source before saving. A page that exposes only a poster cannot be saved as a video. When a saved stream repeatedly fails or renders only audio, choose Remove from Library from the player; its record and link remain available under Settings > Hidden links for restoration.
