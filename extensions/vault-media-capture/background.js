@@ -90,6 +90,16 @@ async function launchStudio(site) {
 }
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "VAULT_STUDIO_OPEN") {
+    const source = sender?.tab?.url || "";
+    if (source && /^https?:\/\//i.test(source)) {
+      try {
+        const u = new URL(source);
+        if (/^\/studios\/(?:venice|perchance)(?:\/|$)/.test(u.pathname) &&
+            (u.hostname.includes("vault") || u.hostname === "localhost")) {
+          chrome.storage.local.set({vault_studio_origin:u.origin}).catch(()=>{});
+        }
+      } catch {}
+    }
     launchStudio(message.site).then(sendResponse).catch(e=>sendResponse({opened:false,error:e.message}));
     return true;
   }
