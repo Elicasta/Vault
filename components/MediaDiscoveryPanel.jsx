@@ -4,6 +4,7 @@ import { ensureProxySession, SECURITY_V2_ENABLED } from "@/lib/security-session"
 import { buildVaultMediaItem, parseCapturedMedia } from "@/lib/media-capture-import.mjs";
 import { isPlayableVideoSource, uniqueVideoSources, prepareVideoToSave } from "@/lib/video-source-resolver.mjs";
 import VideoPreviewModal from "./VideoPreviewModal";
+import GalleryImporter, { ImageDetailPanel } from "./GalleryImporter";
 import { itemKey, sourceIdOf } from "@/lib/utils";
 
 const truncate = (text, max = 80) => String(text || "").length > max ? String(text).slice(0, max - 1) + "…" : String(text || "");
@@ -16,7 +17,7 @@ function Thumbnail({ item }) {
   return <img loading="lazy" alt="" src={direct ? item.thumbnail : "/api/media?url=" + encodeURIComponent(item.thumbnail)} onError={() => { if (!direct) setDirect(true); else setFailed(true); }} referrerPolicy="no-referrer" className="vv-media-thumb" />;
 }
 
-export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolderChange, onCreateFolder, onSave, existingUrls = [], onExploreVideoPage, focusedVideo = null, drillDepth = 0, canExploreMore = true }) {
+export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolderChange, onCreateFolder, onSave, existingUrls = [], onExploreVideoPage, onExplorePage, focusedVideo = null, drillDepth = 0, canExploreMore = true }) {
   const [result, setResult] = useState(null);
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
@@ -74,7 +75,7 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
   }, [pageUrl]);
 
   useEffect(() => {
-    if (!focusedVideo?.url || focusedVideo.url !== pageUrl) {
+    if (focusedVideo?.type === "image" || !focusedVideo?.url || focusedVideo.url !== pageUrl) {
       setDetailSources([]); setDetailState("idle"); setDetailError(""); return;
     }
     let cancelled = false;
@@ -99,7 +100,7 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
     return () => { cancelled = true; controller.abort(); };
   }, [pageUrl, focusedVideo?.url, focusedVideo?.thumbnail]);
 
-  const detailItem = focusedVideo && focusedVideo.url === pageUrl
+  const detailItem = focusedVideo && focusedVideo.type !== "image" && focusedVideo.url === pageUrl
     ? { ...focusedVideo, type: "video", title: result?.pageTitle || focusedVideo.title || "Video", thumbnail: result?.media?.find((m) => m.type === "video" && m.thumbnail)?.thumbnail || focusedVideo.thumbnail || "" }
     : null;
 
@@ -236,6 +237,11 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
       </div>
     </section>}
 
+    {focusedVideo?.type === "image" && focusedVideo.url === pageUrl && <ImageDetailPanel
+      page={focusedVideo} folder={folder} onSave={onSave} saving={saving}
+      onSaved={(url) => setSavedThisSession((old) => [...old, url])}
+    />}
+
     <div className="vv-media-collection">
       <label htmlFor="vv-media-folder">Save into</label>
       <select id="vv-media-folder" value={folder} onChange={(e) => onFolderChange(e.target.value)}>
@@ -245,6 +251,13 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
       <button type="button" onClick={() => setAddingFolder((v) => !v)} aria-label="Create collection" title="Create collection">+ Collection</button>
     </div>
     {addingFolder && <div className="vv-media-new-folder"><input aria-label="New collection name" autoFocus placeholder="Collection name" value={newFolder} onChange={(e) => setNewFolder(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addFolder(); }} /><button type="button" onClick={addFolder} disabled={!newFolder.trim()}>Create</button><button type="button" onClick={() => setAddingFolder(false)}>Cancel</button></div>}
+
+    <GalleryImporter
+      result={result} folder={folder} onFolderChange={onFolderChange}
+      onCreateFolder={onCreateFolder} folders={folders} onSave={onSave}
+      existingUrls={[...existingUrls, ...savedThisSession]}
+      onSaved={(url) => setSavedThisSession((old) => [...old, url])}
+    />
 
     <div className="vv-media-tools">
       <div className="vv-media-filters" role="group" aria-label="Filter media">
@@ -260,7 +273,7 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
 
     {status === "loading" && <div className="vv-media-message" role="status">Inspecting images, video players and individual media links…</div>}
     {status === "error" && <div className="vv-media-message" role="alert">{error} <button type="button" onClick={() => scan(pageUrl)}>Retry</button></div>}
-    {status === "done" && !items.length && !(result?.videoPages || []).length && <div className="vv-media-message">No links were visible in this page's HTML. Some sites load them dynamically; try the Chrome capture extension or visit the individual video page.</div>}
+    {status === "done" && !items.length && !(result?.videoPages || []).length && !(result?.imagePages || []).length && <div className="vv-media-message">No links were visible in this page's HTML. Some sites load them dynamically; try the Chrome capture extension or visit the individual video page.</div>}
     {result?.truncated && <p className="vv-media-note">This page contains more media than the current scan limit. The highest-confidence matches are shown.</p>}
     {result?.filteredAds > 0 && <p className="vv-media-note">{result.filteredAds} advertising or invalid URL candidates excluded.</p>}
 
@@ -278,6 +291,21 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
         </button>)}
       </div>
       {!canExploreMore && <p className="vv-media-note">Exploration depth limit reached. Go back to continue browsing.</p>}
+    </section>}
+
+    {(result?.imagePages || []).length > 0 && <section className="vv-video-pages" aria-label="Explore image pages">
+      <div className="vv-video-pages-header"><div><h3>Explore image pages</h3>
+        <p>Open a gallery photo's detail page to look for the original image URL rather than its smaller cover.</p></div>
+        <span>{result.imagePages.length} pages</span>
+      </div>
+      <div className="vv-video-pages-grid">
+        {result.imagePages.map((page) => <button type="button" key={page.url} className="vv-video-page-card"
+          onClick={() => onExplorePage?.(page)} title={page.url}>
+          <div className="vv-video-page-cover"><Thumbnail item={{ ...page, type: "image" }} /><span>OPEN IMAGE →</span></div>
+          <strong>{truncate(page.title || page.url, 75)}</strong>
+          <small>{page.confidence === "likely-image" ? "Image detail page" : "Linked gallery page · verify"}</small>
+        </button>)}
+      </div>
     </section>}
 
     <div className="vv-media-grid">
