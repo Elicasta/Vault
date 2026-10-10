@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { safeFetch, validatePublicUrl } from "@/lib/server/safe-url";
+import { fetchWithRegionFallback } from "@/lib/server/region-fallback.js";
 import { guardProxyRequest, securityErrorResponse } from "@/lib/server/proxy-guard";
 
 export const runtime = "nodejs";
@@ -30,7 +31,7 @@ export async function GET(request) {
   const target = checked.url;
 
   try {
-    const res = await safeFetch(target.href, {
+    const res = await fetchWithRegionFallback(target.href, {
       headers: {
         "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 Chrome/120 Safari/537.36",
         "Accept": "image/avif,image/webp,image/apng,image/*,*/*;q=0.8",
