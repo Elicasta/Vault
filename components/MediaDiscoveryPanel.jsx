@@ -277,8 +277,8 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
     {status === "loading" && <div className="vv-media-message" role="status">Inspecting images, video players and individual media links…</div>}
     {status === "error" && <div className="vv-media-message" role="alert">{error}
       <button type="button" onClick={() => scan(pageUrl)}>Retry</button>
-      <button type="button" onClick={() => onLoginToWebsite?.()}>Sign in on website</button>
-      <p>For Google verification, sign in at the original website. Its cookies cannot be transferred to Vault's server scanner. Desktop Chrome Media Capture can inspect media opened within your authenticated browser session.</p>
+      <button type="button" onClick={() => onLoginToWebsite?.()}>Open original website</button>
+      <p>A 403 can mean the source blocks automated scanning even when it opens normally in your browser. Vault cannot transfer the website's browser session to its server. Open the original site, then use Chrome Media Capture to import media from pages you can access. You can always save the original page URL in Vault.</p>
     </div>}
     {status === "done" && !items.length && !(result?.videoPages || []).length && !(result?.imagePages || []).length && <div className="vv-media-message">No links were visible in this page's HTML. Some sites load them dynamically; try the Chrome capture extension or visit the individual video page.</div>}
     {result?.truncated && <p className="vv-media-note">This page contains more media than the current scan limit. The highest-confidence matches are shown.</p>}
