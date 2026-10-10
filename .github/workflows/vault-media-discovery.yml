@@ -6,6 +6,7 @@ on:
       - "feat/media-first-discovery-*"
       - "fix/video-source-cover-preview-*"
       - "feat/deep-video-drilldown-*"
+      - "feat/unrestricted-public-site-browsing-*"
   pull_request:
     branches:
       - "fix/relay-search-hardening-*"
