@@ -8,6 +8,7 @@ on:
       - "feat/deep-video-drilldown-*"
       - "feat/unrestricted-public-site-browsing-*"
       - "feat/google-login-drive-save-fallback-*"
+      - "feat/google-login-drive-save-fallback-*"
   pull_request:
     branches:
       - "fix/relay-search-hardening-*"
