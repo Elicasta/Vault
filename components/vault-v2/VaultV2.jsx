@@ -10,6 +10,7 @@ import MediaCard from "./MediaCard";
 import AddMediaSheet from "./AddMediaSheet";
 import DetailDrawer from "./DetailDrawer";
 import InAppBrowser from "@/components/InAppBrowser";
+import { isHiddenLibraryItem, withLibraryVisibility } from "@/lib/library-visibility.mjs";
 
 import {
   supabase, getVaultItems, getUserData, getFolders, getCoverLibrary,
@@ -198,6 +199,7 @@ export default function VaultV2({ route = "home" }) {
   const [newCollectionName, setNewCollectionName] = useState("");
   const [collectionBusy, setCollectionBusy] = useState(false);
   const [visibleLimit, setVisibleLimit] = useState(60);
+  const [visibilityError, setVisibilityError] = useState("");
 
   const selectedCollection = searchParams.get("folder") || "";
 
@@ -316,6 +318,20 @@ export default function VaultV2({ route = "home" }) {
     setDetailItem((current)=>current?.key===item.previousKey || current?.key===item.key ? item : current);
   };
 
+  const setItemVisibility = async (item, hidden) => {
+    if (!user) throw new Error("Sign in to change library visibility.");
+    const next = withLibraryVisibility(item, hidden);
+    setVisibilityError("");
+    try {
+      await upsertVaultItem(user.id, next);
+      setItems((prev) => prev.map((x) => x.key === item.key ? next : x));
+      if (hidden) { setDetailItem(null); setPlayerItem(null); }
+    } catch (error) {
+      setVisibilityError(error.message || "Could not change library visibility.");
+      throw error;
+    }
+  };
+
   const deleteItem = async (item) => {
     if (user && item?.isUploadedMedia && item?.canonical_url) {
       await deleteVaultMedia(user.id,item.canonical_url);
@@ -366,9 +382,10 @@ export default function VaultV2({ route = "home" }) {
   };
 
   const displayItems = useMemo(
-    () => resolveMediaPreviews(items, coverLibrary),
+    () => resolveMediaPreviews(items, coverLibrary).filter((item) => !isHiddenLibraryItem(item)),
     [items, coverLibrary]
   );
+  const hiddenItems = useMemo(() => items.filter(isHiddenLibraryItem), [items]);
 
   const allFiltered = useMemo(() => {
     let result = displayItems.filter((item)=>{
@@ -489,7 +506,17 @@ export default function VaultV2({ route = "home" }) {
   } else if(route==="collections") {
     page = selectedCollection ? <><div className="v2-hero"><button className="v2-linkbtn" onClick={()=>router.push("/collections")}>← All Collections</button><div className="v2-eyebrow">Collection</div><h1 className="v2-h1">{selectedCollection}</h1><p className="v2-lead">{collectionItems.length} item{collectionItems.length===1?"":"s"}</p></div>{renderGrid(collectionItems,"Collection is empty","Add media and choose this Collection as its destination.")}</> : <><div className="v2-hero"><div className="v2-eyebrow">Organize without clutter</div><h1 className="v2-h1">Collections</h1><p className="v2-lead">Folders and galleries share one simple product concept: Collections.</p></div><div style={{display:"flex",justifyContent:"flex-end",marginBottom:16}}><button className="v2-btn v2-btn-primary" onClick={()=>setNewCollectionOpen(true)}><Icon name="plus" size={15}/> New Collection</button></div>{folders.length?<div className="v2-collection-grid">{folders.map((f)=>{const count=displayItems.filter((i)=>folderFor(i,userData[i.key]||{})===f.name).length;return <button className="v2-collection" key={f.name} onClick={()=>router.push("/collections?folder="+encodeURIComponent(f.name))}><div className="v2-collection-icon"><Icon name="folder" size={20}/></div><div><div className="v2-collection-name">{f.name}</div><div className="v2-collection-count">{count} item{count===1?"":"s"}{f.parent_folder?" · in "+f.parent_folder:""}</div></div></button>})}</div>:<EmptyState icon="folder" title="No Collections yet" text="Create a Collection to organize related media." action={()=>setNewCollectionOpen(true)} actionLabel="New Collection"/>}</>;
   } else {
-    page = <><div className="v2-hero"><div className="v2-eyebrow">Vault preferences</div><h1 className="v2-h1">Settings</h1><p className="v2-lead">Account, data, sync, and security status in one quiet place.</p></div><div className="v2-settings-grid"><div className="v2-settings-card"><h3>Library</h3><p>{items.length} saved items · {folders.length} Collections · {inboxItems.length} in Inbox.</p></div><div className="v2-settings-card"><h3>Cloud sync</h3><p>Supabase is the durable source of truth. Unsynced changes stay visibly marked until confirmed.</p><div style={{marginTop:12}}><span className="v2-state-pill" data-state={online?"ok":"warn"}>{online?"Online":"Offline"}</span></div></div><div className="v2-settings-card"><h3>Security</h3><p>Authenticated data access, RLS ownership checks, and protected media proxies are active in this preview.</p></div><div className="v2-settings-card"><h3>Account</h3><p>{user?.email || "Signed in"}</p><button type="button" className="v2-btn" style={{marginTop:14}} onClick={async()=>{await supabase.auth.signOut();window.location.reload();}}><Icon name="logout" size={15}/> Sign out</button></div></div></>;
+    page = <><div className="v2-hero"><div className="v2-eyebrow">Vault preferences</div><h1 className="v2-h1">Settings</h1><p className="v2-lead">Account, data, sync, and security status in one quiet place.</p></div><div className="v2-settings-grid"><div className="v2-settings-card"><h3>Library</h3><p>{displayItems.length} visible items · {hiddenItems.length} hidden links · {folders.length} Collections · {inboxItems.length} in Inbox.</p>
+      <div style={{ marginTop: 12 }}>
+        <h4 style={{ fontSize: 13, marginBottom: 8 }}>Hidden links</h4>
+        <p style={{ fontSize: 12 }}>Removed from the visible library without deleting the URL, cover, or collection.</p>
+        {hiddenItems.length === 0 ? <p style={{ fontSize: 12 }}>Nothing hidden.</p> : hiddenItems.map((item) => (
+          <div key={item.key} style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 8 }}>
+            <a href={item.url} target="_blank" rel="noreferrer noopener" style={{ minWidth: 0, overflow: "hidden", whiteSpace: "nowrap", textOverflow: "ellipsis", flex: 1, color: "var(--v2-text)", fontSize: 12 }}>{item.title || item.url}</a>
+            <button className="v2-btn" type="button" onClick={() => setItemVisibility(item, false).catch(() => {})}>Restore</button>
+          </div>
+        ))}
+      </div></div><div className="v2-settings-card"><h3>Cloud sync</h3><p>Supabase is the durable source of truth. Unsynced changes stay visibly marked until confirmed.</p><div style={{marginTop:12}}><span className="v2-state-pill" data-state={online?"ok":"warn"}>{online?"Online":"Offline"}</span></div></div><div className="v2-settings-card"><h3>Security</h3><p>Authenticated data access, RLS ownership checks, and protected media proxies are active in this preview.</p></div><div className="v2-settings-card"><h3>Account</h3><p>{user?.email || "Signed in"}</p><button type="button" className="v2-btn" style={{marginTop:14}} onClick={async()=>{await supabase.auth.signOut();window.location.reload();}}><Icon name="logout" size={15}/> Sign out</button></div></div></>;
   }
 
   return (
@@ -532,6 +559,7 @@ export default function VaultV2({ route = "home" }) {
         )}
       </nav>
 
+      {visibilityError ? <div role="alert" className="v2-error">{visibilityError}<button className="v2-btn" onClick={() => setVisibilityError("")}>Dismiss</button></div> : null}
       <AddMediaSheet open={addOpen||!!editItem} initialItem={editItem} userId={user?.id} onClose={()=>{setAddOpen(false);setEditItem(null)}} onSave={saveItem} folders={folders} onCreateCollection={createCollection}/>
       <DetailDrawer
         item={detailItem}
@@ -549,6 +577,7 @@ export default function VaultV2({ route = "home" }) {
         onRating={rateItem}
         onEdit={(item)=>{setEditItem(item);setDetailItem(null)}}
         onDelete={deleteItem}
+        onRemoveFromLibrary={(item) => setItemVisibility(item, true)}
       />
 
       <MobileControlSheet kind={mobileControl} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} folders={folders} onClose={()=>setMobileControl(null)}/>
@@ -580,6 +609,7 @@ export default function VaultV2({ route = "home" }) {
         currentIdx={Math.max(0,displayItems.findIndex((x)=>x.key===playerItem.key))}
         onNavigate={(idx)=>setPlayerItem(displayItems[idx])}
         onClose={()=>setPlayerItem(null)}
+        onRemoveFromLibrary={(item) => setItemVisibility(item, true)}
         userId={user?.id}
         resumeAt={userData[playerItem.key]?.progress||0}
         rating={userData[playerItem.key]?.rating||0}

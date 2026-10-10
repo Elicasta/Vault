@@ -2,9 +2,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ensureProxySession, SECURITY_V2_ENABLED } from "@/lib/security-session";
 import { buildVaultMediaItem, parseCapturedMedia } from "@/lib/media-capture-import.mjs";
+import { isPlayableVideoSource, uniqueVideoSources, prepareVideoToSave } from "@/lib/video-source-resolver.mjs";
+import VideoPreviewModal from "./VideoPreviewModal";
 import { itemKey, sourceIdOf } from "@/lib/utils";
 
-const DEFAULT_COUNTS = { videos: 0, images: 0 };
 const truncate = (text, max = 80) => String(text || "").length > max ? String(text).slice(0, max - 1) + "…" : String(text || "");
 
 function Thumbnail({ item }) {
@@ -29,6 +30,9 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
   const [saveReport, setSaveReport] = useState("");
   const [newFolder, setNewFolder] = useState("");
   const [addingFolder, setAddingFolder] = useState(false);
+  const [previewItem, setPreviewItem] = useState(null);
+  const [resolvedSources, setResolvedSources] = useState({});
+  const [savedThisSession, setSavedThisSession] = useState([]);
   const abort = useRef(null);
   const seq = useRef(0);
 
@@ -38,7 +42,7 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
     const controller = new AbortController();
     abort.current = controller;
     const ticket = ++seq.current;
-    setStatus("loading"); setResult(null); setSelected([]); setExtra([]);
+    setStatus("loading"); setResult(null); setSelected([]); setExtra([]); setResolvedSources({});
     setError(""); setSaveReport("");
     try {
       if (SECURITY_V2_ENABLED) await ensureProxySession();
@@ -73,7 +77,7 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
     }
     return [...map.values()];
   }, [extra, result]);
-  const saved = useMemo(() => new Set(existingUrls), [existingUrls]);
+  const saved = useMemo(() => new Set([...existingUrls, ...savedThisSession]), [existingUrls, savedThisSession]);
   const visible = useMemo(() => items.filter((v) => filter === "all" || v.type === filter), [items, filter]);
   const selectedSet = useMemo(() => new Set(selected), [selected]);
   const newVisible = visible.filter((item) => !saved.has(item.url));
@@ -108,6 +112,46 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
     } catch (e) { setImportError(e.message || "Invalid captured media"); }
   };
 
+  const resolveForSave = async (item, selectedVideo = null) => {
+    if (item.type !== "video") return item;
+    if (selectedVideo && isPlayableVideoSource(selectedVideo)) return prepareVideoToSave(item, selectedVideo);
+    const remembered = resolvedSources[item.url];
+    if (remembered && isPlayableVideoSource(remembered)) return prepareVideoToSave(item, remembered);
+    if (isPlayableVideoSource(item)) return prepareVideoToSave(item);
+    // Don't confuse a video's cover / page URL with its actual playable asset.
+    if (SECURITY_V2_ENABLED) await ensureProxySession();
+    const fetchSources = () => fetch("/api/video-sources?url=" + encodeURIComponent(item.url), { cache: "no-store", credentials: "same-origin" });
+    let response = await fetchSources();
+    if (response.status === 401 && SECURITY_V2_ENABLED) { await ensureProxySession(null, { force: true }); response = await fetchSources(); }
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.error || "Video source lookup failed.");
+    const options = uniqueVideoSources(data.sources || [], { sourcePage: item.url, thumbnail: item.thumbnail });
+    if (!options.length) throw new Error("No actual video URL detected. Preview the card or capture the network media URL in Chrome.");
+    if (options.length > 1) throw new Error("Multiple video sources found. Open Preview to choose the correct clip.");
+    setResolvedSources((prev) => ({ ...prev, [item.url]: options[0] }));
+    return prepareVideoToSave(item, options[0]);
+  };
+
+  const persistMedia = async (item, selectedVideo = null) => {
+    const actual = await resolveForSave(item, selectedVideo);
+    if (saved.has(actual.url)) throw new Error("This actual video URL is already in your library.");
+    await onSave(buildVaultMediaItem(actual, folder, itemKey, sourceIdOf));
+    setSavedThisSession((prev) => [...prev, item.url, actual.url]);
+    return actual;
+  };
+
+  const saveFromPreview = async (item, chosen) => {
+    if (saving) return;
+    setSaving(true); setSaveReport("");
+    try {
+      const media = await persistMedia(item, chosen);
+      setSelected((old) => old.filter((url) => url !== item.url));
+      setSaveReport("Saved " + (media.type === "video" ? "video with its cover" : "image") + " to " + (folder || "your Vault") + ".");
+      setPreviewItem(null);
+    } catch (e) { setSaveReport(e.message || "Save failed."); }
+    finally { setSaving(false); }
+  };
+
   const saveSelected = async () => {
     if (saving || !selectedCount) return;
     const targets = items.filter((item) => selectedSet.has(item.url) && !saved.has(item.url));
@@ -116,12 +160,12 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
     try {
       for (const item of targets) {
         try {
-          await onSave(buildVaultMediaItem(item, folder, itemKey, sourceIdOf));
+          await persistMedia(item);
           completed.push(item.url);
         } catch (error) { failures.push({ title: item.title, reason: error?.message || "Save failed" }); }
       }
       setSelected((old) => old.filter((u) => !completed.includes(u)));
-      setSaveReport(completed.length + " saved" + (failures.length ? "; " + failures.length + " failed. Try again." : " to " + (folder || "your Vault") + "."));
+      setSaveReport(completed.length + " saved" + (failures.length ? "; " + failures.length + " need a playable source. Open Preview to choose or capture one. " + failures[0].reason : " to " + (folder || "your Vault") + "."));
     } finally { setSaving(false); }
   };
 
@@ -181,10 +225,11 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
           <div className="vv-media-image"><Thumbnail item={item} /><span className="vv-media-kind">{item.type}</span></div>
           <div className="vv-media-label">
             <strong title={item.title}>{truncate(item.title, 68)}</strong>
-            <span>{alreadySaved ? "Already saved" : item.confidence === "high" ? "High-confidence source" : "Page-detected media"}</span>
+            <span>{alreadySaved ? "Already saved" : item.type === "video" && !isPlayableVideoSource(item) && !resolvedSources[item.url] ? "Cover / post detected · video source needed" : item.confidence === "high" ? "High-confidence source" : "Page-detected media"}</span>
             <span className="vv-media-url" title={item.url}>{truncate(item.url, 95)}</span>
             <span className="vv-media-link-actions">
-              <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigator.clipboard.writeText(item.url).then(() => setSaveReport("URL copied to clipboard.")).catch(() => setSaveReport("Clipboard unavailable; use Open URL.")); }}>Copy URL</button>
+              <button type="button" className="vv-media-preview-button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPreviewItem(item); }}>Preview {item.type === "video" ? "video" : "image"}</button>
+              <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigator.clipboard.writeText(resolvedSources[item.url]?.url || item.url).then(() => setSaveReport("URL copied to clipboard.")).catch(() => setSaveReport("Clipboard unavailable; use Open URL.")); }}>Copy URL</button>
               <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(item.url, "_blank", "noopener,noreferrer"); }}>Open URL</button>
             </span>
           </div>
@@ -209,6 +254,7 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
       <span>{selectedCount} selected</span>
       <button type="button" disabled={!selectedCount || saving} onClick={saveSelected}>{saving ? "Saving media…" : "Save " + selectedCount + " to Vault"}</button>
     </div>
-    <p className="vv-media-footnote">Vault saves URLs, not copies of the media files. Protected, private, expiring, and DRM streams may not be directly playable.</p>
+    <p className="vv-media-footnote">For videos, Vault saves the playable stream URL as the item and the image as its cover. Unknown stream URLs cannot be saved as videos. Signed or DRM streams may still expire or be unplayable.</p>
+    {previewItem && <VideoPreviewModal item={previewItem} onClose={() => setPreviewItem(null)} saving={saving} onChoose={(origin, source) => setResolvedSources((old) => ({ ...old, [origin]: source }))} onSave={saveFromPreview} />}
   </div>;
 }

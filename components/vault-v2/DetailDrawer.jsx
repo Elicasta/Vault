@@ -70,7 +70,7 @@ function DetailPreview({ item, isImage }) {
 
 export default function DetailDrawer({
   item, state = {}, folders = [], userId,
-  onClose, onPlay, onFavorite, onFolder, onRating, onEdit, onDelete,
+  onClose, onPlay, onFavorite, onFolder, onRating, onEdit, onDelete, onRemoveFromLibrary,
   onNavigate, currentIndex = -1, totalItems = 0,
   activityRevision = 0,
 }) {
@@ -189,6 +189,7 @@ export default function DetailDrawer({
 
           <div className="v2-action-row">
             <button type="button" className="v2-btn v2-btn-primary" onClick={() => onPlay(item)}><Icon name={isImage ? "zoomIn" : "play"} size={15} filled={!isImage}/> {isImage ? "Open image" : "Open / Play"}</button>
+            <button type="button" className="v2-btn" onClick={() => onRemoveFromLibrary?.(item)} title="Hide without deleting the URL"><Icon name="eyeOff" size={15}/> Remove from Library</button>
             <button type="button" className="v2-btn" onClick={() => onFavorite(item.key, !!state.favorite)}>
               <Icon name="star" size={15} filled={!!state.favorite}/>{state.favorite ? "Favorited" : "Favorite"}
             </button>
