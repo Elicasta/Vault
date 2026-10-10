@@ -17,6 +17,7 @@ on:
       - "feat/universal-browser-gallery-capture-*"
       - "feat/first-party-file-gallery-import-*"
       - "feat/vault-chrome-save-and-sheet-import-*"
+      - "feat/in-app-sheet-and-url-batch-import-*"
   pull_request:
     branches:
       - "fix/relay-search-hardening-*"
