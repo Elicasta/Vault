@@ -6,6 +6,7 @@ import { itemKey, sourceIdOf } from "@/lib/utils";
 import { ensureProxySession, SECURITY_V2_ENABLED } from "@/lib/security-session";
 import MediaDiscoveryPanel from "./MediaDiscoveryPanel";
 import GoogleDriveSave from "./GoogleDriveSave";
+import { withDiscreetMediaLabels } from "@/lib/private-media-labels.mjs";
 import "./InAppBrowser.css";
 
 const HISTORY_KEY = "vv_browser_history";
@@ -43,6 +44,8 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
   const [loadingFrame, setLoadingFrame] = useState(false);
   const [frameBlocked, setFrameBlocked] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [discreetLabels, setDiscreetLabels] = useState(true);
+  const saveToVault = item => onSave?.(withDiscreetMediaLabels(item, discreetLabels));
   const [metadata, setMetadata] = useState(null);
   const [metaState, setMetaState] = useState("idle");
   const [folder, setFolder] = useState("");
@@ -299,7 +302,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
         isVaultItem: true,
         addedAt: new Date().toISOString(),
       };
-      await onSave?.(item);
+      await saveToVault(item);
       commitHistory(url, finalMeta);
     } finally {
       setSaving(false);
@@ -372,6 +375,9 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
         <div className="vv-browser-modebar" role="toolbar" aria-label="Browser views">
           {videoTrail.length > 0 && <button type="button" className="vv-browser-back" onClick={backVideoPage} title="Back to previous page">← Back</button>}
           <span className="vv-browser-locator">{currentHost || (searchQuery ? "Search results" : "Browse the web")}{focusedVideo ? " · Video detail" : ""}</span>
+          <label style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11,color:T.text3,cursor:"pointer"}} title="Use neutral titles and notes for saved items. Real links remain in your private library.">
+            <input type="checkbox" checked={discreetLabels} onChange={e=>setDiscreetLabels(e.target.checked)} /> Discreet notes
+          </label>
           {currentUrl && <div className="vv-browser-switch" role="group" aria-label="Page mode">
             <button type="button" aria-pressed={viewMode === "media"} onClick={() => { setViewMode("media"); setShowHistory(false); }}>Media</button>
             <button type="button" aria-pressed={viewMode === "page"} onClick={() => { setViewMode("page"); setShowHistory(false); }}>Page preview</button>
@@ -415,7 +421,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
                 folders={folders}
                 onFolderChange={setFolder}
                 onCreateFolder={onCreateFolder}
-                onSave={onSave}
+                onSave={saveToVault}
                 existingUrls={existingUrls}
                 onExploreVideoPage={exploreVideoPage}
                 focusedVideo={focusedVideo}

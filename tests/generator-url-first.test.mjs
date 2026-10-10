@@ -40,7 +40,8 @@ test("unified importing keeps Save URL first, gallery second, file copy third, D
   const backup=source.indexOf(">4. Back up imported files<");
   assert.ok(p>=0&&gallery>p&&upload>gallery&&backup>upload);
   assert.match(source,/buildGeneratorUrlItem\(url/);
-  assert.match(source,/await onSave\(media\)/);
+  assert.match(source,/await saveToVault\(media\)/);
+  assert.match(source,/onSave\(withDiscreetMediaLabels\(item,privateLabels\)\)/);
   assert.match(source,/onCreateFolder/);
   assert.match(browser,/Save URL to Vault/);
 });

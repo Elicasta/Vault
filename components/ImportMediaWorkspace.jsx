@@ -6,6 +6,8 @@ import { itemKey } from "@/lib/utils";
 import { buildGeneratorUrlItem, normalizeGeneratorPublicUrl } from "@/lib/generator-save-url.mjs";
 import SourceInspector from "./SourceInspector";
 import ImportGallerySection from "./ImportGallerySection";
+import CapturedMediaImport from "./CapturedMediaImport";
+import { withDiscreetMediaLabels } from "@/lib/private-media-labels.mjs";
 
 function safeFileName(name) {
   return String(name || "Imported media").normalize("NFKC")
@@ -16,6 +18,8 @@ export default function ImportMediaWorkspace({ userId, folders=[], items=[], onS
   const [folder,setFolder]=useState("");
   const [sourceUrl,setSourceUrl]=useState("");
   const [sourceTitle,setSourceTitle]=useState("");
+  const [privateLabels,setPrivateLabels]=useState(true);
+  const saveToVault=useCallback(item=>onSave(withDiscreetMediaLabels(item,privateLabels)),[onSave,privateLabels]);
   const [savingUrl,setSavingUrl]=useState(false);
   const [uploading,setUploading]=useState(false);
   const [dragging,setDragging]=useState(false);
@@ -56,7 +60,7 @@ export default function ImportMediaWorkspace({ userId, folders=[], items=[], onS
       const media=buildGeneratorUrlItem(url,{
         site:"import",siteName:"Vault Import",folder,title:sourceTitle,keyOf:itemKey,
       });
-      await onSave(media);
+      await saveToVault(media);
       setStatus("URL saved to "+(folder||"My Library")+".");
     }catch(e){setError(e.message||"Could not save URL.");}
     finally{setSavingUrl(false);}
@@ -85,7 +89,7 @@ export default function ImportMediaWorkspace({ userId, folders=[], items=[], onS
             tab:folder||"Vault Library",isVaultItem:true,
             isUploadedMedia:true,storagePath:upload.path,addedAt:new Date().toISOString(),
           };
-          try{await onSave(media);saved++;}
+          try{await saveToVault(media);saved++;}
           catch(error){await deleteVaultMedia(userId,upload.locator).catch(()=>{});throw error;}
         }catch(error){failed++;setError(old=>old||error.message||"One file could not be uploaded.");}
         setStatus(saved+" file"+(saved===1?"":"s")+" uploaded to "+(folder||"My Library")+
@@ -93,7 +97,7 @@ export default function ImportMediaWorkspace({ userId, folders=[], items=[], onS
       }
     }catch(error){setError(error.message||"Upload failed.");}
     finally{setUploading(false);if(fileRef.current)fileRef.current.value="";}
-  },[folder,folders,userId,onSave,ensureFolder,sourceUrl,uploading]);
+  },[folder,folders,userId,saveToVault,ensureFolder,sourceUrl,uploading]);
 
   useEffect(()=>{
     const handlePaste=event=>{
@@ -117,6 +121,11 @@ export default function ImportMediaWorkspace({ userId, folders=[], items=[], onS
         <p>Save a URL first, or upload the original file for permanent private storage. Works with images, videos, audio, and media from any website.</p>
       </div>
     </div>
+
+    <label className="vv-generator-private-toggle" style={{display:"flex",gap:10,alignItems:"flex-start",margin:"10px 0 18px"}}>
+      <input type="checkbox" checked={privateLabels} onChange={e=>setPrivateLabels(e.target.checked)} aria-label="Use discreet titles and notes" />
+      <span><strong>Discreet titles and notes</strong><small style={{display:"block",opacity:.75}}>On by default. Saved cards use neutral names and notes. Original URLs are kept so links still work. This does not hide your browser history or encrypt external links.</small></span>
+    </label>
 
     <section className="vv-generator-url-primary" aria-label="Save URL to Vault">
       <div className="v2-eyebrow">PRIMARY · SAVE THE LINK</div>
@@ -142,6 +151,8 @@ export default function ImportMediaWorkspace({ userId, folders=[], items=[], onS
         <button type="button" className="vv-generator-save-url" disabled={!sourceUrl.trim()||savingUrl||uploading} onClick={saveUrl}>
           {savingUrl?"Saving…":"Save URL to Vault"}
         </button>
+        {normalizeGeneratorPublicUrl(sourceUrl) && <button type="button" className="vv-generator-open-source"
+          onClick={()=>window.open(normalizeGeneratorPublicUrl(sourceUrl),"_blank","noopener,noreferrer")}>Open original website</button>}
       </div>
       <div className="vv-import-folder-create">
         <input aria-label="New collection name" value={newFolder} onChange={e=>setNewFolder(e.target.value)}
@@ -152,11 +163,14 @@ export default function ImportMediaWorkspace({ userId, folders=[], items=[], onS
       </div>
     </section>
 
-    <SourceInspector pageUrl={sourceUrl} folder={folder} onSave={onSave}
+    <SourceInspector pageUrl={sourceUrl} folder={folder} onSave={saveToVault}
       existingUrls={items.map(item=>item.url||item.canonical_url).filter(Boolean)}/>
 
     <ImportGallerySection pageUrl={sourceUrl} folder={folder} folders={folders}
-      onFolderChange={setFolder} onCreateFolder={onCreateFolder} onSave={onSave}
+      onFolderChange={setFolder} onCreateFolder={onCreateFolder} onSave={saveToVault}
+      existingUrls={items.map(item=>item.url||item.canonical_url).filter(Boolean)}/>
+
+    <CapturedMediaImport pageUrl={sourceUrl} folder={folder} onSave={saveToVault}
       existingUrls={items.map(item=>item.url||item.canonical_url).filter(Boolean)}/>
 
     <section className="vv-generator-section">
