@@ -5,6 +5,7 @@ import { T } from "@/lib/theme";
 import { itemKey, sourceIdOf } from "@/lib/utils";
 import { ensureProxySession, SECURITY_V2_ENABLED } from "@/lib/security-session";
 import MediaDiscoveryPanel from "./MediaDiscoveryPanel";
+import GoogleDriveSave from "./GoogleDriveSave";
 import "./InAppBrowser.css";
 
 const HISTORY_KEY = "vv_browser_history";
@@ -304,6 +305,8 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
 
   const previewResult = (result) => openUrl(result.url);
 
+  const currentDirectType = /\.(?:jpe?g|png|webp|gif|avif|bmp)(?:$|[?#])/i.test(currentUrl)
+    ? "image" : /\.(?:mp4|m4v|mov|webm|ogv)(?:$|[?#])/i.test(currentUrl) ? "video" : "";
   const selectedTitle = metadata?.title || currentHost || (searchQuery ? `Search: ${searchQuery}` : "No page selected");
   const selectedDesc = metadata?.description || (currentUrl ? currentUrl : searchQuery ? "Choose a result below, or save a result directly." : "Search or paste a link to begin.");
   const existingUrls = useMemo(() => existingItems.map((x) => x?.canonical_url || x?.url).filter(Boolean), [existingItems]);
@@ -422,6 +425,12 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
               {saving ? "Saving..." : "Save current link"}
             </button>
 
+            <details className="vv-browser-drive-tools">
+              <summary>Save to Google Drive instead</summary>
+              <GoogleDriveSave url={currentDirectType ? currentUrl : ""} type={currentDirectType || "image"}
+                title={selectedTitle} compact onOpenOriginal={() => openExternal(currentUrl)} />
+              {!currentDirectType && <p>For an embedded video, open its Media preview to find the actual stream first. On desktop Chrome, the official Save to Google Drive extension can also save media from the original website.</p>}
+            </details>
             <div style={{ marginTop: 12, padding: 10, borderRadius: 10, background: "rgba(255,255,255,0.04)", color: T.text4, fontSize: 11, lineHeight: 1.45 }}>
               You can visit any public HTTP(S) website and inspect its media. Some sites disable embedded previews; use Open original. To sign in via Google, use "Sign in on original website"; Google blocks most embedded sign-in flows. Vault cannot reuse external-site login cookies or bypass DRM.
             </div>
