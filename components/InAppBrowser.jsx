@@ -375,14 +375,15 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
                 drillDepth={videoTrail.length}
                 canExploreMore={true}
                 onExplorePage={exploreAnyPage}
+                onLoginToWebsite={() => openExternal(currentUrl)}
               />
             ) : (
               <div className="vv-browser-preview-container">
                 {loadingFrame && <div style={loadBadge}>Loading website…</div>}
                 <div className="vv-website-fallback">
                   <span>{frameBlocked ? "Preview may be blocked by this website." : "Blank preview? The website may prevent embedding."}</span>
-                  <button type="button" onClick={() => openExternal(currentUrl)}>Open original <Icon name="external" size={12}/></button>
-                  <button type="button" onClick={() => { setViewMode("media"); setShowQuickSave(false); }}>Find media</button>
+                  <button type="button" onClick={() => openExternal(currentUrl)}>Sign in on original website <Icon name="external" size={12}/></button>
+                  <button type="button" onClick={() => { setViewMode("media"); setShowQuickSave(false); }}>Rescan / find media</button>
                 </div>
                 <iframe key={currentUrl} src={currentUrl} onLoad={() => { setLoadingFrame(false); }}
                   title="Website preview" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
@@ -422,7 +423,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
             </button>
 
             <div style={{ marginTop: 12, padding: 10, borderRadius: 10, background: "rgba(255,255,255,0.04)", color: T.text4, fontSize: 11, lineHeight: 1.45 }}>
-              You can visit any public HTTP(S) website and inspect its media. Some sites disable embedded previews; use Open original. Vault cannot bypass logins, DRM, or website restrictions.
+              You can visit any public HTTP(S) website and inspect its media. Some sites disable embedded previews; use Open original. To sign in via Google, use "Sign in on original website"; Google blocks most embedded sign-in flows. Vault cannot reuse external-site login cookies or bypass DRM.
             </div>
           </div>
         </div>
