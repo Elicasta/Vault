@@ -216,6 +216,24 @@ document.querySelector("#sheet-add").addEventListener("click",()=>{
     result.invalid+" invalid, "+result.unrecognized+" unrecognized. "+
     (result.unrecognized?"For extensionless image URLs, check the option above and retry.":"Ready to send to Vault.");
 });
+document.querySelector("#sheet-load").addEventListener("click",async()=>{
+  const parser=globalThis.VaultBatchParser;
+  const source=document.querySelector("#sheet-link").value;
+  const csvUrl=parser?.sheetCsvExportUrl(source);
+  if(!csvUrl){sheetResult.textContent="Use a Google Sheets link ending in /edit or /view. For private sheets, copy cells or export CSV instead.";return;}
+  sheetResult.textContent="Loading public sheet CSV…";
+  try{
+    const response=await fetch(csvUrl,{credentials:"omit",redirect:"follow",cache:"no-store"});
+    const type=String(response.headers.get("content-type")||"").toLowerCase();
+    if(!response.ok||type.includes("text/html")){
+      throw new Error("This sheet isn't publicly accessible as CSV. Copy its cells or export a CSV file instead.");
+    }
+    const body=await response.text();
+    if(body.length>1_000_000)throw new Error("Sheet is too large; use a smaller CSV export (under 1 MB).");
+    sheetText.value=body;
+    document.querySelector("#sheet-add").click();
+  }catch(e){sheetResult.textContent=e.message||"Could not load Google Sheets CSV.";}
+});
 document.querySelector("#sheet-file").addEventListener("change",async event=>{
   const file=event.target.files?.[0];
   event.target.value="";
