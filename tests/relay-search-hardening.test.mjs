@@ -62,4 +62,4 @@ test("secure Relay renews on focus and preserves playback position on mode switc
   assert.match(player, /void switchToRelay\(true\)/);
 });
 
-// Preview smoke verification request. No production behavior changes.
+// Preview smoke verification request: branch-scoped secure configuration restored.
