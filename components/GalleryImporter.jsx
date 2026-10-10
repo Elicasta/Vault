@@ -67,7 +67,7 @@ export function ImageDetailPanel({ page, folder, onSave, onSaved, saving }) {
       </>}
       {error && <p role="alert">{error}</p>}
       {error && <a href={page.url} target="_blank" rel="noopener noreferrer">Open original photo page</a>}
-      {error && <p className="vv-media-note">Some image hosts return 403 to automated requests. Open the photo on the website, use its own permitted download action, then upload the file to Vault.</p>
+      {error && <p className="vv-media-note">Some image hosts return 403 to automated requests. Open the photo on the website, use its own permitted download action, then upload the file to Vault.</p>}
     </div>
   </section>;
 }
