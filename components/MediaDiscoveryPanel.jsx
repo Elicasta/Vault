@@ -276,7 +276,7 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
       <button type="button" onClick={() => scan(pageUrl)}>Retry</button>
       <button type="button" onClick={() => onLoginToWebsite?.()}>Sign in on website</button>
       <p>For Google verification, sign in at the original website. Its cookies cannot be transferred to Vault's server scanner. Desktop Chrome Media Capture can inspect media opened within your authenticated browser session.</p>
-    </div>
+    </div>}
     {status === "done" && !items.length && !(result?.videoPages || []).length && !(result?.imagePages || []).length && <div className="vv-media-message">No links were visible in this page's HTML. Some sites load them dynamically; try the Chrome capture extension or visit the individual video page.</div>}
     {result?.truncated && <p className="vv-media-note">This page contains more media than the current scan limit. The highest-confidence matches are shown.</p>}
     {result?.filteredAds > 0 && <p className="vv-media-note">{result.filteredAds} advertising or invalid URL candidates excluded.</p>}
