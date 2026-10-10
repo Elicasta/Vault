@@ -69,3 +69,13 @@ If the file URL is missing or private/DRM-protected, Google's button cannot inve
 The Google save button stores files in Drive; it does not automatically add the Drive file to Vault or select a Drive folder. The existing Vault folder picker applies to saving links **inside Vault**.
 
 Preview verification: Google Save to Drive uses a same-origin Vault media URL and requires an authenticated Vault session for that URL to respond. The actual Google widget's sign-in and Drive transfer occur in the user's browser, so full end-to-end verification requires an interactive browser session.
+
+## URL-first AI generator saving and Google Drive backup
+
+**Save URL to Vault is the primary action.** In Search, Venice and Perchance workspaces, save a public page/image/video URL into a Collection with a title. URLs that start with blob: are temporary browser objects, not permanent Vault URLs.
+
+**Permanent Copy is optional.** For a Venice or Perchance generation without an accessible file URL, use Chrome Media Capture → Smart Image Capture → Capture main image, or Pick exact image and click the visual element to select it. The Chrome extension saves a cropped PNG in Vault Captures. In Vault's Venice or Perchance workspace, upload that PNG using Save Permanent Copy; this stores real file bytes in private Supabase Storage (50 MB/file max). A screenshot covers visible rendered pixels, not necessarily the original resolution.
+
+**Google Drive Backup is optional.** In Vault Settings, the backup tool can copy eligible private Supabase-stored images/videos to a new Vault Backups folder using Google user consent and drive.file OAuth scope. It skips Drive files previously backed up using file identifiers. The Google Web Client ID environment variable NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID and exact authorized JavaScript origins for preview/production must be configured first. The Google account connection, real Drive file upload, and Chrome smart cropping remain unverified until tested interactively.
+
+Site-specific Google login is opened on the original Venice or Perchance website: their third-party sessions and browser-local generation histories cannot be transferred into the Vault iframe.
