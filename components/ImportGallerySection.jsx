@@ -5,6 +5,7 @@ import { ensureProxySession, SECURITY_V2_ENABLED } from "@/lib/security-session"
 import GalleryImporter, { ImageDetailPanel } from "./GalleryImporter";
 import SourceInspector from "./SourceInspector";
 import CapturedMediaImport from "./CapturedMediaImport";
+import LocalGalleryRecovery from "./LocalGalleryRecovery";
 import ResilientImage from "./ResilientImage";
 import ImageAccessPanel from "./ImageAccessPanel";
 import { isDirectImageUrl, shouldRememberSiteDenied } from "@/lib/media-access-fallback.mjs";
@@ -15,7 +16,7 @@ const short=(value,max=55)=>String(value||"").length>max?String(value).slice(0,m
 
 export default function ImportGallerySection({
   pageUrl = "", folder = "", folders = [], existingUrls = [],
-  onSave, onCreateFolder, onFolderChange,
+  onSave, onCreateFolder, onFolderChange, onImportFiles, uploading=false,
 }) {
   const [current,setCurrent]=useState(()=>entry(pageUrl,"Start page"));
   const [previous,setPrevious]=useState([]);
@@ -152,6 +153,7 @@ export default function ImportGallerySection({
     </div>}
     {status==="loading"&&<p role="status">Opening the selected page and finding its child galleries or images…</p>}
     {status==="browser"&&<div className="vv-gallery-browser-recovery">
+      {onImportFiles&&<LocalGalleryRecovery compact sourceUrl={target} onImportFiles={onImportFiles} uploading={uploading}/>}
       <h4>Capture this gallery in your browser</h4>
       <p>Vault's server was denied this page. Open this exact gallery on its original website, then capture the image links displayed in Safari or Chrome.</p>
       <CapturedMediaImport key={target} pageUrl={target} folder={folder}
