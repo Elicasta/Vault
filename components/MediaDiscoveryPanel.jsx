@@ -8,7 +8,7 @@ import GalleryImporter, { ImageDetailPanel } from "./GalleryImporter";
 import SourceInspector from "./SourceInspector";
 import CapturedMediaImport from "./CapturedMediaImport";
 import { isEliteBabesUrl } from "@/lib/server/site-adapters/elitebabes.mjs";
-import { siteNeedsBrowser, markSiteBrowserFirst, clearBrowserFirst, isWebsiteAccessDenial } from "@/lib/browser-first-fallback.mjs";
+import { siteNeedsBrowser, markSiteBrowserFirst, clearBrowserFirst, isWebsiteAccessDenial, isUnsupportedDiscoveryResponse } from "@/lib/browser-first-fallback.mjs";
 import { itemKey, sourceIdOf } from "@/lib/utils";
 
 const truncate = (text, max = 80) => String(text || "").length > max ? String(text).slice(0, max - 1) + "…" : String(text || "");
@@ -71,6 +71,13 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
           markSiteBrowserFirst(url);
           setStatus("browser");
           setError(data.error || "The site denied server-side scanning. Use browser capture.");
+          return;
+        }
+        if (isUnsupportedDiscoveryResponse(response,data)) {
+          // This is a non-HTML *page*, not necessarily a blocked website.
+          // Keep other pages on the host eligible for gallery scanning.
+          setStatus("browser");
+          setError(data.error || "This link isn't a readable HTML gallery.");
           return;
         }
         throw new Error(data.error || "Media discovery failed (HTTP " + response.status + ")");
@@ -294,9 +301,9 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
     {(status === "error" || status === "browser") && <div className="vv-media-message" role="alert">{error}
       <button type="button" onClick={() => { clearBrowserFirst(pageUrl); scan(pageUrl,true); }}>Retry scan</button>
       <button type="button" onClick={() => onLoginToWebsite?.()}>Open original website</button>
-      <p>A 403 can mean the source blocks automated scanning even when it opens normally in your browser. The website's cookies cannot be transferred to Vault's server scanner. Open the original site, then use Chrome Media Capture to import media from pages you can access. You can always save the original page URL in Vault.</p>
+      <p>Some addresses return downloads, API data, or browser-only pages rather than readable HTML. Other sites block server access. Website cookies cannot be transferred to Vault's server scanner. Open the original page to use its own Download action, or import Chrome-captured URLs; saving the page URL is always available.</p>
     </div>}
-    {status === "browser" && <><p className="vv-media-note">{isEliteBabesUrl(pageUrl) ? "EliteBabes is a supported gallery target. The original site denied Vault's server request; content captured in your own browser can still be reviewed and saved here." : "This site requires a browser-first import. Review and save its accessible media directly in Vault below."}</p>
+    {status === "browser" && <><p className="vv-media-note">{isEliteBabesUrl(pageUrl) ? "This site has a gallery adapter; when its page is unavailable to Vault, use the original website and capture accessible media in your own browser." : "This site requires a browser-first import. Review and save its accessible media directly in Vault below."}</p>
       <CapturedMediaImport pageUrl={pageUrl} folder={folder} onSave={onSave} existingUrls={[...existingUrls,...savedThisSession]}/></>}
     {status === "done" && !items.length && !(result?.videoPages || []).length && !(result?.imagePages || []).length && <div className="vv-media-message">No links were visible in this page's HTML. Some sites load them dynamically; try the Chrome capture extension or visit the individual video page.</div>}
     {result?.truncated && <p className="vv-media-note">This page contains more media than the current scan limit. The highest-confidence matches are shown.</p>}

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ensureProxySession, SECURITY_V2_ENABLED } from "@/lib/security-session";
 import GalleryImporter, { ImageDetailPanel } from "./GalleryImporter";
-import { siteNeedsBrowser, markSiteBrowserFirst, clearBrowserFirst, isWebsiteAccessDenial } from "@/lib/browser-first-fallback.mjs";
+import { siteNeedsBrowser, markSiteBrowserFirst, clearBrowserFirst, isWebsiteAccessDenial, isUnsupportedDiscoveryResponse } from "@/lib/browser-first-fallback.mjs";
 
 export default function ImportGallerySection({
   pageUrl = "", folder = "", folders = [], existingUrls = [],
@@ -61,6 +61,11 @@ export default function ImportGallerySection({
           setError(data.error || "Website blocks automated scanning.");
           return;
         }
+        if (isUnsupportedDiscoveryResponse(response,data)) {
+          setStatus("browser");
+          setError(data.error || "The selected URL is not a readable HTML gallery.");
+          return;
+        }
         throw new Error(data.error || "Gallery scan failed.");
       }
       if (!controller.signal.aborted) { setGallery(data); setStatus("done"); }
@@ -87,6 +92,7 @@ export default function ImportGallerySection({
     <p className="vv-import-gallery-hint">Uses the URL entered above. Finds public images and linked photo detail pages, not just preview thumbnails.</p>
     {error && <div role="alert" className="vv-generator-error">
       <p>{error}</p>
+      {status==="browser" && <p>Use the browser-captured import section below, or download permitted original files and upload them in Vault. Other pages on this website can still be scanned normally.</p>}
       {/^https?:\/\//i.test(target) && <p><a href={target} target="_blank" rel="noopener noreferrer">Open original gallery in your browser</a>. If the site blocks Vault scanning, save the page URL above or import captured images with the Chrome companion.</p>}
     </div>}
     {status === "loading" && <p role="status">Looking for image cards, original links and gallery pages…</p>}
