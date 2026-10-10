@@ -4,7 +4,7 @@ import fs from "node:fs";
 import { discoverMedia, discoverEmbeddedPlayerUrls } from "../lib/server/media-discovery.mjs";
 import { isPlayableVideoSource, prepareVideoToSave } from "../lib/video-source-resolver.mjs";
 
-test("image-only gallery cards become navigable video pages, not saved images or fake streams", () => {
+test("gallery cards become navigable video or image pages, not fake streams", () => {
   const page = "https://demo.example/gallery";
   const html = [
     "<title>Video Gallery</title>",
@@ -15,13 +15,15 @@ test("image-only gallery cards become navigable video pages, not saved images or
     '<a href="/image.jpg"><img alt="Photo" src="/covers/photo.webp"></a>',
   ].join("");
   const result = discoverMedia(html, page);
-  assert.equal(result.videoPages.length, 2);
+  assert.equal(result.videoPages.length, 1);
   const urls = result.videoPages.map((p) => p.url);
-  assert.deepEqual(urls, ["https://demo.example/post/clip-1", "https://demo.example/content/abcdef"]);
+  assert.deepEqual(urls, ["https://demo.example/post/clip-1"]);
+  assert.equal(result.imagePages.length, 1);
+  assert.equal(result.imagePages[0].url, "https://demo.example/content/abcdef");
   assert.equal(result.videoPages[0].thumbnail, "https://demo.example/covers/one.webp");
-  assert.equal(result.videoPages[1].confidence, "possible-detail");
+  assert.equal(result.imagePages[0].confidence, "likely-image");
   assert.equal(result.media.some((m) => m.url === result.videoPages[0].thumbnail), false, "Cover belongs to video page, not standalone image result");
-  assert.equal(result.media.some((m) => m.url === result.videoPages[1].thumbnail), false);
+  assert.equal(result.media.some((m) => m.url === result.imagePages[0].thumbnail), false);
   assert.ok(!result.videoPages.some((p) => /login|doubleclick/.test(p.url)));
   assert.equal(isPlayableVideoSource({ type: "video", url: result.videoPages[0].url }), false);
 });
