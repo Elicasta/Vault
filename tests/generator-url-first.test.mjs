@@ -41,7 +41,7 @@ test("saving UI makes URL first, permanent file copy second and Drive backup las
   assert.match(source,/buildGeneratorUrlItem\(actual/);
   assert.match(source,/onSave\(item\)/);
   assert.match(browser,/Save URL to Vault/);
-  const actions=browser.indexOf("results.map((r)");
+  const actions=browser.indexOf("function SearchResults(");
   const browserActions=browser.slice(actions);
-  assert.ok(browserActions.indexOf("Save URL to Vault")<browserActions.indexOf("Find media"));
+  assert.ok(browserActions.indexOf("Save URL to Vault")>=0 && browserActions.indexOf("Save URL to Vault")<browserActions.indexOf("Find media"));
 });
