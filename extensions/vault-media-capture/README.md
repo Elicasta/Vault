@@ -43,3 +43,11 @@ The playable MP4/WebM/HLS URL is stored as the Vault item URL, while the poster/
 ## Inside-Vault video page exploration
 
 From a gallery, choose **Explore video pages → Open page** to inspect the individual video's page without leaving Vault. The selected cover image travels with the page. Vault inspects the page and up to one nested iframe player for MP4, WebM or HLS URLs; the detected stream URL is what saves to the library, not its poster. Use **Back to listing** to return to the previous gallery. Some dynamically rendered or protected sites cannot expose a public stream to the web app: use the desktop Chrome companion when permitted.
+
+## Gallery import and automatic regional retries
+
+Vault Browser accepts public HTTP(S) website URLs without a provider blocklist. A site's own X-Frame-Options or Content-Security-Policy can still prevent the live iframe preview. **Media** scanning works separately when public HTML is readable.
+
+When an image gallery is detected, **Import gallery** offers an existing folder or a new folder. It inspects linked detail pages to look for originals, follows up to six same-host gallery pages, and saves up to 160 unique source links with a saved/skipped/unresolved summary. It stores URLs rather than binary copies.
+
+Vault first fetches websites directly. For access or network failures, its signed server-side regional relay automatically tries three different egress functions (US `iad1`, UK `lhr1`, Germany `fra1`) in rotating order. The regional endpoints are not accessible without a short-lived HMAC signature based on `VAULT_PROXY_SESSION_SECRET`, and both ends enforce public-only destinations and bounded bodies. Production deployments must verify that their Vercel plan actually places the three functions in distinct compute regions, and that the site's own geographic policy permits access. This does not bypass accounts, paywalls, DRM or website embedding permissions. Self-routing uses `VERCEL_URL`; a different trusted gateway can be set through `VAULT_REGION_EGRESS_ORIGIN` and `VAULT_REGION_EGRESS_SECRET`.
