@@ -61,8 +61,11 @@ export function ImageDetailPanel({ page, folder, onSave, onSaved, saving }) {
       {image && <>
         <p>Original image URL: <a href={image.url} target="_blank" rel="noopener noreferrer">{image.url}</a></p>
         <p>{image.resolution === "cover-only" ? "Only the cover was detected; review before saving." : "The image link was extracted separately from its gallery cover."}</p>
-        <GoogleDriveSave url={image.url} type="image" title={page.title || image.title} compact />
-        <button type="button" disabled={working || saving || status === "saved"} onClick={save}>{status === "saved" ? "Saved" : working ? "Saving…" : "Save image to " + (folder || "My Library")}</button>
+        <button type="button" disabled={working || saving || status === "saved"} onClick={save}>{status === "saved" ? "Saved to Vault" : working ? "Saving URL…" : "Save URL to Vault · " + (folder || "My Library")}</button>
+        <details className="vv-drive-secondary">
+          <summary>Optional: Copy image file to Google Drive</summary>
+          <GoogleDriveSave url={image.url} type="image" title={page.title || image.title} compact />
+        </details>
       </>}
       {error && <p role="alert">{error}</p>}
     </div>
