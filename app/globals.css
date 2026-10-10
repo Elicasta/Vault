@@ -176,3 +176,31 @@ input[type="range"] { accent-color: #fff; }
 .vv-source-pages button{display:block;margin:9px 0;width:100%;text-align:left;border:1px solid #515465;border-radius:8px;padding:9px;background:#2a2d39;color:#e9ebf0;font-size:12px;cursor:pointer}
 .vv-source-footnote,.vv-source-disclaimer{font-size:11px!important;color:#aeb5c6!important}
 @media(max-width:650px){.vv-source-header>button{width:100%}.vv-source-actions select,.vv-source-actions button{width:100%}}
+
+/* Universal media importer: URL, galleries, permanent files. */
+.vv-import-folder-create{display:flex;gap:9px;align-items:center;flex-wrap:wrap;padding-top:12px;border-top:1px solid rgba(255,255,255,.12)}
+.vv-import-folder-create input{min-width:170px;flex:1;font-size:16px;color:#f5f5f7;background:#242630;border:1px solid #4b4e5d;border-radius:9px;padding:11px}
+.vv-import-folder-create button{border-radius:9px;border:1px solid rgba(255,255,255,.2);background:#383b46;color:#f3f3f6;font-size:12px;font-weight:720;padding:11px 13px;cursor:pointer}
+.vv-import-folder-create button:disabled{opacity:.48;cursor:not-allowed}
+.vv-import-gallery-section{padding:20px;border-radius:16px;border:1px solid rgba(255,255,255,.16);background:#15171e;min-width:0;display:grid;gap:13px}
+.vv-import-gallery-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+.vv-import-gallery-heading>div{flex:1;min-width:210px}
+.vv-import-gallery-heading h3{font-size:17px;font-weight:760;letter-spacing:-.02em;margin:7px 0 7px}
+.vv-import-gallery-heading p{font-size:12px;line-height:1.6;color:#bfc2ce;margin:0}
+.vv-import-gallery-heading button{padding:11px 15px;min-width:135px;background:#edeef4;color:#14151b;font-size:12px;font-weight:740;border:0;border-radius:10px;cursor:pointer}
+.vv-import-gallery-heading button:disabled{opacity:.42;cursor:not-allowed}
+.vv-import-gallery-hint{font-size:11px;line-height:1.5;color:#a9adba}
+.vv-import-gallery-counts{font-size:12px;font-weight:650;color:#e3e5ef}
+.vv-import-gallery-list{border:1px solid rgba(255,255,255,.13);background:#20222b;border-radius:11px;padding:12px;min-width:0}
+.vv-import-gallery-list summary{font-size:12px;font-weight:730;cursor:pointer;color:#e4e6ed}
+.vv-import-gallery-items{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,150px),1fr));gap:9px;max-height:440px;overflow-y:auto;margin-top:13px}
+.vv-import-gallery-items a,.vv-import-gallery-items button{display:grid;gap:6px;align-content:start;min-width:0;padding:7px;background:#181a20;border:1px solid rgba(255,255,255,.12);border-radius:9px;color:#e9ebee;text-decoration:none;text-align:left;cursor:pointer}
+.vv-import-gallery-items button[aria-pressed="true"]{border-color:#bac5df;background:#313746}
+.vv-import-gallery-items img{display:block;width:100%;aspect-ratio:4/3;object-fit:contain;background:#07080b;border-radius:6px}
+.vv-import-gallery-items span{font-size:11px;line-height:1.4;overflow-wrap:anywhere}
+@media(max-width:650px){
+ .vv-import-gallery-section{padding:15px}
+ .vv-import-gallery-heading button{width:100%}
+ .vv-import-folder-create input,.vv-import-folder-create button{width:100%}
+ .vv-import-gallery-items{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
