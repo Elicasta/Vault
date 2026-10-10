@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { ensureProxySession, SECURITY_V2_ENABLED } from "@/lib/security-session";
 import GalleryImporter, { ImageDetailPanel } from "./GalleryImporter";
+import { siteNeedsBrowser, markSiteBrowserFirst, clearBrowserFirst, isWebsiteAccessDenial } from "@/lib/browser-first-fallback.mjs";
 
 export default function ImportGallerySection({
   pageUrl = "", folder = "", folders = [], existingUrls = [],
@@ -28,9 +29,14 @@ export default function ImportGallerySection({
     return () => abort.current?.abort();
   }, [target]);
 
-  const scan = async () => {
+  const scan = async (force = false) => {
     if (!/^https?:\/\//i.test(target)) {
       setError("Enter the URL of an image gallery or collection page first.");
+      return;
+    }
+    if (!force && siteNeedsBrowser(target)) {
+      setStatus("browser");
+      setError("This site previously rejected automated scanning. Use browser capture below, or retry if your access has changed.");
       return;
     }
     abort.current?.abort();
@@ -48,7 +54,15 @@ export default function ImportGallerySection({
         response = await fetchGallery();
       }
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Gallery scan failed.");
+      if (!response.ok) {
+        if (isWebsiteAccessDenial(response,data)) {
+          markSiteBrowserFirst(target);
+          setStatus("browser");
+          setError(data.error || "Website blocks automated scanning.");
+          return;
+        }
+        throw new Error(data.error || "Gallery scan failed.");
+      }
       if (!controller.signal.aborted) { setGallery(data); setStatus("done"); }
     } catch (e) {
       if (!controller.signal.aborted) {
@@ -66,8 +80,8 @@ export default function ImportGallerySection({
         <h3>2. Import an image gallery</h3>
         <p>Scan a gallery, inspect its individual photo pages, find original image URLs, and save the collection in bulk.</p>
       </div>
-      <button type="button" onClick={scan} disabled={status === "loading" || !target}>
-        {status === "loading" ? "Scanning…" : "Scan gallery"}
+      <button type="button" onClick={() => {clearBrowserFirst(target);scan(true);}} disabled={status === "loading" || !target}>
+        {status === "loading" ? "Scanning…" : status === "browser" ? "Retry scan" : "Scan gallery"}
       </button>
     </div>
     <p className="vv-import-gallery-hint">Uses the URL entered above. Finds public images and linked photo detail pages, not just preview thumbnails.</p>
@@ -78,7 +92,7 @@ export default function ImportGallerySection({
     {status === "loading" && <p role="status">Looking for image cards, original links and gallery pages…</p>}
     {gallery && <>
       <p role="status" className="vv-import-gallery-counts">
-        {imageCount} image URLs · {pageCount} linked photo pages
+        {imageCount} image URLs · {pageCount} linked photo pages{gallery.siteAdapter === "elitebabes" ? " · EliteBabes gallery support" : ""}
         {gallery.nextPageUrl ? " · additional gallery page detected" : ""}
       </p>
       <GalleryImporter result={gallery} folder={folder} folders={folders}
