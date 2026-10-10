@@ -405,14 +405,14 @@ function FolderPicker({ folders, folder, setFolder, newFolderName, setNewFolderN
 
 function EmptySearch() {
   return <div style={{ height: "100%", minHeight: 420, display: "flex", alignItems: "center", justifyContent: "center", padding: 24, textAlign: "center" }}>
-    <div><Icon name="search" size={34} style={{ color: T.text4, marginBottom: 12 }} /><div style={{ color: T.text2, fontSize: 15, fontWeight: 600 }}>Quick search</div><div style={{ color: T.text4, fontSize: 12, marginTop: 6 }}>Search the web, preview safe pages, then save links into your vault.</div></div>
+    <div><Icon name="search" size={34} style={{ color: T.text4, marginBottom: 12 }} /><div style={{ color: T.text2, fontSize: 15, fontWeight: 600 }}>Quick search</div><div style={{ color: T.text4, fontSize: 12, marginTop: 6 }}>Search for a website or video page, inspect its images and videos, then save individual media into your Vault.</div></div>
   </div>;
 }
 
 function SearchResults({ state, error, query, results, onPreview, onSave, onOpen, onRetry, saving }) {
   return <div style={{ padding: 16 }}>
     <div style={{ color: T.text1, fontSize: 16, fontWeight: 800, marginBottom: 4 }}>Search results</div>
-    <div style={{ color: T.text4, fontSize: 12, marginBottom: 14 }}>US/English results for “{query}”</div>
+    <div style={{ color: T.text4, fontSize: 12, marginBottom: 14 }}>Find individual videos and images in results for “{query}”. Pick a page to scan its media.</div>
     {state === "loading" && <div style={panel}>Searching...</div>}
     {state === "fail" && <div style={panel}>{error || "Search failed"}<div style={{ display:"flex", gap:8, marginTop:12 }}><button style={smallAction} onClick={onRetry}>Retry</button><button style={smallAction} onClick={() => onOpen(`https://www.google.com/search?q=${encodeURIComponent(query)}`)}>Search in browser</button></div></div>}
     {state === "done" && results.length === 0 && <div style={panel}>No results found. Try a more specific search.</div>}
@@ -422,9 +422,9 @@ function SearchResults({ state, error, query, results, onPreview, onSave, onOpen
         <div style={{ color: T.text4, fontSize: 11, marginTop: 5 }}>{r.host}</div>
         {r.snippet && <div style={{ color: T.text3, fontSize: 12, lineHeight: 1.45, marginTop: 7 }}>{r.snippet}</div>}
         <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-          <button onClick={() => onSave(r)} disabled={saving} style={smallAction}>{saving ? "Saving..." : "Save"}</button>
-          <button onClick={() => onPreview(r)} style={smallAction}>Preview</button>
-          <button onClick={() => onOpen(r.url)} style={smallAction}>Open</button>
+          <button onClick={() => onPreview(r)} style={{ ...smallAction, background:"rgba(255,255,255,.18)", fontWeight:800 }}>Find media</button>
+          <button onClick={() => onSave(r)} disabled={saving} style={smallAction}>{saving ? "Saving..." : "Save page"}</button>
+          <button onClick={() => onOpen(r.url)} style={smallAction}>Open site</button>
         </div>
       </div>)}
     </div>
