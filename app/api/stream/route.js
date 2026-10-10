@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { safeFetch, validatePublicUrl, encodedApiUrl, readTextLimited } from "@/lib/server/safe-url";
+import { fetchWithRegionFallback } from "@/lib/server/region-fallback.js";
 import { guardProxyRequest, securityErrorResponse } from "@/lib/server/proxy-guard";
 import { boundedMediaRange } from "@/lib/server/relay-range.mjs";
 
@@ -86,7 +87,7 @@ export async function GET(request) {
 
   const controller = new AbortController();
   try {
-    const upstream = await safeFetch(checked.url.href, {
+    const upstream = await fetchWithRegionFallback(checked.url.href, {
       headers,
       timeoutMs: 15000,
       maxBytes: MAX_BYTES,
