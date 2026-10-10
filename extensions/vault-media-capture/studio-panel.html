@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vault Studio</title>
+<link rel="stylesheet" href="studio-panel.css">
+</head>
+<body>
+<header class="top">
+  <div class="eyebrow">VAULT / LIVE STUDIO</div>
+  <h1>Studio Browser</h1>
+  <p>Generate on the original site with Vault controls alongside it. Your website login and browser data stay in Chrome.</p>
+</header>
+<nav class="switch" aria-label="Choose live website">
+  <button type="button" data-studio="venice">Venice AI</button>
+  <button type="button" data-studio="perchance">Perchance AI</button>
+</nav>
+<main>
+  <div class="current">
+    <div><span class="eyebrow">ACTIVE SITE</span><strong id="current-site">Finding active tab…</strong></div>
+    <small id="current-url"></small>
+  </div>
+  <section class="primary">
+    <span class="eyebrow">1 · SAVE URL FIRST</span>
+    <h2>Save to Vault</h2>
+    <p>Keep the current website or media link in your Vault collection.</p>
+    <button type="button" id="save-page" class="accent">Save current page URL</button>
+    <button type="button" id="scan-page">Find images and videos on this page</button>
+    <div id="media-list" class="media-list"></div>
+  </section>
+  <section>
+    <span class="eyebrow">2 · WHEN A LINK ISN'T ENOUGH</span>
+    <h2>Capture generated image</h2>
+    <p>Capture the visible image or canvas without the surrounding website controls, then import the PNG to Vault's private storage.</p>
+    <button type="button" id="smart-crop">Capture main image</button>
+    <button type="button" id="pick-image">Pick exact image</button>
+    <div id="smart-result" role="status"></div>
+  </section>
+  <section>
+    <span class="eyebrow">3 · YOUR LIBRARY</span>
+    <h2>Collections and backups</h2>
+    <p>Images and videos permanently uploaded into Vault can be backed up to Google Drive in Vault Settings.</p>
+    <button type="button" id="open-vault">Open Vault Library</button>
+  </section>
+  <div id="status" role="status"></div>
+</main>
+<footer>Vault does not copy website passwords, login cookies, or private browser profiles. Site navigation and Google sign-in are handled by Chrome.</footer>
+<script src="studio-panel.js"></script>
+<script src="smart-screenshot.js"></script>
+</body>
+</html>

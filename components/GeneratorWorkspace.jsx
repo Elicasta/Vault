@@ -4,20 +4,22 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { uploadVaultMedia, deleteVaultMedia } from "@/lib/supabase";
 import { itemKey } from "@/lib/utils";
 import { buildGeneratorUrlItem, normalizeGeneratorPublicUrl } from "@/lib/generator-save-url.mjs";
+import StudioLiveBrowser from "./StudioLiveBrowser";
+import SourceInspector from "./SourceInspector";
 
 export const GENERATOR_SITES = Object.freeze({
   venice: {
     name: "Venice AI",
     url: "https://venice.ai/",
     folder: "Venice AI",
-    about: "Keep generations and exported files separate from Venice's browser-local history.",
+    about: "Use the generator in Vault, with saving and private backup tools beside your work.",
     backup: "For conversations, use Venice's own export or encrypted backup option when available. A Vault file does not restore a Venice login or conversation automatically.",
   },
   perchance: {
     name: "Perchance AI",
     url: "https://perchance.org/ai-text-to-image-generator",
     folder: "Perchance AI",
-    about: "Preserve generated images and videos as files, even when the page uses temporary blob: URLs.",
+    about: "Use the original generator interface within Vault and preserve anything you create.",
     backup: "Download generated files or use the Chrome companion's Smart Image Capture. Saving to Vault does not automatically restore another site's browser storage.",
   },
 });
@@ -41,8 +43,11 @@ export default function GeneratorWorkspace({ site = "venice", userId, folders = 
   const siteItems = items.filter((x) => x.folder === config.folder || x.folder === selectedFolder).slice(0,18);
 
   useEffect(() => {
-    setSelectedFolder(config.folder); setSourceUrl(""); setSourceTitle("");
-    setError(""); setStatus("");
+    setSelectedFolder(config.folder); setError(""); setStatus("");
+    const params = new URLSearchParams(window.location.search);
+    const suggested = normalizeGeneratorPublicUrl(params.get("url") || "");
+    setSourceUrl(suggested);
+    setSourceTitle(suggested ? String(params.get("title") || "").slice(0,180) : "");
   }, [site, config.folder]);
 
   const saveUrl = async () => {
@@ -60,6 +65,37 @@ export default function GeneratorWorkspace({ site = "venice", userId, folders = 
     }catch(error){setError(error.message||"Could not save URL.");}
     finally{setSavingUrl(false);}
   };
+
+  // A Chrome Studio tab may request a URL save through the installed Vault
+  // companion. Only same-origin bridge events are accepted, and saving still
+  // uses the signed-in Vault account and regular user-scoped Supabase rules.
+  useEffect(() => {
+    const onCompanionSave = async (event) => {
+      if (event.source !== window || event.origin !== window.location.origin ||
+          event.data?.type !== "VAULT_STUDIO_AUTOSAVE") return;
+      const message = event.data;
+      let saved = false, error = "";
+      try {
+        if (!userId) throw new Error("Sign into Vault to save the URL.");
+        if (message.site !== site) throw new Error("Open the matching studio in Vault to save this link.");
+        const url = normalizeGeneratorPublicUrl(message.url);
+        if (!url) throw new Error("This isn't a durable public URL. Use image capture instead.");
+        const folder = config.folder;
+        if (!folders.some((f) => f.name === folder)) await onCreateFolder(folder);
+        const item = buildGeneratorUrlItem(url, {site,siteName:config.name,folder,keyOf:itemKey});
+        await onSave(item);
+        setSourceUrl(url);
+        setStatus("Saved from Chrome Studio: " + item.title + " · " + folder);
+        saved = true;
+      } catch (e) {
+        error = e.message || "Unable to save URL";
+        setError(error);
+      }
+      window.postMessage({type:"VAULT_STUDIO_AUTOSAVE_RESULT",requestId:message.requestId,ok:saved,error},window.location.origin);
+    };
+    window.addEventListener("message",onCompanionSave);
+    return () => window.removeEventListener("message",onCompanionSave);
+  },[userId,site,config.folder,config.name,folders,onSave,onCreateFolder]);
 
   const persistFiles = useCallback(async (incoming) => {
     const files = [...(incoming || [])].filter(Boolean);
@@ -116,12 +152,13 @@ export default function GeneratorWorkspace({ site = "venice", userId, folders = 
   return <section className="vv-generator-workspace" aria-label={config.name + " Vault workspace"}>
     <div className="vv-generator-header">
       <div>
-        <div className="v2-eyebrow">Connected creative workspace</div>
+        <div className="v2-eyebrow">Vault · Interactive AI studio</div>
         <h2>{config.name}</h2>
         <p>{config.about}</p>
       </div>
-      <a className="vv-generator-open" target="_blank" rel="noreferrer noopener" href={config.url}>Open {config.name} <span aria-hidden="true">↗</span></a>
+      <a className="vv-generator-open vv-generator-original" target="_blank" rel="noreferrer noopener" href={config.url}>Open original site <span aria-hidden="true">↗</span></a>
     </div>
+    <StudioLiveBrowser site={site} name={config.name} onSaveCurrentUrl={(url) => { setSourceUrl(url); setSourceTitle(config.name); }} />
     <section className="vv-generator-url-primary" aria-label="Primary save: URL to Vault">
       <div className="v2-eyebrow">PRIMARY · SAVE THE LINK</div>
       <h3>1. Save URL to Vault</h3>
@@ -149,12 +186,14 @@ export default function GeneratorWorkspace({ site = "venice", userId, folders = 
       </div>
       <p className="vv-generator-caution">URL saving does not download a file. If the generator uses a temporary blob: URL or deleting browser data could erase the result, use Permanent Copy below.</p>
     </section>
+    <SourceInspector pageUrl={sourceUrl || config.url} folder={selectedFolder}
+      onSave={onSave} existingUrls={items.map(item=>item.url||item.canonical_url).filter(Boolean)}/>
     <div className="vv-generator-grid">
       <div className="vv-generator-section">
-        <h3>2. Create in the original website</h3>
-        <p>Open {config.name} in your browser to use its login, generation tools and history. Copy a share link or media URL here to save it.</p>
-        <p>Google verification and site cookies remain in that browser; they cannot be reliably shared with an embedded website.</p>
-        <button type="button" onClick={() => onBrowse?.(config.url)}>Find public media in Vault</button>
+        <h3>2. Browse, generate and inspect</h3>
+        <p>Use the live ${config.name} browser above to interact with the generator. When its embedded mode is restricted, the Chrome Studio option runs the real page with your ordinary browser login and stored history.</p>
+        <p>The Chrome companion can identify media that comes from temporary blob/data URLs, browser network requests and downloadable image files.</p>
+        <button type="button" onClick={() => onBrowse?.(config.url)}>Scan public images and videos with Vault</button>
       </div>
       <div className="vv-generator-section">
         <h3>3. Save Permanent Copy</h3>

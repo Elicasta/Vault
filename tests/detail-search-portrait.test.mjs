@@ -53,8 +53,8 @@ test("Search exposes the protected external browser flow", () => {
   assert.match(vault, /initialQuery=\{query\}/);
   assert.match(browser, /\/api\/browser-search\?q=/);
   assert.match(browser, /initialQuery = ""/);
-  assert.match(route, /guardProxyRequest\(req, "search"\)/);
-  assert.match(route, /searchProvider\(attempt\.url, q, attempt\.parser, attempt\.params \|\| \{\}\)/);
+  assert.match(route, /guardProxyRequest\(req,\s*"search"\)/);
+  assert.match(route, /searchProvider\(provider\.url,query,provider\.parser,provider\.params\|\|\{\},safety,page\)/);
   assert.match(route, /duckduckgo-html/);
   assert.match(route, /duckduckgo-lite/);
   assert.match(route, /bing-html/);
@@ -74,9 +74,9 @@ test("mobile form controls stay at 16px to prevent iOS focus zoom", () => {
 test("web search always has machine-readable and graceful fallbacks", () => {
   const route = read("app/api/browser-search/route.js");
   assert.match(route, /bing-rss/);
-  assert.match(route, /wikipedia-opensearch/);
-  assert.match(route, /Search Google for/);
-  assert.match(route, /Web providers are temporarily unavailable/);
+  assert.match(route, /provider:"wikipedia"/);
+  assert.match(route, /externalUrl/);
+  assert.match(route, /Search providers could not return results/);
   assert.doesNotMatch(route, /return NextResponse\.json\([\s\S]*Search provider temporarily unavailable/);
 });
 

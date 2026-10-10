@@ -5,6 +5,7 @@ import { buildVaultMediaItem, parseCapturedMedia } from "@/lib/media-capture-imp
 import { isPlayableVideoSource, uniqueVideoSources, prepareVideoToSave } from "@/lib/video-source-resolver.mjs";
 import VideoPreviewModal from "./VideoPreviewModal";
 import GalleryImporter, { ImageDetailPanel } from "./GalleryImporter";
+import SourceInspector from "./SourceInspector";
 import { itemKey, sourceIdOf } from "@/lib/utils";
 
 const truncate = (text, max = 80) => String(text || "").length > max ? String(text).slice(0, max - 1) + "…" : String(text || "");
@@ -221,6 +222,8 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
       </div>
       <button type="button" className="vv-media-refresh" onClick={() => scan(pageUrl)} disabled={status === "loading" || saving}>Rescan page</button>
     </div>
+
+    <SourceInspector pageUrl={pageUrl} folder={folder} onSave={onSave} existingUrls={[...existingUrls,...savedThisSession]}/>
 
     {detailItem && <section className="vv-video-detail-focus" aria-label="Individual video page">
       <div className="vv-video-detail-cover"><Thumbnail item={detailItem} /></div>
