@@ -97,3 +97,19 @@ input[type="range"] { accent-color: #fff; }
 .vv-drive-fallback a{color:#d1dcf8}
 .vv-drive-google-button{min-height:20px}
 @media(max-width:800px){.vv-generator-grid{grid-template-columns:minmax(0,1fr)}.vv-generator-header{flex-direction:column}.vv-generator-section{padding:16px}.vv-generator-open{width:100%}}
+
+/* Primary action: save a media or page URL before file and Drive backups. */
+.vv-generator-url-primary{padding:20px;border:1px solid rgba(255,255,255,.24);background:#191b24;border-radius:16px;display:grid;gap:13px;min-width:0}
+.vv-generator-url-primary h3{font-size:19px;font-weight:760;letter-spacing:-.025em;margin:0}
+.vv-generator-url-primary>p{font-size:12px;color:#b5b8c5;line-height:1.55;max-width:690px;margin:0}
+.vv-generator-link-fields{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1fr);gap:12px;min-width:0}
+.vv-generator-link-fields label{display:grid;gap:7px;font-size:12px;color:#c7cbd7;min-width:0}
+.vv-generator-link-fields label:first-child{grid-column:1/-1}
+.vv-generator-link-fields input,.vv-generator-link-fields select{min-width:0;width:100%;border-radius:10px;padding:11px;background:#242630;border:1px solid #4b4e5d;color:#f4f4f6;font-size:16px}
+.vv-generator-primary-actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.vv-generator-primary-actions button{padding:12px 15px;border-radius:10px;border:1px solid rgba(255,255,255,.24);font-size:13px;font-weight:720;cursor:pointer;color:#f1f1f4;background:#2b2d36}
+.vv-generator-primary-actions button.vv-generator-save-url{background:#f3f3f5;color:#16171c;min-width:200px}
+.vv-generator-primary-actions button:disabled{opacity:.4;cursor:not-allowed}
+.vv-generator-caution{font-size:11px!important;color:#9ea2b5!important}
+.vv-generator-status{color:#e2e5f2;font-size:12px}
+@media(max-width:680px){.vv-generator-link-fields{grid-template-columns:minmax(0,1fr)}.vv-generator-link-fields label:first-child{grid-column:auto}.vv-generator-primary-actions button.vv-generator-save-url{flex:1}.vv-generator-url-primary{padding:15px}}
