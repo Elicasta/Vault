@@ -7,6 +7,7 @@ import VideoPreviewModal from "./VideoPreviewModal";
 import GalleryImporter, { ImageDetailPanel } from "./GalleryImporter";
 import SourceInspector from "./SourceInspector";
 import CapturedMediaImport from "./CapturedMediaImport";
+import { isEliteBabesUrl } from "@/lib/server/site-adapters/elitebabes.mjs";
 import { siteNeedsBrowser, markSiteBrowserFirst, clearBrowserFirst, isWebsiteAccessDenial } from "@/lib/browser-first-fallback.mjs";
 import { itemKey, sourceIdOf } from "@/lib/utils";
 
@@ -231,7 +232,7 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
   return <div className="vv-media-discovery">
     <div className="vv-media-head">
       <div>
-        <div className="vv-media-eyebrow">MEDIA COLLECTOR</div>
+        <div className="vv-media-eyebrow">{isEliteBabesUrl(pageUrl) ? "ELITEBABES · VAULT GALLERY ADAPTER" : "MEDIA COLLECTOR"}</div>
         <h2>{result?.pageTitle || "Discover media"}</h2>
         <p>Review individual video and image links. Ads and duplicate media are filtered when identifiable.</p>
       </div>
@@ -295,7 +296,8 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
       <button type="button" onClick={() => onLoginToWebsite?.()}>Open original website</button>
       <p>A 403 can mean the source blocks automated scanning even when it opens normally in your browser. Vault cannot transfer the website's browser session to its server. Open the original site, then use Chrome Media Capture to import media from pages you can access. You can always save the original page URL in Vault.</p>
     </div>}
-    {status === "browser" && <CapturedMediaImport pageUrl={pageUrl} folder={folder} onSave={onSave} existingUrls={[...existingUrls,...savedThisSession]}/>} 
+    {status === "browser" && <><p className="vv-media-note">{isEliteBabesUrl(pageUrl) ? "EliteBabes is a supported gallery target. The original site denied Vault's server request; content captured in your own browser can still be reviewed and saved here." : "This site requires a browser-first import. Review and save its accessible media directly in Vault below."}</p>
+      <CapturedMediaImport pageUrl={pageUrl} folder={folder} onSave={onSave} existingUrls={[...existingUrls,...savedThisSession]}/></>}
     {status === "done" && !items.length && !(result?.videoPages || []).length && !(result?.imagePages || []).length && <div className="vv-media-message">No links were visible in this page's HTML. Some sites load them dynamically; try the Chrome capture extension or visit the individual video page.</div>}
     {result?.truncated && <p className="vv-media-note">This page contains more media than the current scan limit. The highest-confidence matches are shown.</p>}
     {result?.filteredAds > 0 && <p className="vv-media-note">{result.filteredAds} advertising or invalid URL candidates excluded.</p>}
