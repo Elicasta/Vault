@@ -40,7 +40,26 @@ export async function GET(request) {
       maxBytes: MAX_IMAGE_BYTES,
     });
 
-    if (!res.ok) throw new Error(`Media fetch failed (${res.status})`);
+    if (!res.ok) {
+      const upstreamStatus=res.status;
+      try { await res.body?.cancel(); } catch {}
+      // This is a *remote image host* denial, not an auth failure in Vault.
+      // Never mask a third-party 403 as an opaque 500; it lets the image
+      // viewer correctly fall back to the user's own browser.
+      if ([401,403,451].includes(upstreamStatus)) {
+        return NextResponse.json({
+          code:"SOURCE_MEDIA_ACCESS_DENIED",
+          error:"The original image host denied Vault's request.",
+          upstreamStatus,
+          action:"Open the image at its original website or import a file you can download there.",
+        },{status:403,headers:{"Cache-Control":"no-store"}});
+      }
+      return NextResponse.json({
+        code:"SOURCE_MEDIA_UNAVAILABLE",
+        error:"The original image host did not return an accessible image.",
+        upstreamStatus,
+      },{status:502,headers:{"Cache-Control":"no-store"}});
+    }
 
     const contentType = res.headers.get("content-type") || "application/octet-stream";
 
