@@ -79,7 +79,8 @@ test("media preview has player/cover/source choice and protected source resolver
   const route=fs.readFileSync("app/api/video-sources/route.js","utf8");
   assert.match(modal,/VideoPlayer/);
   assert.match(modal,/\/api\/stream\?url=/);
-  assert.match(modal,/video \+ cover/);
+  assert.match(modal,/Save URL to Vault/);
+  assert.match(modal,/Optional: Back up a file to Google Drive/);
   assert.match(modal,/<video\b/);
   assert.match(panel,/prepareVideoToSave/);
   assert.match(panel,/resolveForSave/);
