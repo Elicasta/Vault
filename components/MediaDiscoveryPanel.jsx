@@ -16,7 +16,7 @@ function Thumbnail({ item }) {
   return <img loading="lazy" alt="" src={direct ? item.thumbnail : "/api/media?url=" + encodeURIComponent(item.thumbnail)} onError={() => { if (!direct) setDirect(true); else setFailed(true); }} referrerPolicy="no-referrer" className="vv-media-thumb" />;
 }
 
-export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolderChange, onCreateFolder, onSave, existingUrls = [] }) {
+export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolderChange, onCreateFolder, onSave, existingUrls = [], onExploreVideoPage, focusedVideo = null, drillDepth = 0, canExploreMore = true }) {
   const [result, setResult] = useState(null);
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
@@ -33,6 +33,9 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
   const [previewItem, setPreviewItem] = useState(null);
   const [resolvedSources, setResolvedSources] = useState({});
   const [savedThisSession, setSavedThisSession] = useState([]);
+  const [detailSources, setDetailSources] = useState([]);
+  const [detailState, setDetailState] = useState("idle");
+  const [detailError, setDetailError] = useState("");
   const abort = useRef(null);
   const seq = useRef(0);
 
@@ -69,6 +72,36 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
     // scan belongs to this page instance; do not restart for a rerender.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageUrl]);
+
+  useEffect(() => {
+    if (!focusedVideo?.url || focusedVideo.url !== pageUrl) {
+      setDetailSources([]); setDetailState("idle"); setDetailError(""); return;
+    }
+    let cancelled = false;
+    const controller = new AbortController();
+    setDetailSources([]); setDetailError(""); setDetailState("loading");
+    (async () => {
+      if (SECURITY_V2_ENABLED) await ensureProxySession();
+      const request = () => fetch("/api/video-sources?url=" + encodeURIComponent(pageUrl), { signal: controller.signal, credentials: "same-origin", cache: "no-store" });
+      let response = await request();
+      if (response.status === 401 && SECURITY_V2_ENABLED) {
+        await ensureProxySession(null, { force: true }); response = await request();
+      }
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not inspect the video page.");
+      if (cancelled) return;
+      const sources = uniqueVideoSources(data.sources || [], { sourcePage: pageUrl, thumbnail: focusedVideo.thumbnail });
+      setDetailSources(sources);
+      setDetailState("done");
+      if (!sources.length) setDetailError(data.reason || "This page exposes only its cover. Try Chrome network capture.");
+      if (sources.length === 1) setResolvedSources((old) => ({ ...old, [pageUrl]: sources[0] }));
+    })().catch((e) => { if (!cancelled) { setDetailState("error"); setDetailError(e.message || "Video lookup failed."); } });
+    return () => { cancelled = true; controller.abort(); };
+  }, [pageUrl, focusedVideo?.url, focusedVideo?.thumbnail]);
+
+  const detailItem = focusedVideo && focusedVideo.url === pageUrl
+    ? { ...focusedVideo, type: "video", title: result?.pageTitle || focusedVideo.title || "Video", thumbnail: result?.media?.find((m) => m.type === "video" && m.thumbnail)?.thumbnail || focusedVideo.thumbnail || "" }
+    : null;
 
   const items = useMemo(() => {
     const map = new Map();
