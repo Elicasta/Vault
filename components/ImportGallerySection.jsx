@@ -6,6 +6,9 @@ import GalleryImporter, { ImageDetailPanel } from "./GalleryImporter";
 import SourceInspector from "./SourceInspector";
 import CapturedMediaImport from "./CapturedMediaImport";
 import LocalGalleryRecovery from "./LocalGalleryRecovery";
+import GalleryPageLinkSaver from "./GalleryPageLinkSaver";
+import {itemKey} from "@/lib/utils";
+import {galleryPageLinkItem} from "@/lib/in-app-url-batch.mjs";
 import ResilientImage from "./ResilientImage";
 import ImageAccessPanel from "./ImageAccessPanel";
 import { isDirectImageUrl, shouldRememberSiteDenied } from "@/lib/media-access-fallback.mjs";
@@ -27,6 +30,8 @@ export default function ImportGallerySection({
   const [selectedPage,setSelectedPage]=useState(null);
   const [reviewAsGallery,setReviewAsGallery]=useState(false);
   const [newlySaved,setNewlySaved]=useState([]);
+  const [savingBlockedLink,setSavingBlockedLink]=useState(false);
+  const [blockedLinkMessage,setBlockedLinkMessage]=useState("");
   const abort=useRef(null);
   const target=current.url;
 
@@ -34,7 +39,7 @@ export default function ImportGallerySection({
     abort.current?.abort();
     setCurrent(entry(pageUrl,"Start page"));
     setPrevious([]);setNext([]);setGallery(null);
-    setError("");setStatus("idle");setSelectedPage(null);setReviewAsGallery(false);setNewlySaved([]);
+    setError("");setStatus("idle");setSelectedPage(null);setReviewAsGallery(false);setNewlySaved([]);setBlockedLinkMessage("");
     return ()=>abort.current?.abort();
   },[pageUrl]);
 
@@ -47,7 +52,7 @@ export default function ImportGallerySection({
     }
     abort.current?.abort();
     const controller=new AbortController();abort.current=controller;
-    setStatus("loading");setError("");setGallery(null);setSelectedPage(null);setReviewAsGallery(false);
+    setStatus("loading");setError("");setGallery(null);setSelectedPage(null);setReviewAsGallery(false);setBlockedLinkMessage("");
     try{
       if(SECURITY_V2_ENABLED)await ensureProxySession();
       const request=()=>fetch("/api/media-discovery?url="+encodeURIComponent(url),{
@@ -118,6 +123,17 @@ export default function ImportGallerySection({
   const pageLabels={categories:"Browse categories", "gallery-list":"Choose a gallery",gallery:"Inside gallery",image:"Individual image",video:"Video file",empty:"No gallery found"};
   const savedUrls=[...existingUrls,...newlySaved];
   const recordSaved=url=>setNewlySaved(old=>old.includes(url)?old:[...old,url]);
+  const saveBlockedLink=async()=>{
+    if(savingBlockedLink||!target||savedUrls.includes(target))return;
+    const link=galleryPageLinkItem({...current,sourcePage:previous.at(-1)?.url||target},{folder,keyOf:itemKey});
+    if(!link)return;
+    setSavingBlockedLink(true);setBlockedLinkMessage("");
+    try{if(folder)await onCreateFolder?.(folder);
+      await onSave(link);recordSaved(link.url);
+      setBlockedLinkMessage("Gallery URL saved in your Vault library. Open it on the source website whenever you need it.");
+    }catch(e){setBlockedLinkMessage(e?.message||"Could not save this gallery URL.");}
+    finally{setSavingBlockedLink(false);}
+  };
 
   return <section className="vv-import-gallery-section" aria-label="Browse category and gallery pages">
     <div className="vv-import-gallery-heading">
@@ -153,6 +169,14 @@ export default function ImportGallerySection({
     </div>}
     {status==="loading"&&<p role="status">Opening the selected page and finding its child galleries or images…</p>}
     {status==="browser"&&<div className="vv-gallery-browser-recovery">
+      <div className="vv-blocked-gallery-link">
+        <strong>Gallery images blocked? Save its URL instead.</strong>
+        <p>This gallery can be saved as a clickable link without scanning the photos.</p>
+        <button type="button" onClick={saveBlockedLink} disabled={savingBlockedLink||savedUrls.includes(target)}>
+          {savedUrls.includes(target)?"Gallery URL saved":savingBlockedLink?"Saving…":"Save this gallery URL to Vault"}
+        </button>
+        {blockedLinkMessage&&<p role="status">{blockedLinkMessage}</p>}
+      </div>
       {onImportFiles&&<LocalGalleryRecovery compact sourceUrl={target} onImportFiles={onImportFiles} uploading={uploading}/>}
       <h4>Capture this gallery in your browser</h4>
       <p>Vault's server was denied this page. Open this exact gallery on its original website, then capture the image links displayed in Safari or Chrome.</p>
@@ -166,6 +190,8 @@ export default function ImportGallerySection({
         {pageLabels[level]||"Page"} · {allPages.length} linked page{allPages.length===1?"":"s"}
         {level==="gallery"?" · "+visibleImages.length+" detected image files":""}
       </p>
+      {allPages.length>0&&<GalleryPageLinkSaver pages={allPages} folder={folder}
+        existingUrls={savedUrls} onSave={onSave} onCreateFolder={onCreateFolder}/>}
       {allPages.length>0&&<div className="vv-gallery-browser">
         <h4>{level==="categories"?"Select a category":browsing?"Open a gallery":"Open a gallery or photo detail"}</h4>
         <div className="vv-import-gallery-items vv-gallery-navigation-items">
