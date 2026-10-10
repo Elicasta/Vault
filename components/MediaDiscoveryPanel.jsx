@@ -183,6 +183,10 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
             <strong title={item.title}>{truncate(item.title, 68)}</strong>
             <span>{alreadySaved ? "Already saved" : item.confidence === "high" ? "High-confidence source" : "Page-detected media"}</span>
             <span className="vv-media-url" title={item.url}>{truncate(item.url, 95)}</span>
+            <span className="vv-media-link-actions">
+              <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigator.clipboard.writeText(item.url).then(() => setSaveReport("URL copied to clipboard.")).catch(() => setSaveReport("Clipboard unavailable; use Open URL.")); }}>Copy URL</button>
+              <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(item.url, "_blank", "noopener,noreferrer"); }}>Open URL</button>
+            </span>
           </div>
         </label>;
       })}
