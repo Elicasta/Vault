@@ -151,7 +151,7 @@ export default function ImportGallerySection({
     </div>}
     {status==="loading"&&<p role="status">Opening the selected page and finding its child galleries or images…</p>}
     {(blockedImage||level==="image")&&<ImageAccessPanel imageUrl={viewerUrl}
-      title={current.title||"Original image"} denied={blockedImage} sourcePage={target} coverOnly={coverOnly}/>
+      title={current.title||"Original image"} denied={blockedImage} sourcePage={target} coverOnly={coverOnly}/>}
     {gallery&&<>
       <p role="status" className="vv-import-gallery-counts">
         {pageLabels[level]||"Page"} · {allPages.length} linked page{allPages.length===1?"":"s"}
