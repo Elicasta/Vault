@@ -84,7 +84,7 @@ export default function DriveBackupSettings({ userId }) {
   const totals=status?.totals;
   return <div className="v2-settings-card vv-backup-settings">
     <h3>Google Drive backup</h3>
-    <p>Keep image files in a separate Google Drive backup, with original URLs and covers tracked independently. Your Vault folders and existing records remain in Supabase.</p>
+    <p>Vault saves URLs first. Google Drive is an optional second copy of accessible image files, never a replacement for your URL, cover, or folder in Vault.</p>
     {!status ? <p role="status">{error||"Checking Google Drive connection…"}</p>
       : !status.configured ? <>
         <p><strong>Not configured yet.</strong> Vault needs a Google Cloud OAuth client, secure encryption key and database migration before it can connect to your Drive.</p>
