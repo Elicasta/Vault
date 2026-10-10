@@ -16,6 +16,7 @@ on:
       - "fix/gallery-image-403-viewer-*"
       - "feat/universal-browser-gallery-capture-*"
       - "feat/first-party-file-gallery-import-*"
+      - "feat/vault-chrome-save-and-sheet-import-*"
   pull_request:
     branches:
       - "fix/relay-search-hardening-*"
