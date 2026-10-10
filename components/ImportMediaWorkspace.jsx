@@ -142,6 +142,8 @@ export default function ImportMediaWorkspace({ userId, folders=[], items=[], onS
         <button type="button" className="vv-generator-save-url" disabled={!sourceUrl.trim()||savingUrl||uploading} onClick={saveUrl}>
           {savingUrl?"Saving…":"Save URL to Vault"}
         </button>
+        {normalizeGeneratorPublicUrl(sourceUrl) && <button type="button" className="vv-generator-open-source"
+          onClick={()=>window.open(normalizeGeneratorPublicUrl(sourceUrl),"_blank","noopener,noreferrer")}>Open original website</button>}
       </div>
       <div className="vv-import-folder-create">
         <input aria-label="New collection name" value={newFolder} onChange={e=>setNewFolder(e.target.value)}
