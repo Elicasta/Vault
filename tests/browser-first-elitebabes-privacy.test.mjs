@@ -110,7 +110,7 @@ test("Vault shows browser-first collector inside its browser and import workspac
   assert.match(discovery, /<CapturedMediaImport/);
   assert.match(importer, /<CapturedMediaImport/);
   assert.match(importer, /withDiscreetMediaLabels/);
-  assert.match(gallery, /siteNeedsBrowser/);
+  assert.match(gallery, /pageNeedsBrowser/);
   assert.match(api, /enrichEliteBabesDiscovery/);
   assert.match(api, /SITE_ACCESS_DENIED/);
   assert.ok(!api.includes("cookie:"));
