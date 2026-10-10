@@ -11,6 +11,7 @@ on:
       - "feat/in-vault-interactive-ai-studios-*"
       - "feat/unified-media-import-*"
       - "feat/elitebabes-browser-gallery-*"
+      - "fix/discovery-nonhtml-fallback-*"
   pull_request:
     branches:
       - "fix/relay-search-hardening-*"
