@@ -10,7 +10,7 @@ import ImageAccessPanel from "./ImageAccessPanel";
 import { isDirectImageUrl, shouldRememberSiteDenied } from "@/lib/media-access-fallback.mjs";
 import CapturedMediaImport from "./CapturedMediaImport";
 import { isEliteBabesUrl } from "@/lib/server/site-adapters/elitebabes.mjs";
-import { siteNeedsBrowser, markSiteBrowserFirst, clearBrowserFirst, isWebsiteAccessDenial, isUnsupportedDiscoveryResponse } from "@/lib/browser-first-fallback.mjs";
+import { pageNeedsBrowser, markPageBrowserFirst, clearPageBrowserFirst, isWebsiteAccessDenial, isUnsupportedDiscoveryResponse } from "@/lib/browser-first-fallback.mjs";
 import { itemKey, sourceIdOf } from "@/lib/utils";
 
 const truncate = (text, max = 80) => String(text || "").length > max ? String(text).slice(0, max - 1) + "…" : String(text || "");
@@ -54,9 +54,9 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
     const ticket = ++seq.current;
     setStatus("loading"); setResult(null); setSelected([]); setExtra([]); setResolvedSources({});
     setError(""); setSaveReport("");
-    if (!force && shouldRememberSiteDenied(url) && siteNeedsBrowser(url)) {
+    if (!force && shouldRememberSiteDenied(url) && pageNeedsBrowser(url)) {
       setStatus("browser");
-      setError("This site has already declined automated scanning in this browser session. Use browser capture or retry once.");
+      setError("This specific page denied an earlier scan. Use the capture flow below or retry this page.");
       return;
     }
     try {
@@ -70,7 +70,7 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
       const data = await response.json().catch(() => ({}));
       if (!response.ok) {
         if (isWebsiteAccessDenial(response, data)) {
-          if (shouldRememberSiteDenied(url)) markSiteBrowserFirst(url);
+          if (shouldRememberSiteDenied(url)) markPageBrowserFirst(url);
           setStatus("browser");
           setError(data.error || "The site denied server-side scanning. Use browser capture.");
           return;
@@ -329,11 +329,11 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
         coverOnly={!isDirectImageUrl(pageUrl)}/>} 
 
     {(status === "error" || status === "browser") && <div className="vv-media-message" role="alert">{error}
-      <button type="button" onClick={() => { clearBrowserFirst(pageUrl); scan(pageUrl,true); }}>Retry scan</button>
+      <button type="button" onClick={() => { clearPageBrowserFirst(pageUrl); scan(pageUrl,true); }}>Retry scan</button>
       <button type="button" onClick={() => onLoginToWebsite?.()}>Open original website</button>
       <p>Some addresses return downloads, API data, or browser-only pages rather than readable HTML. Other sites block server access. Website cookies cannot be transferred to Vault's server scanner. Open the original page to use its own Download action, or import Chrome-captured URLs; saving the page URL is always available.</p>
     </div>}
-    {status === "browser" && <><p className="vv-media-note">{isEliteBabesUrl(pageUrl) ? "This site has a gallery adapter; when its page is unavailable to Vault, use the original website and capture accessible media in your own browser." : "This site requires a browser-first import. Review and save its accessible media directly in Vault below."}</p>
+    {status === "browser" && <><p className="vv-media-note">{isEliteBabesUrl(pageUrl) ? "This site has a gallery adapter; when its page is unavailable to Vault, use the original website and capture accessible media in your own browser." : "This page requires a browser-first import. Review and save accessible media from the original website below."}</p>
       <CapturedMediaImport pageUrl={pageUrl} folder={folder} onSave={onSave} existingUrls={[...existingUrls,...savedThisSession]}/></>}
     {status === "done" && !items.length && !(result?.videoPages || []).length && !(result?.imagePages || []).length && !(result?.browsePages || []).length && <div className="vv-media-message">No links were visible in this page's HTML. Some sites load them dynamically; try the Chrome capture extension or visit the individual video page.</div>}
     {result?.truncated && <p className="vv-media-note">This page contains more media than the current scan limit. The highest-confidence matches are shown.</p>}
