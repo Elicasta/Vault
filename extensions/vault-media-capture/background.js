@@ -89,6 +89,16 @@ async function launchStudio(site) {
   catch {return {opened:true,panel:false,error:"Use the Vault extension's Studio panel button to open controls."};}
 }
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "VAULT_STUDIO_PANEL_OPEN") {
+    (async()=>{
+      const [tab]=await chrome.tabs.query({active:true,lastFocusedWindow:true});
+      if (!tab?.id) throw new Error("Choose a Venice or Perchance tab.");
+      await chrome.sidePanel.setOptions({tabId:tab.id,path:"studio-panel.html",enabled:true});
+      await chrome.sidePanel.open({tabId:tab.id});
+      return {opened:true};
+    })().then(sendResponse).catch(e=>sendResponse({opened:false,error:e.message}));
+    return true;
+  }
   if (message?.type === "VAULT_STUDIO_SAVE_LINK") {
     (async () => {
       if (!["venice","perchance"].includes(message.site)) throw new Error("Unknown studio");
