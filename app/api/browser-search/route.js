@@ -194,8 +194,8 @@ export async function GET(req) {
   const mode = normalSearchMode(searchParams.get("mode"));
   const scope = normalSearchScope(searchParams.get("scope"));
   const page = Math.min(3,Math.max(0,parseInt(searchParams.get("page")||"0",10)||0));
-  if (!q) return NextResponse.json({results:[],mode,scope}, {headers:{"Cache-Control":"no-store"}});
-  if (q.length>180) return NextResponse.json({error:"Search is too long"},{status:400,headers:{"Cache-Control":"no-store"}});
+  if (!q) return NextResponse.json({results:[],mode,scope}, {headers:{"Cache-Control": "no-store"}});
+  if (q.length>180) return NextResponse.json({error:"Search is too long"},{status:400,headers:{"Cache-Control": "no-store"}});
   try {await guardProxyRequest(req,"search");}
   catch(error){return securityErrorResponse(error,"Search unavailable");}
   const safety=providerSafety(mode);
@@ -220,7 +220,7 @@ export async function GET(req) {
       provider:"multi-source",providers,count:results.length,partial,results,
       disclaimer:mode==="regular"?"Strict filtering requested from search providers; some results may slip through.":
         "SafeSearch is off where supported. Providers, websites and local laws may still limit results."},
-      {headers:{"Cache-Control":"no-store"}});
+      {headers:{"Cache-Control": "no-store"}});
   }
   // Wikipedia is a knowledge fallback, not a broad-media replacement.
   if (scope==="all"||scope==="sites") {
@@ -228,7 +228,7 @@ export async function GET(req) {
       const entries=await searchWikipedia(q);
       const knowledge=rankAndMergeSearch(entries.map(x=>({...x,provider:"wikipedia"})),{query:q,scope,mode});
       if(knowledge.length)return NextResponse.json({query:q,mode,scope,page,provider:"wikipedia",providers:["wikipedia"],results:knowledge,
-        warning:"General web search was unavailable; showing knowledge results instead."},{headers:{"Cache-Control":"no-store"}});
+        warning:"General web search was unavailable; showing knowledge results instead."},{headers:{"Cache-Control": "no-store"}});
     }catch{}
   }
   const external=new URL("https://www.google.com/search");
@@ -236,5 +236,5 @@ export async function GET(req) {
   external.searchParams.set("safe",mode==="regular"?"active":"off");
   return NextResponse.json({query:q,mode,scope,page,provider:"external-fallback",providers:[],results:[],
     externalUrl:external.toString(),warning:"Search providers could not return results for this query. You can open it in your regular browser."},
-    {headers:{"Cache-Control":"no-store"}});
+    {headers:{"Cache-Control": "no-store"}});
 }
