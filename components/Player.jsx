@@ -4,6 +4,7 @@ import Icon from "./Icons";
 import { T } from "@/lib/theme";
 import { getEmbed } from "@/lib/sources";
 import { proxiedMediaUrl, proxiedStreamUrl } from "@/lib/utils";
+import { ensureProxySession } from "@/lib/security-session";
 import { saveProgress, getItemComments, addItemComment, deleteItemComment } from "@/lib/supabase";
 
 // ─── YouTube IFrame API loader (one-time, page-wide) ─────────────────────────
@@ -70,6 +71,7 @@ export default function Player({ item, items = [], currentIdx = 0, onNavigate, o
   const [extracting, setExtracting] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const refreshCount = useRef(0); // bail after too many auto-refresh attempts
+  const refreshInFlight = useRef(false);
   const hlsRecoverCount = useRef(0); // recover once before falling back to relay
   const markNoticeTimer = useRef(null);
   const relayNoticeTimer = useRef(null);
@@ -141,21 +143,27 @@ export default function Player({ item, items = [], currentIdx = 0, onNavigate, o
 
   // Refresh the stream: keep current playback position, re-extract, swap src.
   const refreshStream = useCallback(async ({ preserveRelay = false } = {}) => {
-    if (baseEmbed?.kind !== "extract") return;
-    if (refreshing) return;
+    if (baseEmbed?.kind !== "extract" || refreshInFlight.current) return;
+    refreshInFlight.current = true;
     seekTarget.current = videoRef.current?.currentTime || 0;
     setRefreshing(true);
-    const next = await runExtract({ cacheBust: true });
-    if (next) {
-      setExtracted(null);
-      setUseRelay(preserveRelay);
-      setPlaybackIssue("");
-      setTimeout(() => setExtracted(next), 0);
-      refreshCount.current += 1;
-      if (preserveRelay) showRelayNotice("Secure stream refreshed.");
+    try {
+      if (preserveRelay) await ensureProxySession();
+      const next = await runExtract({ cacheBust: true });
+      if (next) {
+        setExtracted(next);
+        setUseRelay(preserveRelay);
+        setPlaybackIssue("");
+        refreshCount.current += 1;
+        if (preserveRelay) showRelayNotice("Secure stream refreshed.");
+      }
+    } catch (error) {
+      setPlaybackIssue(error.message || "Could not refresh the stream.");
+    } finally {
+      refreshInFlight.current = false;
+      setRefreshing(false);
     }
-    setRefreshing(false);
-  }, [baseEmbed?.kind, refreshing, runExtract, showRelayNotice]);
+  }, [baseEmbed?.kind, runExtract, showRelayNotice]);
 
   // After a refresh, when the new <video> mounts, seek back to where we left off.
   // Triggered by onLoadedMetadata in the video element below.
@@ -185,13 +193,22 @@ export default function Player({ item, items = [], currentIdx = 0, onNavigate, o
     }, 350);
   };
 
+  const switchToRelay = async (automatic = false) => {
+    const previousTime = videoRef.current?.currentTime || 0;
+    try { await ensureProxySession(); }
+    catch (error) { setPlaybackIssue(error.message || "Secure relay is unavailable."); return; }
+    seekTarget.current = previousTime;
+    setPlaybackIssue("");
+    setUseRelay(true);
+    if (automatic) showRelayNotice("Direct playback was blocked. Secure relay enabled.");
+    else showRelayNotice("Secure relay enabled.");
+  };
+
   // <video> error handler. Most common cause: signed URL expired mid-playback.
   // Auto-refresh up to 2 times before giving up.
   const handleVideoError = () => {
-    if ((embed?.kind === "video" || embed?.kind === "hls") && embed?.src && /^https?:\/\//i.test(embed.src) && !useRelay) {
-      setPlaybackIssue("");
-      setUseRelay(true);
-      showRelayNotice("Direct playback was blocked. Secure relay enabled.");
+    if (["video", "hls", "audio"].includes(embed?.kind) && embed?.src && /^https?:\/\//i.test(embed.src) && !useRelay) {
+      void switchToRelay(true);
       return;
     }
 
@@ -228,7 +245,7 @@ export default function Player({ item, items = [], currentIdx = 0, onNavigate, o
       : { kind: "video", src: extracted.url, source: baseEmbed.source };
   })();
 
-  const mediaSrc = (embed?.kind === "video" || embed?.kind === "hls") && useRelay
+  const mediaSrc = ["video", "hls", "audio"].includes(embed?.kind) && useRelay
     ? proxiedStreamUrl(embed.src)
     : embed?.src;
 
@@ -602,12 +619,13 @@ export default function Player({ item, items = [], currentIdx = 0, onNavigate, o
             <div style={{ fontSize: 13, fontWeight: 700, color: T.text1, marginBottom: 10, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.title || "Audio"}</div>
             <audio
               ref={videoRef}
-              src={embed.src}
+              src={mediaSrc}
               controls
               autoPlay
               preload="metadata"
               muted={muted}
               onTimeUpdate={onTimeUpdate}
+              onError={handleVideoError}
               onLoadedMetadata={onLoadedMetadata}
               style={{ width: "100%", display: "block" }}
             />
@@ -717,15 +735,15 @@ export default function Player({ item, items = [], currentIdx = 0, onNavigate, o
       <button onClick={(e) => { e.stopPropagation(); openPopout(); }} style={actionBtn} title="Pop out" aria-label="Pop out media">
         <Icon name="external" size={14} />
       </button>
-      {(embed?.kind === "video" || embed?.kind === "hls") && embed?.src && /^https?:\/\//i.test(embed.src) && (
+      {["video", "hls", "audio"].includes(embed?.kind) && embed?.src && /^https?:\/\//i.test(embed.src) && (
         <button
           onClick={(e) => {
             e.stopPropagation();
             setPlaybackIssue("");
             if (!useRelay) {
-              setUseRelay(true);
-              showRelayNotice("Secure relay enabled.");
+              void switchToRelay(false);
             } else {
+              seekTarget.current = videoRef.current?.currentTime || 0;
               setUseRelay(false);
               showRelayNotice("Direct playback restored.");
             }

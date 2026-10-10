@@ -238,9 +238,23 @@ export default function VaultV2({ route = "home" }) {
     return () => { active = false; };
   }, [refresh]);
 
+  const routeQuery = searchParams.get("q") || "";
   useEffect(() => {
-    setQuery(searchParams.get("q") || "");
-  }, [searchParams]);
+    setQuery(routeQuery);
+  }, [routeQuery]);
+
+  useEffect(() => {
+    if (!SECURITY_V2_ENABLED || !user?.id) return;
+    const renew = () => { if (!document.hidden) ensureProxySession().catch(() => {}); };
+    const interval = window.setInterval(renew, 10 * 60 * 1000);
+    document.addEventListener("visibilitychange", renew);
+    window.addEventListener("focus", renew);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", renew);
+      window.removeEventListener("focus", renew);
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     const timer = setTimeout(() => setDebouncedQuery(query), 200);

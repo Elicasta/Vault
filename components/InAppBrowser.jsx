@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "./Icons";
 import { T } from "@/lib/theme";
 import { itemKey, sourceIdOf } from "@/lib/utils";
+import { ensureProxySession, SECURITY_V2_ENABLED } from "@/lib/security-session";
 
 const HISTORY_KEY = "vv_browser_history";
 
@@ -49,13 +50,15 @@ export default function InAppBrowser({ onClose, onSave, folders = [], isMobile =
   const [searchError, setSearchError] = useState("");
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const inputRef = useRef(null);
+  const searchAbort = useRef(null);
+  const searchSequence = useRef(0);
 
   useEffect(() => {
     try { setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]")); } catch { setHistory([]); }
     inputRef.current?.focus();
     const h = (e) => { if (e.key === "Escape") onClose?.(); };
     window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
+    return () => { window.removeEventListener("keydown", h); searchAbort.current?.abort(); ++searchSequence.current; };
   }, [onClose]);
 
   useEffect(() => {
@@ -115,22 +118,38 @@ export default function InAppBrowser({ onClose, onSave, folders = [], isMobile =
   const runSearch = async (query) => {
     const q = String(query || "").trim();
     if (!q) return;
+    searchAbort.current?.abort();
+    const controller = new AbortController();
+    searchAbort.current = controller;
+    const sequence = ++searchSequence.current;
     setSearchQuery(q);
     setCurrentUrl("");
     setMetadata(null);
     setMetaState("idle");
     setSearchState("loading");
+    setSearchResults([]);
     setSearchError("");
     setShowHistory(false);
     try {
-      const r = await fetch(`/api/browser-search?q=${encodeURIComponent(q)}`);
-      const j = await r.json();
-      if (!r.ok) throw new Error(j.error || "Search failed");
-      setSearchResults(Array.isArray(j.results) ? j.results : []);
+      if (SECURITY_V2_ENABLED) await ensureProxySession();
+      const requestSearch = () => fetch(`/api/browser-search?q=${encodeURIComponent(q)}`, {
+        cache: "no-store",
+        credentials: "same-origin",
+        signal: controller.signal,
+      });
+      let response = await requestSearch();
+      if (response.status === 401 && SECURITY_V2_ENABLED) {
+        await ensureProxySession(null, { force: true });
+        response = await requestSearch();
+      }
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `Web search failed (HTTP ${response.status})`);
+      if (sequence !== searchSequence.current || controller.signal.aborted) return;
+      setSearchResults(Array.isArray(data.results) ? data.results : []);
       setSearchState("done");
-    } catch (e) {
-      setSearchResults([]);
-      setSearchError(e.message || "Search failed");
+    } catch (error) {
+      if (sequence !== searchSequence.current || controller.signal.aborted) return;
+      setSearchError(error.message || "Search failed");
       setSearchState("fail");
     }
   };
@@ -147,6 +166,8 @@ export default function InAppBrowser({ onClose, onSave, folders = [], isMobile =
   const openUrl = (url, { addHistory = true } = {}) => {
     const target = normalizeUrl(url);
     if (!target) return;
+    searchAbort.current?.abort();
+    ++searchSequence.current;
     setCurrentUrl(target);
     setAddress(target);
     setSearchQuery("");
@@ -274,7 +295,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], isMobile =
             {!currentUrl && !searchQuery ? (
               <EmptySearch />
             ) : searchQuery ? (
-              <SearchResults state={searchState} error={searchError} query={searchQuery} results={searchResults} onPreview={previewResult} onSave={saveResult} onOpen={openExternal} saving={saving} />
+              <SearchResults state={searchState} error={searchError} query={searchQuery} results={searchResults} onPreview={previewResult} onSave={saveResult} onOpen={openExternal} onRetry={() => runSearch(searchQuery)} saving={saving} />
             ) : frameBlocked ? (
               <BlockedPreview url={currentUrl} host={currentHost} onOpen={() => openExternal(currentUrl)} />
             ) : (
@@ -344,12 +365,12 @@ function EmptySearch() {
   </div>;
 }
 
-function SearchResults({ state, error, query, results, onPreview, onSave, onOpen, saving }) {
+function SearchResults({ state, error, query, results, onPreview, onSave, onOpen, onRetry, saving }) {
   return <div style={{ padding: 16 }}>
     <div style={{ color: T.text1, fontSize: 16, fontWeight: 800, marginBottom: 4 }}>Search results</div>
     <div style={{ color: T.text4, fontSize: 12, marginBottom: 14 }}>US/English results for “{query}”</div>
     {state === "loading" && <div style={panel}>Searching...</div>}
-    {state === "fail" && <div style={panel}>{error || "Search failed"}</div>}
+    {state === "fail" && <div style={panel}>{error || "Search failed"}<div style={{ display:"flex", gap:8, marginTop:12 }}><button style={smallAction} onClick={onRetry}>Retry</button><button style={smallAction} onClick={() => onOpen(`https://www.google.com/search?q=${encodeURIComponent(query)}`)}>Search in browser</button></div></div>}
     {state === "done" && results.length === 0 && <div style={panel}>No results found. Try a more specific search.</div>}
     <div style={{ display: "grid", gap: 10 }}>
       {results.map((r) => <div key={r.url} style={{ padding: 12, border: `1px solid ${T.border}`, borderRadius: 14, background: "rgba(255,255,255,0.035)" }}>

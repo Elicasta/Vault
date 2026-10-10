@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { safeFetch, validatePublicUrl, encodedApiUrl, readTextLimited } from "@/lib/server/safe-url";
 import { guardProxyRequest, securityErrorResponse } from "@/lib/server/proxy-guard";
+import { boundedMediaRange } from "@/lib/server/relay-range.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,6 +10,28 @@ const UA = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 C
 const DEFAULT_MAX_BYTES = 512 * 1024 * 1024; // 512 MB safety cap for direct files
 const MAX_BYTES = Number(process.env.MEDIA_RELAY_MAX_BYTES || DEFAULT_MAX_BYTES);
 const MAX_HLS_BYTES = 2 * 1024 * 1024;
+const MAX_STREAM_DURATION_MS = 65_000;
+
+function limitStreamLifetime(source, controller) {
+  const reader = source.getReader();
+  const deadline = setTimeout(() => controller.abort(), MAX_STREAM_DURATION_MS);
+  let finished = false;
+  const cleanup = () => { if (!finished) { finished = true; clearTimeout(deadline); } };
+  return new ReadableStream({
+    async pull(output) {
+      try {
+        const { done, value } = await reader.read();
+        if (done) { cleanup(); output.close(); }
+        else output.enqueue(value);
+      } catch (error) { cleanup(); output.error(error); }
+    },
+    async cancel(reason) {
+      cleanup();
+      controller.abort();
+      await reader.cancel(reason).catch(() => {});
+    },
+  });
+}
 
 const MEDIA_MIME_BY_EXT = new Map([
   [".mp4", "video/mp4"],
@@ -59,16 +82,26 @@ export async function GET(request) {
     "Accept-Language": "en-US,en;q=0.9",
     "Referer": checked.url.origin + "/",
   };
-  if (range) headers.Range = range;
+  if (range) headers.Range = boundedMediaRange(range, checked.url.href);
 
+  const controller = new AbortController();
   try {
     const upstream = await safeFetch(checked.url.href, {
       headers,
-      timeoutMs: 45000,
+      timeoutMs: 15000,
       maxBytes: MAX_BYTES,
+      signal: controller.signal,
     });
 
+    if (upstream.status === 416) {
+      const out = new Headers({ "Cache-Control": "no-store", "Accept-Ranges": "bytes" });
+      const contentRange = upstream.headers.get("content-range");
+      if (contentRange) out.set("Content-Range", contentRange);
+      await upstream.body?.cancel();
+      return new NextResponse(null, { status: 416, headers: out });
+    }
     if (!upstream.ok && upstream.status !== 206) {
+      await upstream.body?.cancel();
       return NextResponse.json({ error: `Relay fetch failed (${upstream.status})` }, { status: 502 });
     }
 
@@ -103,6 +136,7 @@ export async function GET(request) {
     }
 
     if (contentLength > MAX_BYTES && !range) {
+      await upstream.body?.cancel();
       return NextResponse.json({ error: "Media exceeds relay size limit. Use the original link or a dedicated media worker." }, { status: 413 });
     }
 
@@ -120,7 +154,7 @@ export async function GET(request) {
     out.set("Vary", "Range, Accept");
     out.set("X-Vault-Relay", "secure-v2");
 
-    return new NextResponse(upstream.body, {
+    return new NextResponse(upstream.body ? limitStreamLifetime(upstream.body, controller) : null, {
       status: upstream.status,
       headers: out,
     });
