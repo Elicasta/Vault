@@ -12,6 +12,7 @@ on:
       - "feat/unified-media-import-*"
       - "feat/elitebabes-browser-gallery-*"
       - "fix/discovery-nonhtml-fallback-*"
+      - "feat/gallery-page-navigation-*"
   pull_request:
     branches:
       - "fix/relay-search-hardening-*"
