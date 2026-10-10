@@ -63,6 +63,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
   const [viewMode, setViewMode] = useState("media");
   const [videoTrail, setVideoTrail] = useState([]);
   const [forwardTrail, setForwardTrail] = useState([]);
+  const [currentPageTitle, setCurrentPageTitle] = useState("");
   const [focusedVideo, setFocusedVideo] = useState(null);
   const [showQuickSave, setShowQuickSave] = useState(false);
   const onCloseRef = useRef(onClose);
@@ -202,7 +203,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
   const openUrl = (url, { addHistory = true, preserveTrail = false } = {}) => {
     const target = normalizeUrl(url);
     if (!target) return;
-    if (!preserveTrail) { setVideoTrail([]); setForwardTrail([]); setFocusedVideo(null); }
+    if (!preserveTrail) { setVideoTrail([]); setForwardTrail([]); setFocusedVideo(null); setCurrentPageTitle(""); }
     searchAbort.current?.abort();
     ++searchSequence.current;
     setCurrentUrl(target);
@@ -220,9 +221,10 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
   const exploreVideoPage = (card) => {
     const target = normalizeUrl(card?.url);
     if (!target || target === currentUrl) return;
-    setVideoTrail((old) => [...old, { url: currentUrl, focused: focusedVideo, title: focusedVideo?.title || currentHost || "Start page" }].slice(-79));
+    setVideoTrail((old) => [...old, { url: currentUrl, focused: focusedVideo, title: currentPageTitle || focusedVideo?.title || currentHost || "Start page" }].slice(-79));
     setForwardTrail([]);
     openUrl(target, { preserveTrail: true });
+    setCurrentPageTitle(card.title || "Video page");
     setFocusedVideo({
       ...card, type: "video",
       thumbnail: card.thumbnail || "",
@@ -233,36 +235,40 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
   const exploreAnyPage = (page) => {
     const target = normalizeUrl(page?.url);
     if (!target || target === currentUrl) return;
-    setVideoTrail((old) => [...old, { url: currentUrl, focused: focusedVideo, title: focusedVideo?.title || currentHost || "Start page" }].slice(-79));
+    setVideoTrail((old) => [...old, { url: currentUrl, focused: focusedVideo, title: currentPageTitle || focusedVideo?.title || currentHost || "Start page" }].slice(-79));
     setForwardTrail([]);
     openUrl(target, { preserveTrail: true });
+    setCurrentPageTitle(page.title || "Gallery page");
     setFocusedVideo(["image-page","photo-page"].includes(page?.kind) ? { ...page, type: "image" } : null);
   };
 
   const backVideoPage = () => {
     if (!videoTrail.length) return;
     const last = videoTrail[videoTrail.length - 1];
-    setForwardTrail(old => [{ url: currentUrl, focused: focusedVideo, title: focusedVideo?.title || currentHost || "Page" }, ...old].slice(0,79));
+    setForwardTrail(old => [{ url: currentUrl, focused: focusedVideo, title: currentPageTitle || focusedVideo?.title || currentHost || "Page" }, ...old].slice(0,79));
     setVideoTrail((old) => old.slice(0, -1));
     openUrl(last.url, { addHistory: false, preserveTrail: true });
     setFocusedVideo(last.focused);
+    setCurrentPageTitle(last.title || "Page");
   };
   const forwardVideoPage = () => {
     if (!forwardTrail.length) return;
     const page=forwardTrail[0];
-    setVideoTrail(old=>[...old,{url:currentUrl,focused:focusedVideo,title:focusedVideo?.title||currentHost||"Page"}].slice(-79));
+    setVideoTrail(old=>[...old,{url:currentUrl,focused:focusedVideo,title:currentPageTitle||focusedVideo?.title||currentHost||"Page"}].slice(-79));
     setForwardTrail(old=>old.slice(1));
     openUrl(page.url,{addHistory:false,preserveTrail:true});
     setFocusedVideo(page.focused);
+    setCurrentPageTitle(page.title || "Page");
   };
   const jumpToPage = index => {
     if(index<0||index>=videoTrail.length)return;
-    const trail=[...videoTrail,{url:currentUrl,focused:focusedVideo,title:focusedVideo?.title||currentHost||"Page"}];
+    const trail=[...videoTrail,{url:currentUrl,focused:focusedVideo,title:currentPageTitle||focusedVideo?.title||currentHost||"Page"}];
     const page=trail[index];
     setVideoTrail(trail.slice(0,index));
     setForwardTrail(trail.slice(index+1));
     openUrl(page.url,{addHistory:false,preserveTrail:true});
     setFocusedVideo(page.focused);
+    setCurrentPageTitle(page.title || "Page");
   };
 
   const go = (value = address) => {
@@ -401,7 +407,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
               <button type="button" title={page.url} onClick={()=>jumpToPage(i)}>{String(page.title||"Page").slice(0,35)}</button>
               <span aria-hidden="true"> / </span>
             </span>)}
-            <strong aria-current="page">{String(focusedVideo?.title||"Current page").slice(0,35)}</strong>
+            <strong aria-current="page">{String(currentPageTitle||focusedVideo?.title||"Current page").slice(0,35)}</strong>
           </nav>}
           <span className="vv-browser-locator">{currentHost || (searchQuery ? "Search results" : "Browse the web")}{focusedVideo ? " · Video detail" : ""}</span>
           <label style={{display:"inline-flex",alignItems:"center",gap:5,fontSize:11,color:T.text3,cursor:"pointer"}} title="Use neutral titles and notes for saved items. Real links remain in your private library.">
