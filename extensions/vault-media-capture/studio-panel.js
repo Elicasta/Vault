@@ -54,25 +54,31 @@ async function saveUrl(url, title = "") {
   const site = latest.site || siteFor(url) || "venice";
   const base = await vaultLocation();
   if (!base) {
-    status("Open this studio from Vault once to connect it, then return and save the URL.");
+    status("Open this studio from Vault once to connect it, then save the URL.");
     return;
   }
+  let normalized;
   try {
-    const u = new URL(url);
-    if (!["http:","https:"].includes(u.protocol)) throw new Error("This temporary address isn't a durable URL. Capture the image instead.");
-    const target = base + "/studios/" + site + "?url=" + encodeURIComponent(u.href) + (title ? "&title=" + encodeURIComponent(title.slice(0,120)) : "");
-    const existing = await chrome.tabs.query({});
-    const vaultTab = existing.find(tab => {
-      try {const u = new URL(tab.url);return u.origin === base && u.pathname.startsWith("/studios/");}
-      catch {return false;}
-    });
-    if (vaultTab?.id) {
-      await chrome.tabs.update(vaultTab.id, {url:target,active:false});
-    } else {
-      await chrome.tabs.create({url:target,active:false});
-    }
-    status("Vault opened with the URL and collection ready. Select its tab and press Save URL to Vault to confirm.");
-  } catch (error) {status("Could not prepare the save: "+(error.message||"Unknown error"));}
+    normalized = new URL(url);
+    if (!["http:","https:"].includes(normalized.protocol)) throw new Error("A browser-local blob or data URL cannot be a permanent link.");
+  } catch (error) {status(error.message || "Not a valid URL");return;}
+  status("Saving the URL into your Vault collection…");
+  let direct;
+  try {
+    direct = await chrome.runtime.sendMessage({type:"VAULT_STUDIO_SAVE_LINK",site,url:normalized.href});
+  } catch(error) { direct={ok:false,error:error.message}; }
+  if (direct?.ok) {
+    status("Saved URL to Vault. You can keep generating without leaving this page.");
+    return;
+  }
+  if (direct?.reason !== "no-vault-tab") {
+    status("Vault did not confirm the save: " + (direct?.error || "Open Vault Studio to reconnect."));
+    return;
+  }
+  const target = base + "/studios/" + site + "?url=" + encodeURIComponent(normalized.href) +
+    (title ? "&title=" + encodeURIComponent(title.slice(0,120)) : "");
+  await chrome.tabs.create({url:target,active:false});
+  status("Opened Vault in another tab with the URL prefilled. Press Save URL to Vault there; then future saves can happen from this panel.");
 }
 async function scanDomInPage() {
   const nodes = [...document.querySelectorAll("img,video,source,meta[property='og:image'],meta[property='og:video']")].slice(0,200);
