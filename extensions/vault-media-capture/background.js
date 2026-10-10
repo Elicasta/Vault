@@ -89,6 +89,25 @@ async function launchStudio(site) {
   catch {return {opened:true,panel:false,error:"Use the Vault extension's Studio panel button to open controls."};}
 }
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "VAULT_STUDIO_SAVE_LINK") {
+    (async () => {
+      if (!["venice","perchance"].includes(message.site)) throw new Error("Unknown studio");
+      const url = new URL(String(message.url || ""));
+      if (!["http:","https:"].includes(url.protocol) || url.username || url.password) throw new Error("Save a public media or page URL");
+      const stored = await chrome.storage.local.get("vault_studio_origin");
+      const origin = String(stored.vault_studio_origin || "");
+      if (!origin || !origin.includes("vault")) return {ok:false,reason:"no-vault-tab"};
+      const tabs = await chrome.tabs.query({});
+      const matching = tabs.filter(tab => {
+        try {const address = new URL(tab.url);return address.origin===origin && address.pathname.startsWith("/studios/");}
+        catch{return false;}
+      });
+      if (!matching.length) return {ok:false,reason:"no-vault-tab"};
+      const correct = matching.find(tab => tab.url.includes("/studios/" + message.site)) || matching[0];
+      return await chrome.tabs.sendMessage(correct.id, {type:"VAULT_STUDIO_AUTOSAVE",site:message.site,url:url.href});
+    })().then(sendResponse).catch(error=>sendResponse({ok:false,error:error.message||"Save failed"}));
+    return true;
+  }
   if (message?.type === "VAULT_STUDIO_OPEN") {
     const source = sender?.tab?.url || "";
     if (source && /^https?:\/\//i.test(source)) {
