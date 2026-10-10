@@ -1,0 +1,113 @@
+.vv-browser-backdrop {
+  position: fixed; inset: 0; z-index: 1198;
+  background: rgba(0,0,0,.74); backdrop-filter: blur(6px);
+}
+.vv-browser-shell, .vv-browser-shell * { box-sizing: border-box; }
+.vv-browser-shell { isolation: isolate; overflow: hidden; overscroll-behavior: contain; }
+.vv-browser-topbar { position: relative; z-index: 2; }
+.vv-browser-topbar form { min-width: 0; }
+.vv-browser-topbar input { width: 100%; min-width: 0; font-size: 16px!important; }
+.vv-browser-content, .vv-browser-main { min-width: 0; min-height: 0; }
+.vv-browser-main { scroll-padding-top: 12px; }
+.vv-browser-modebar {
+  display: flex; align-items: center; justify-content: flex-end;
+  gap: 10px; padding: 8px 12px; border-bottom: 1px solid rgba(255,255,255,.1);
+  background: #101011; min-width: 0; flex-shrink: 0;
+}
+.vv-browser-locator { margin-right: auto; font-size: 12px; color: #a9a9b1; min-width: 0; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; }
+.vv-browser-switch { display: flex; align-items: center; gap: 2px; padding: 3px; background: rgba(255,255,255,.06); border-radius: 11px; border: 1px solid rgba(255,255,255,.08); flex-shrink: 0; }
+.vv-browser-switch button, .vv-browser-save-toggle {
+  appearance: none; background: transparent; border: 0; cursor: pointer;
+  color: #bdbdc4; border-radius: 8px; padding: 8px 11px; font: inherit; font-size: 12px; font-weight: 700; white-space: nowrap;
+}
+.vv-browser-switch button[aria-pressed="true"] { background: #f0f0f1; color: #0b0b0d; box-shadow: 0 1px 5px rgba(0,0,0,.2); }
+.vv-browser-save-toggle { border: 1px solid rgba(255,255,255,.14); }
+.vv-browser-save-toggle[aria-expanded="true"] { background: #f0f0f1; color: #080808; }
+.vv-browser-save-pane { background: #0e0e10; scroll-behavior: auto; }
+.vv-close-save { border: 0; background: rgba(255,255,255,.12); padding: 7px 11px; border-radius: 8px; color: white; cursor: pointer; }
+.vv-media-discovery {
+  position: relative; width: 100%; min-height: 100%; padding: clamp(12px, 2.4vw, 24px);
+  padding-bottom: max(24px, env(safe-area-inset-bottom)); color: #eeeeef;
+  font-family: Inter, -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+}
+.vv-media-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+.vv-media-head > div { min-width: 0; }
+.vv-media-head h2 { font-size: clamp(18px, 2.2vw, 24px); font-weight: 750; letter-spacing: -.03em; line-height: 1.22; margin: 4px 0 7px; overflow-wrap: anywhere; }
+.vv-media-head p, .vv-capture-body p { color: #9899a3; font-size: 12px; line-height: 1.5; margin: 0; }
+.vv-media-eyebrow { font-size: 10px; letter-spacing: .13em; color: #9b9ba5; font-weight: 700; }
+.vv-media-refresh, .vv-media-select-actions button, .vv-media-collection button, .vv-media-new-folder button, .vv-media-message button, .vv-media-import-toggle, .vv-capture-body button {
+  appearance: none; color: #ececef; border: 1px solid rgba(255,255,255,.16); background: rgba(255,255,255,.07);
+  border-radius: 10px; cursor: pointer; padding: 9px 11px; font-size: 12px; font-weight: 700; white-space: nowrap;
+}
+.vv-media-discovery button:disabled { opacity: .4; cursor: not-allowed; }
+.vv-media-collection { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; margin-bottom: 15px; background: #18181a; border: 1px solid rgba(255,255,255,.09); border-radius: 13px; padding: 11px; }
+.vv-media-collection label { color: #aeb0b8; font-size: 12px; font-weight: 650; white-space: nowrap; }
+.vv-media-collection select, .vv-media-new-folder input, .vv-capture-body textarea { background: #222226; border: 1px solid rgba(255,255,255,.15); color: white; border-radius: 9px; padding: 9px 11px; min-width: 0; font: inherit; font-size: 16px; }
+.vv-media-collection select { flex: 1 1 140px; }
+.vv-media-new-folder { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.vv-media-new-folder input { flex: 1 1 150px; }
+.vv-media-tools { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 15px; }
+.vv-media-filters { display: flex; align-items: center; gap: 3px; background: #161618; border: 1px solid rgba(255,255,255,.1); padding: 4px; border-radius: 11px; }
+.vv-media-filters button { border: 0; background: transparent; color: #aeb0b8; padding: 9px 12px; border-radius: 8px; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; }
+.vv-media-filters button[aria-pressed="true"] { background: #eeeeef; color: #101014; }
+.vv-media-select-actions { display: flex; gap: 6px; }
+.vv-media-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 235px), 1fr)); gap: 10px; }
+.vv-media-item {
+  display: flex; flex-direction: column; position: relative; min-width: 0; cursor: pointer;
+  background: #171719; border: 1px solid rgba(255,255,255,.1); border-radius: 14px; overflow: hidden;
+  transition: border-color .1s ease, background .1s ease;
+}
+.vv-media-item.selected { border-color: rgba(215,225,255,.85); background: #202229; }
+.vv-media-item.saved { opacity: .55; cursor: default; }
+.vv-media-item > input[type="checkbox"] { position: absolute; z-index: 1; top: 9px; right: 9px; width: 20px; height: 20px; margin: 0; accent-color: #d9e5ff; cursor: pointer; }
+.vv-media-image { position: relative; width: 100%; aspect-ratio: 16/10; background: #111114; overflow: hidden; }
+.vv-media-thumb { width: 100%; height: 100%; object-fit: contain; display: block; }
+.vv-media-kind { position: absolute; bottom: 7px; left: 8px; color: #fff; background: rgba(0,0,0,.76); border-radius: 5px; padding: 4px 6px; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; }
+.vv-media-placeholder { display: grid; place-items: center; height: 100%; color: #777988; font-size: 11px; font-weight: 800; letter-spacing: .12em; }
+.vv-media-label { display: flex; flex-direction: column; min-width: 0; padding: 11px; gap: 5px; }
+.vv-media-label strong { font-weight: 700; font-size: 13px; color: #ededee; line-height: 1.35; overflow-wrap: anywhere; }
+.vv-media-label span { color: #a2a4af; font-size: 11px; line-height: 1.35; }
+.vv-media-label .vv-media-url { display: block; color: #7a7c89; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vv-media-message { background: #1c1c21; color: #bfc1ca; padding: 19px; border-radius: 12px; font-size: 13px; margin: 8px 0 15px; line-height: 1.6; overflow-wrap: anywhere; }
+.vv-media-message button { margin-left: 8px; }
+.vv-media-note, .vv-media-footnote { color: #8d8f9c; font-size: 11px; line-height: 1.5; margin: 9px 0; }
+.vv-capture-import { border-top: 1px solid rgba(255,255,255,.1); margin-top: 24px; padding-top: 16px; }
+.vv-capture-body { margin-top: 10px; display: flex; flex-direction: column; align-items: start; gap: 9px; }
+.vv-capture-body textarea { width: 100%; resize: vertical; min-height: 90px; }
+.vv-capture-body p[role="alert"] { color: #f9adb3; }
+.vv-media-report { color: #dee2f2; border: 1px solid rgba(255,255,255,.15); border-radius: 9px; background: #1d1e24; padding: 11px; font-size: 12px; }
+.vv-media-footer { position: sticky; bottom: 0; z-index: 2; background: rgba(14,14,16,.96); backdrop-filter: blur(15px); padding: 11px 12px; border: 1px solid rgba(255,255,255,.15); border-radius: 13px; margin-top: 18px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.vv-media-footer span { color: #b9bbc7; font-size: 13px; white-space: nowrap; }
+.vv-media-footer button { flex: 0 1 230px; border: 0; border-radius: 10px; background: #f0f0f1; color: #151515; font-weight: 800; padding: 12px 15px; cursor: pointer; min-width: 0; font-size: 13px; }
+@media (max-width: 899px) {
+  .vv-browser-shell { border: none!important; border-radius: 0!important; }
+  .vv-browser-topbar { padding: calc(8px + env(safe-area-inset-top)) 9px 8px!important; }
+  .vv-browser-modebar { padding: 8px; }
+  .vv-browser-switch button { padding: 8px 9px; }
+  .vv-browser-locator { font-size: 11px; }
+  .vv-browser-save-pane.vv-browser-save-mobile {
+    position: absolute; inset: auto 0 0; z-index: 10; width: 100%;
+    max-height: min(55dvh,440px); overflow-y: auto;
+    box-shadow: 0 -10px 40px rgba(0,0,0,.85); border-top: 1px solid rgba(255,255,255,.18);
+    padding-bottom: max(14px,env(safe-area-inset-bottom))!important;
+  }
+  .vv-media-discovery { padding: 12px; padding-bottom: 24px; }
+  .vv-media-head { flex-wrap: wrap; margin-bottom: 12px; }
+  .vv-media-head h2 { font-size: 18px; }
+  .vv-media-refresh { margin-left: auto; }
+  .vv-media-collection { padding: 9px; gap: 7px; }
+  .vv-media-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%,150px), 1fr)); gap: 8px; }
+  .vv-media-label { padding: 9px; }
+  .vv-media-item > input[type="checkbox"] { width: 22px; height: 22px; }
+  .vv-media-footer { border-radius: 10px; bottom: 4px; }
+  .vv-media-footer button { padding: 11px 10px; }
+}
+@media (max-width: 380px) {
+  .vv-browser-locator { display: none; }
+  .vv-browser-modebar { justify-content: space-between; }
+  .vv-media-grid { grid-template-columns: minmax(0,1fr) minmax(0,1fr); }
+  .vv-media-filters button { padding: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .vv-media-item { transition: none; }
+}

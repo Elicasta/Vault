@@ -160,6 +160,7 @@ test("all network-capable API routes use the security guard and no direct fetch"
     "app/api/extract/route.js",
     "app/api/file/route.js",
     "app/api/media/route.js",
+    "app/api/media-discovery/route.js",
     "app/api/metadata/route.js",
     "app/api/scrape/route.js",
     "app/api/sheet-import/route.js",

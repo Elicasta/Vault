@@ -1,0 +1,24 @@
+{
+  "manifest_version": 3,
+  "name": "Vault Media Capture",
+  "version": "1.0.0",
+  "description": "Inspect public video and image URLs loaded by the active tab and copy selected URLs into Vault.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "tabs",
+    "webRequest",
+    "storage",
+    "clipboardWrite"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "Vault Media Capture",
+    "default_popup": "popup.html"
+  }
+}

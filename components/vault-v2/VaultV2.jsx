@@ -558,6 +558,7 @@ export default function VaultV2({ route = "home" }) {
           onClose={()=>setBrowserOpen(false)}
           onSave={saveItem}
           folders={folders}
+          existingItems={displayItems}
           isMobile={mobileBrowser}
           onCreateFolder={createCollection}
           initialQuery={query}

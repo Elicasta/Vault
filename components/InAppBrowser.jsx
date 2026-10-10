@@ -4,6 +4,8 @@ import Icon from "./Icons";
 import { T } from "@/lib/theme";
 import { itemKey, sourceIdOf } from "@/lib/utils";
 import { ensureProxySession, SECURITY_V2_ENABLED } from "@/lib/security-session";
+import MediaDiscoveryPanel from "./MediaDiscoveryPanel";
+import "./InAppBrowser.css";
 
 const HISTORY_KEY = "vv_browser_history";
 
@@ -31,7 +33,7 @@ function shouldSkipIframe(url) {
   return /(^|\.)(google\.com|duckduckgo\.com|bing\.com|youtube\.com|youtu\.be|reddit\.com|instagram\.com|tiktok\.com|facebook\.com|x\.com|twitter\.com)$/i.test(host);
 }
 
-export default function InAppBrowser({ onClose, onSave, folders = [], isMobile = false, onCreateFolder, initialQuery = "" }) {
+export default function InAppBrowser({ onClose, onSave, folders = [], existingItems = [], isMobile = false, onCreateFolder, initialQuery = "" }) {
   const [address, setAddress] = useState("");
   const [currentUrl, setCurrentUrl] = useState("");
   const [history, setHistory] = useState([]);
@@ -49,17 +51,29 @@ export default function InAppBrowser({ onClose, onSave, folders = [], isMobile =
   const [searchResults, setSearchResults] = useState([]);
   const [searchError, setSearchError] = useState("");
   const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const [viewMode, setViewMode] = useState("media");
+  const [showQuickSave, setShowQuickSave] = useState(false);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  const showQuickSaveRef = useRef(showQuickSave);
+  showQuickSaveRef.current = showQuickSave;
   const inputRef = useRef(null);
   const searchAbort = useRef(null);
   const searchSequence = useRef(0);
 
   useEffect(() => {
     try { setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]")); } catch { setHistory([]); }
-    inputRef.current?.focus();
-    const h = (e) => { if (e.key === "Escape") onClose?.(); };
+    // Do not focus a mobile address bar on mount: iOS otherwise opens its
+    // keyboard, reduces the visual viewport and makes the sheet appear huge.
+    if (!isMobile) inputRef.current?.focus();
+    const h = (e) => {
+      if (e.key !== "Escape") return;
+      if (showQuickSaveRef.current) { setShowQuickSave(false); return; }
+      onCloseRef.current?.();
+    };
     window.addEventListener("keydown", h);
     return () => { window.removeEventListener("keydown", h); searchAbort.current?.abort(); ++searchSequence.current; };
-  }, [onClose]);
+  }, [isMobile]);
 
   useEffect(() => {
     if (!isMobile || typeof window === "undefined" || !window.visualViewport) return;
@@ -123,6 +137,8 @@ export default function InAppBrowser({ onClose, onSave, folders = [], isMobile =
     searchAbort.current = controller;
     const sequence = ++searchSequence.current;
     setSearchQuery(q);
+    setViewMode("results");
+    setShowQuickSave(false);
     setCurrentUrl("");
     setMetadata(null);
     setMetaState("idle");
@@ -169,6 +185,8 @@ export default function InAppBrowser({ onClose, onSave, folders = [], isMobile =
     searchAbort.current?.abort();
     ++searchSequence.current;
     setCurrentUrl(target);
+    setViewMode("media");
+    setShowQuickSave(false);
     setAddress(target);
     setSearchQuery("");
     setShowHistory(false);
@@ -253,23 +271,34 @@ export default function InAppBrowser({ onClose, onSave, folders = [], isMobile =
 
   const selectedTitle = metadata?.title || currentHost || (searchQuery ? `Search: ${searchQuery}` : "No page selected");
   const selectedDesc = metadata?.description || (currentUrl ? currentUrl : searchQuery ? "Choose a result below, or save a result directly." : "Search or paste a link to begin.");
+  const existingUrls = useMemo(() => existingItems.map((x) => x?.canonical_url || x?.url).filter(Boolean), [existingItems]);
 
   return (
     <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 1198, background: "rgba(0,0,0,0.68)", backdropFilter: "blur(8px)" }} />
-      <div style={{
-        position: "fixed", zIndex: 1199, inset: isMobile ? "0" : "4vh 4vw", background: "rgba(9,9,9,0.98)",
+      <div onClick={() => onCloseRef.current?.()} className="vv-browser-backdrop" aria-hidden="true" />
+      <div className="vv-browser-shell" role="dialog" aria-modal="true" aria-label="Vault media browser" style={{
+        position: "fixed", zIndex: 1199, inset: isMobile ? "0" : "3dvh 3vw", height: isMobile ? "100dvh" : "94dvh",
+        minHeight: 0, maxHeight: "100dvh", boxSizing: "border-box", background: "rgba(9,9,9,0.98)",
         border: `1px solid ${T.border}`, borderRadius: isMobile ? 0 : 18, boxShadow: "0 30px 90px rgba(0,0,0,0.7)",
         display: "flex", flexDirection: "column", overflow: "hidden", fontFamily: "Inter, sans-serif",
       }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, padding: isMobile ? "10px" : "12px 14px", borderBottom: `1px solid ${T.borderSub}`, background: "rgba(255,255,255,0.03)" }}>
+        <div className="vv-browser-topbar" style={{ display: "flex", alignItems: "center", gap: 8, padding: isMobile ? "10px" : "12px 14px", borderBottom: `1px solid ${T.borderSub}`, background: "rgba(255,255,255,0.03)", flexShrink: 0, minWidth: 0 }}>
           <button onClick={onClose} style={toolBtn} title="Close"><Icon name="x" size={16} /></button>
           <form onSubmit={(e) => { e.preventDefault(); go(); }} style={{ flex: 1, minWidth: 0, display: "flex", gap: 8 }}>
-            <input ref={inputRef} value={address} onChange={(e) => setAddress(e.target.value)} onFocus={() => setShowHistory(true)} placeholder="Search or paste a link..." style={inputStyle} />
+            <input ref={inputRef} value={address} onChange={(e) => setAddress(e.target.value)} onFocus={() => setShowHistory(false)} placeholder="Search or paste a link..." style={inputStyle} />
             <button type="submit" style={{ ...toolBtn, width: 42 }} title="Search"><Icon name="search" size={15} /></button>
           </form>
           {!isMobile && <button onClick={() => openExternal()} disabled={!currentUrl} style={toolBtn} title="Open original"><Icon name="external" size={15} /></button>}
           <button onClick={() => setShowHistory((v) => !v)} style={toolBtn} title="History"><Icon name="clock" size={15} /></button>
+        </div>
+
+        <div className="vv-browser-modebar" role="toolbar" aria-label="Browser views">
+          <span className="vv-browser-locator">{currentHost || (searchQuery ? "Search results" : "Browse the web")}</span>
+          {currentUrl && <div className="vv-browser-switch" role="group" aria-label="Page mode">
+            <button type="button" aria-pressed={viewMode === "media"} onClick={() => { setViewMode("media"); setShowHistory(false); }}>Media</button>
+            <button type="button" aria-pressed={viewMode === "page"} onClick={() => { setViewMode("page"); setShowHistory(false); }}>Page preview</button>
+          </div>}
+          {isMobile && <button type="button" className="vv-browser-save-toggle" aria-expanded={showQuickSave} onClick={() => { setShowQuickSave((v) => !v); setShowHistory(false); }}>{showQuickSave ? "Close save options" : "Save options"}</button>}
         </div>
 
         {showHistory && (
@@ -290,12 +319,22 @@ export default function InAppBrowser({ onClose, onSave, folders = [], isMobile =
           </div>
         )}
 
-        <div style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: isMobile ? "1fr" : "minmax(0,1fr) 340px", gridTemplateRows: isMobile ? (keyboardOpen ? "minmax(0,1fr)" : "minmax(0,1fr) auto") : undefined }}>
-          <div style={{ minHeight: 0, background: "#050505", position: "relative", overflowY: "auto" }}>
+        <div className="vv-browser-content" style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: isMobile ? "minmax(0,1fr)" : "minmax(0,1fr) minmax(280px,340px)", gridTemplateRows: "minmax(0,1fr)", position: "relative", overflow: "hidden" }}>
+          <div className="vv-browser-main" style={{ minHeight: 0, minWidth: 0, background: "#050505", position: "relative", overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
             {!currentUrl && !searchQuery ? (
               <EmptySearch />
             ) : searchQuery ? (
               <SearchResults state={searchState} error={searchError} query={searchQuery} results={searchResults} onPreview={previewResult} onSave={saveResult} onOpen={openExternal} onRetry={() => runSearch(searchQuery)} saving={saving} />
+            ) : currentUrl && viewMode === "media" ? (
+              <MediaDiscoveryPanel
+                pageUrl={currentUrl}
+                folder={folder}
+                folders={folders}
+                onFolderChange={setFolder}
+                onCreateFolder={onCreateFolder}
+                onSave={onSave}
+                existingUrls={existingUrls}
+              />
             ) : frameBlocked ? (
               <BlockedPreview url={currentUrl} host={currentHost} onOpen={() => openExternal(currentUrl)} />
             ) : (
@@ -306,16 +345,21 @@ export default function InAppBrowser({ onClose, onSave, folders = [], isMobile =
             )}
           </div>
 
-          <div style={{
+          <div className={"vv-browser-save-pane" + (isMobile ? " vv-browser-save-mobile" : "")} style={{
             borderLeft: isMobile ? "none" : `1px solid ${T.borderSub}`,
             borderTop: isMobile ? `1px solid ${T.borderSub}` : "none",
             padding: keyboardOpen && isMobile ? 0 : 14,
             background: "rgba(255,255,255,0.025)",
             overflowY: "auto",
+            overscrollBehavior: "contain",
+            minHeight: 0,
+            maxHeight: isMobile ? "min(55dvh, 440px)" : "100%",
             display: keyboardOpen && isMobile ? "none" : "block",
+            ...(isMobile && !showQuickSave ? { display: "none" } : {}),
           }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
               <div style={{ fontSize: 13, fontWeight: 700, color: T.text1 }}>Quick save</div>
+              {isMobile && <button type="button" onClick={() => setShowQuickSave(false)} className="vv-close-save">Close</button>}
               {metaState === "checking" && <span style={{ fontSize: 11, color: T.text4 }}>Reading link...</span>}
               {metaState === "fail" && <span style={{ fontSize: 11, color: T.text4 }}>Manual save</span>}
             </div>
