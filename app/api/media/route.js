@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { safeFetch, validatePublicUrl } from "@/lib/server/safe-url";
+import { validatePublicUrl } from "@/lib/server/safe-url";
 import { fetchWithRegionFallback } from "@/lib/server/region-fallback.js";
 import { guardProxyRequest, securityErrorResponse } from "@/lib/server/proxy-guard";
 
