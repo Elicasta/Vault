@@ -20,6 +20,7 @@ export default function ImportGallerySection({
   const [error,setError]=useState("");
   const [gallery,setGallery]=useState(null);
   const [selectedPage,setSelectedPage]=useState(null);
+  const [reviewAsGallery,setReviewAsGallery]=useState(false);
   const [newlySaved,setNewlySaved]=useState([]);
   const abort=useRef(null);
   const target=current.url;
@@ -28,7 +29,7 @@ export default function ImportGallerySection({
     abort.current?.abort();
     setCurrent(entry(pageUrl,"Start page"));
     setPrevious([]);setNext([]);setGallery(null);
-    setError("");setStatus("idle");setSelectedPage(null);setNewlySaved([]);
+    setError("");setStatus("idle");setSelectedPage(null);setReviewAsGallery(false);setNewlySaved([]);
     return ()=>abort.current?.abort();
   },[pageUrl]);
 
@@ -41,7 +42,7 @@ export default function ImportGallerySection({
     }
     abort.current?.abort();
     const controller=new AbortController();abort.current=controller;
-    setStatus("loading");setError("");setGallery(null);setSelectedPage(null);
+    setStatus("loading");setError("");setGallery(null);setSelectedPage(null);setReviewAsGallery(false);
     try{
       if(SECURITY_V2_ENABLED)await ensureProxySession();
       const request=()=>fetch("/api/media-discovery?url="+encodeURIComponent(url),{
@@ -102,7 +103,8 @@ export default function ImportGallerySection({
   const allPages=gallery?.browsePages?.length?gallery.browsePages:
     (browsing?gallery?.imagePages||[]:[]);
   const visibleImages=(gallery?.media||[]).filter(x=>x.type==="image");
-  const photoPages=(gallery?.imagePages||[]).filter(p=>!allPages.some(b=>b.url===p.url));
+  const galleryReady=level==="gallery"||reviewAsGallery;
+  const photoPages=(gallery?.imagePages||[]).filter(p=>reviewAsGallery||!allPages.some(b=>b.url===p.url));
   const pageLabels={categories:"Browse categories", "gallery-list":"Choose a gallery",gallery:"Inside gallery",image:"Individual image",video:"Video file",empty:"No gallery found"};
   const savedUrls=[...existingUrls,...newlySaved];
   const recordSaved=url=>setNewlySaved(old=>old.includes(url)?old:[...old,url]);
@@ -156,8 +158,17 @@ export default function ImportGallerySection({
           </button>)}
         </div>
       </div>}
-      {level==="gallery"&&<>
-        <GalleryImporter result={gallery} folder={folder} folders={folders} onSave={onSave}
+      {browsing && previous.length>0 && level==="gallery-list" &&
+        (gallery.imagePages||[]).length>=2 &&
+        !(gallery.browsePages||[]).some(p=>p.kind==="category") &&
+        <div className="vv-gallery-advanced-import">
+          <p>Are these the individual photos in this gallery, rather than another set of galleries? You can review the originals before importing.</p>
+          <button type="button" aria-pressed={reviewAsGallery} onClick={()=>setReviewAsGallery(v=>!v)}>
+            {reviewAsGallery?"Return to page navigation":"These are photos · review gallery import"}
+          </button>
+        </div>}
+      {galleryReady&&<>
+        <GalleryImporter result={reviewAsGallery?{...gallery,galleryDetected:true}:gallery} folder={folder} folders={folders} onSave={onSave}
           onCreateFolder={onCreateFolder} onFolderChange={onFolderChange}
           existingUrls={savedUrls} onSaved={recordSaved}/>
         {visibleImages.length>0&&<details className="vv-import-gallery-list" open>
@@ -191,7 +202,7 @@ export default function ImportGallerySection({
       {level==="empty"&&<p className="vv-import-gallery-hint">
         No public gallery links were detected in this page's HTML. Use the original website or browser capture where permitted.
       </p>}
-      {(level==="gallery"||level==="image")&&<SourceInspector pageUrl={target} folder={folder}
+      {(galleryReady||level==="image")&&<SourceInspector pageUrl={target} folder={folder}
         onSave={onSave} existingUrls={savedUrls}/>}
     </>}
     <p className="vv-import-gallery-hint">
