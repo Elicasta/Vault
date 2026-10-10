@@ -1,10 +1,10 @@
-const CACHE_NAME = "video-vault-shell-v11";
+// Cache only the offline shell. API traffic contains private or short-lived results.
+const CACHE_NAME = "video-vault-shell-v12";
 const SHELL_ASSETS = ["/", "/manifest.json", "/icon-192.png", "/icon-512.png"];
+const SHELL_PATHS = new Set(SHELL_ASSETS);
 
 self.addEventListener("install", (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_ASSETS)).catch(() => null)
-  );
+  event.waitUntil(caches.open(CACHE_NAME).then((cache) => cache.addAll(SHELL_ASSETS)).catch(() => null));
   self.skipWaiting();
 });
 
@@ -17,35 +17,30 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   const request = event.request;
+  if (request.method !== "GET") return;
   const url = new URL(request.url);
-
-  // Never cache relay/extract/media endpoints. Streams and signed URLs need fresh responses.
-  if (url.pathname.startsWith("/api/stream") || url.pathname.startsWith("/api/extract") || url.pathname.startsWith("/api/media")) {
-    return;
-  }
+  // Never intercept protected search, signed media, HLS, auth or any other API.
+  if (url.origin !== self.location.origin || url.pathname.startsWith("/api/")) return;
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put("/", copy)).catch(() => null);
-          return response;
-        })
-        .catch(() => caches.match("/"))
+      fetch(request).then(async (response) => {
+        if (response.ok && url.pathname === "/" && !url.search) {
+          const cache = await caches.open(CACHE_NAME);
+          await cache.put("/", response.clone()).catch(() => null);
+        }
+        return response;
+      }).catch(async () => (await caches.match(request)) || (await caches.match("/")) || Response.error())
     );
     return;
   }
 
-  if (request.method === "GET" && url.origin === self.location.origin) {
-    event.respondWith(
-      caches.match(request).then((cached) => cached || fetch(request).then((response) => {
-        if (response.ok) {
-          const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy)).catch(() => null);
-        }
-        return response;
-      }))
-    );
+  if (SHELL_PATHS.has(url.pathname) && !url.search) {
+    event.respondWith(caches.match(request).then((cached) => cached || fetch(request).then((response) => {
+      if (response.ok) {
+        caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone())).catch(() => null);
+      }
+      return response;
+    })));
   }
 });

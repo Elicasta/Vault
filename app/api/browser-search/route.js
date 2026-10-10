@@ -187,8 +187,8 @@ async function searchProvider(baseUrl, q, parser, extraParams = {}) {
 export async function GET(req) {
   const { searchParams } = new URL(req.url);
   const q = String(searchParams.get("q") || "").trim();
-  if (!q) return NextResponse.json({ results: [] });
-  if (q.length > 180) return NextResponse.json({ error: "Search is too long" }, { status: 400 });
+  if (!q) return NextResponse.json({ results: [] }, { headers: { "Cache-Control": "no-store" } });
+  if (q.length > 180) return NextResponse.json({ error: "Search is too long" }, { status: 400, headers: { "Cache-Control": "no-store" } });
   try { await guardProxyRequest(req, "search"); }
   catch (error) { return securityErrorResponse(error, "Search unavailable"); }
 
@@ -204,7 +204,7 @@ export async function GET(req) {
     try {
       const results = await searchProvider(attempt.url, q, attempt.parser, attempt.params || {});
       if (results.length) {
-        return NextResponse.json({ query: q, locale: "us-en", provider: attempt.provider, results });
+        return NextResponse.json({ query: q, locale: "us-en", provider: attempt.provider, results }, { headers: { "Cache-Control": "no-store" } });
       }
       lastError = new Error("Search provider returned no parseable results");
     } catch (error) {
@@ -218,7 +218,7 @@ export async function GET(req) {
       console.info(`[vault-search] provider=wikipedia-opensearch status=200 parsed=${results.length}`);
     }
     if (results.length) {
-      return NextResponse.json({ query: q, locale: "us-en", provider: "wikipedia-opensearch", scope: "knowledge", results });
+      return NextResponse.json({ query: q, locale: "us-en", provider: "wikipedia-opensearch", scope: "knowledge", results }, { headers: { "Cache-Control": "no-store" } });
     }
   } catch (error) {
     lastError = error;
@@ -237,6 +237,6 @@ export async function GET(req) {
       snippet: "Open this search in your browser. Vault does not proxy or scrape Google results.",
       host: "google.com",
     }],
-  });
+  }, { headers: { "Cache-Control": "no-store" } });
 
 }
