@@ -28,7 +28,8 @@
 
   <details class="sheet-import" id="sheet-section">
     <summary>Import a Google Sheets URL list <span>CSV / pasted cells</span></summary>
-    <p>Copy cells from Sheets and paste them below, or upload a CSV/TSV export. Nothing is sent to Google.</p>
+    <p>Copy cells from Sheets, choose a CSV/TSV file, or load a publicly accessible Google Sheet link. Private Sheets still require a copied/exported file.</p>
+    <div class="sheet-actions"><input type="url" id="sheet-link" placeholder="Google Sheets link (public)" aria-label="Public Google Sheets link"><button type="button" id="sheet-load">Load sheet</button></div>
     <textarea id="sheet-text" rows="4" placeholder="URL    Title    Type
 https://example.com/original.jpg    Example photo    image" aria-label="Paste URLs or copied Google Sheets cells"></textarea>
     <label class="small-check"><input type="checkbox" id="unknown-as-image"> Treat links without image extensions as images</label>
