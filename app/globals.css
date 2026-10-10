@@ -258,3 +258,21 @@ input[type="range"] { accent-color: #fff; }
 .vv-gallery-card-preview{width:100%;aspect-ratio:4/3;object-fit:contain;background:#090b10;border-radius:6px}
 .vv-image-detail-preview{width:100%;height:auto;max-height:300px;object-fit:contain;border-radius:10px}
 @media(max-width:650px){.vv-image-access-panel{padding:12px}.vv-image-access-actions a,.vv-image-access-actions button{flex:1 1 130px}}
+
+
+/* Cross-browser gallery capture: mobile Safari bookmarklet and Chrome extension. */
+.vv-browser-capture-install{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,260px),1fr));gap:12px;margin:12px 0}
+.vv-browser-capture-install>div{display:grid;align-content:start;gap:9px;padding:15px;background:#181e29;border:1px solid rgba(255,255,255,.17);border-radius:12px}
+.vv-browser-capture-install strong{font-size:13px}
+.vv-browser-capture-install p{margin:0;font-size:12px;color:#c6ccda;line-height:1.5}
+.vv-browser-capture-install button{padding:10px;background:#e8edf6;color:#121722;border:0;border-radius:8px;font-size:12px;font-weight:750;text-align:center;cursor:pointer}
+.vv-browser-capture-install button+button{background:#333b4d;color:#e5edff;border:1px solid rgba(255,255,255,.2)}
+.vv-browser-capture-steps{padding:12px;border-radius:10px;background:#242a38;border:1px solid rgba(255,255,255,.16);display:grid;gap:10px;min-width:0}
+.vv-browser-capture-steps p{margin:0;font-size:12px;color:#d5deed;line-height:1.55}
+.vv-browser-capture-steps textarea{width:100%;font:11px/1.4 ui-monospace,monospace;color:#d8e2fa;background:#0c1220;overflow-x:auto;resize:vertical}
+.vv-browser-capture-thumb{display:block;width:100%;height:130px;object-fit:contain;background:#101015;border-radius:6px}
+.vv-gallery-browser-recovery{margin:10px 0;padding:12px;border:1px solid rgba(255,255,255,.2);border-radius:12px;background:#171e2b}
+.vv-gallery-browser-recovery h4{font-size:14px;margin:0}
+.vv-gallery-browser-recovery>p{font-size:12px;line-height:1.6;color:#c9d1de}
+.vv-gallery-browser-recovery .vv-capture-import{background:transparent;border:0;padding:0}
+@media(max-width:650px){.vv-browser-capture-install{grid-template-columns:minmax(0,1fr)}}
