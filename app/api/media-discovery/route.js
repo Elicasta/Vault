@@ -10,6 +10,9 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const MAX_HTML_BYTES = 1_200_000;
+// Permit enough response bytes to sniff a real file with an inaccurate MIME,
+// but still cap HTML decoding at MAX_HTML_BYTES.
+const MAX_MEDIA_RESPONSE_BYTES = 20 * 1024 * 1024;
 const NO_STORE = { "Cache-Control": "no-store" };
 const UA = "Mozilla/5.0 (compatible; VaultMediaDiscovery/1.0; +https://vault.example)";
 
@@ -26,7 +29,7 @@ export async function GET(request) {
     const response = await fetchWithRegionFallback(checked.url.href, {
       method: "GET",
       timeoutMs: 11_000,
-      maxBytes: MAX_HTML_BYTES,
+      maxBytes: MAX_MEDIA_RESPONSE_BYTES,
       headers: {
         "User-Agent": UA,
         Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/*;q=0.8,video/*;q=0.8",
