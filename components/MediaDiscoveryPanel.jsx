@@ -294,7 +294,7 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
     {(status === "error" || status === "browser") && <div className="vv-media-message" role="alert">{error}
       <button type="button" onClick={() => { clearBrowserFirst(pageUrl); scan(pageUrl,true); }}>Retry scan</button>
       <button type="button" onClick={() => onLoginToWebsite?.()}>Open original website</button>
-      <p>A 403 can mean the source blocks automated scanning even when it opens normally in your browser. Vault cannot transfer the website's browser session to its server. Open the original site, then use Chrome Media Capture to import media from pages you can access. You can always save the original page URL in Vault.</p>
+      <p>A 403 can mean the source blocks automated scanning even when it opens normally in your browser. The website's cookies cannot be transferred to Vault's server scanner. Open the original site, then use Chrome Media Capture to import media from pages you can access. You can always save the original page URL in Vault.</p>
     </div>}
     {status === "browser" && <><p className="vv-media-note">{isEliteBabesUrl(pageUrl) ? "EliteBabes is a supported gallery target. The original site denied Vault's server request; content captured in your own browser can still be reviewed and saved here." : "This site requires a browser-first import. Review and save its accessible media directly in Vault below."}</p>
       <CapturedMediaImport pageUrl={pageUrl} folder={folder} onSave={onSave} existingUrls={[...existingUrls,...savedThisSession]}/></>}
