@@ -102,7 +102,7 @@ captureBtn.addEventListener("click",async()=>{
     const file="Vault Captures/"+host+"-"+new Date().toISOString().replace(/[:.]/g,"-")+".png";
     const downloadId=await chrome.downloads.download({url:png,filename:file,saveAs:true,conflictAction:"uniquify"});
     if(!downloadId)throw new Error("Chrome did not start a PNG download.");
-    resultEl.textContent="Saved a cropped "+w+"×"+h+" PNG. Upload it into your Venice or Perchance Vault workspace for permanent storage.";
+    resultEl.textContent="Saved a cropped "+w+"×"+h+" PNG. Choose Upload a permanent copy in Vault → Import Media to store this PNG privately.";
     await chrome.storage.session.remove(selectedKey(tab.id));
   }catch(e){resultEl.textContent="Capture unavailable: "+(e?.message||"Unknown error");}
   finally{captureBtn.disabled=false;}
