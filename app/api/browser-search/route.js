@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { safeFetch, readTextLimited } from "@/lib/server/safe-url";
 import { guardProxyRequest, securityErrorResponse } from "@/lib/server/proxy-guard";
+import { expandedSearchQuery, normalSearchMode, normalSearchScope, providerSafety, rankAndMergeSearch } from "@/lib/server/search-mode.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -56,7 +57,7 @@ function parseResults(html) {
     const host = hostOf(url);
     if (!title || out.some((r) => r.url === url)) continue;
     out.push({ title, url, snippet, host });
-    if (out.length >= 12) break;
+    if (out.length >= 22) break;
   }
   return out;
 }
@@ -79,7 +80,7 @@ function parseLiteResults(html) {
       snippet: snippetMatch ? stripTags(snippetMatch[1]) : "",
       host: hostOf(url),
     });
-    if (out.length >= 12) break;
+    if (out.length >= 22) break;
   }
   return out;
 }
@@ -103,7 +104,7 @@ function parseBingResults(html) {
       snippet: snippetMatch ? stripTags(snippetMatch[1]) : "",
       host: hostOf(url),
     });
-    if (out.length >= 12) break;
+    if (out.length >= 22) break;
   }
   return out;
 }
@@ -119,7 +120,7 @@ function parseBingRss(xml) {
     const snippet = stripTags(block.match(/<description>([\s\S]*?)<\/description>/i)?.[1] || "");
     if (!title || !/^https?:\/\//i.test(url) || out.some((r) => r.url === url)) continue;
     out.push({ title, url, snippet, host: hostOf(url) });
-    if (out.length >= 12) break;
+    if (out.length >= 22) break;
   }
   return out;
 }
@@ -155,88 +156,85 @@ async function searchWikipedia(q) {
   })).filter((result) => /^https?:\/\//i.test(result.url));
 }
 
-async function searchProvider(baseUrl, q, parser, extraParams = {}) {
+async function searchProvider(baseUrl, q, parser, extraParams = {}, safety = providerSafety("regular"), offset = 0) {
   const url = new URL(baseUrl);
   url.searchParams.set("q", q);
-  if (url.hostname.includes("duckduckgo.com")) url.searchParams.set("kl", "us-en");
+  if (url.hostname.includes("duckduckgo.com")) {
+    url.searchParams.set("kl", "us-en");
+    url.searchParams.set("kp", safety.ddg);
+    if (offset) url.searchParams.set("s", String(offset * 20));
+  }
   if (url.hostname.includes("bing.com")) {
     url.searchParams.set("setlang", "en-us");
     url.searchParams.set("cc", "us");
+    url.searchParams.set("adlt", safety.bing);
+    if (offset) url.searchParams.set("first", String(offset * 20 + 1));
   }
   Object.entries(extraParams).forEach(([key, value]) => url.searchParams.set(key, value));
-
   const upstream = await safeFetch(url.toString(), {
-    method: "GET",
-    timeoutMs: 7000,
-    maxBytes: MAX_SEARCH_HTML_BYTES,
-    headers: {
-      "accept": "text/html,application/xhtml+xml",
-      "accept-language": "en-US,en;q=0.9",
-      "user-agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 Version/18.0 Mobile/15E148 Safari/604.1",
+    method:"GET",timeoutMs:7000,maxBytes:MAX_SEARCH_HTML_BYTES,
+    headers:{
+      accept:"text/html,application/xhtml+xml,application/rss+xml;q=0.6",
+      "accept-language":"en-US,en;q=0.9",
+      "user-agent":"Mozilla/5.0 (Macintosh; Intel Mac OS X 14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36",
     },
   });
-  if (!upstream.ok) throw new Error(`Search provider returned ${upstream.status}`);
-  const html = await readTextLimited(upstream, MAX_SEARCH_HTML_BYTES);
+  if (!upstream.ok) throw new Error("Search provider returned " + upstream.status);
+  const html = await readTextLimited(upstream,MAX_SEARCH_HTML_BYTES);
   const results = parser(html);
   if (process.env.VERCEL_ENV === "preview") {
-    console.info(`[vault-search] provider=${url.hostname}${url.pathname} status=${upstream.status} contentType=${upstream.headers.get("content-type") || ""} parsed=${results.length}`);
+    console.info("[vault-search] provider="+url.hostname+url.pathname+" parsed="+results.length);
   }
   return results;
 }
 
 export async function GET(req) {
-  const { searchParams } = new URL(req.url);
-  const q = String(searchParams.get("q") || "").trim();
-  if (!q) return NextResponse.json({ results: [] }, { headers: { "Cache-Control": "no-store" } });
-  if (q.length > 180) return NextResponse.json({ error: "Search is too long" }, { status: 400, headers: { "Cache-Control": "no-store" } });
-  try { await guardProxyRequest(req, "search"); }
-  catch (error) { return securityErrorResponse(error, "Search unavailable"); }
-
-  const attempts = [
-    { provider: "duckduckgo-html", url: DDG_HTML, parser: parseResults },
-    { provider: "duckduckgo-lite", url: DDG_LITE, parser: parseLiteResults },
-    { provider: "bing-rss", url: BING_RSS, parser: parseBingRss, params: { format: "rss" } },
-    { provider: "bing-html", url: BING_HTML, parser: parseBingResults },
+  const {searchParams} = new URL(req.url);
+  const q = String(searchParams.get("q")||"").trim();
+  const mode = normalSearchMode(searchParams.get("mode"));
+  const scope = normalSearchScope(searchParams.get("scope"));
+  const page = Math.min(3,Math.max(0,parseInt(searchParams.get("page")||"0",10)||0));
+  if (!q) return NextResponse.json({results:[],mode,scope}, {headers:{"Cache-Control":"no-store"}});
+  if (q.length>180) return NextResponse.json({error:"Search is too long"},{status:400,headers:{"Cache-Control":"no-store"}});
+  try {await guardProxyRequest(req,"search");}
+  catch(error){return securityErrorResponse(error,"Search unavailable");}
+  const safety=providerSafety(mode);
+  const query=expandedSearchQuery(q,scope);
+  const attempts=[
+    {provider:"duckduckgo-html",url:DDG_HTML,parser:parseResults},
+    {provider:"bing-html",url:BING_HTML,parser:parseBingResults},
+    {provider:"duckduckgo-lite",url:DDG_LITE,parser:parseLiteResults},
+    {provider:"bing-rss",url:BING_RSS,parser:parseBingRss,params:{format:"rss"}},
   ];
-
-  let lastError = null;
-  for (const attempt of attempts) {
-    try {
-      const results = await searchProvider(attempt.url, q, attempt.parser, attempt.params || {});
-      if (results.length) {
-        return NextResponse.json({ query: q, locale: "us-en", provider: attempt.provider, results }, { headers: { "Cache-Control": "no-store" } });
-      }
-      lastError = new Error("Search provider returned no parseable results");
-    } catch (error) {
-      lastError = error;
-    }
+  // Use multiple sources rather than stopping at the first page of the first
+  // provider. Cap requests and merge de-duplicated URLs by relevance.
+  const settled = await Promise.allSettled(attempts.map(async provider=>{
+    const items=await searchProvider(provider.url,query,provider.parser,provider.params||{},safety,page);
+    return items.map(item=>({...item,provider:provider.provider}));
+  }));
+  const results=rankAndMergeSearch(settled.filter(x=>x.status==="fulfilled").flatMap(x=>x.value),{query:q,scope,mode,limit:50});
+  const providers=attempts.filter((_,i)=>settled[i].status==="fulfilled"&&settled[i].value.length).map(x=>x.provider);
+  const partial=settled.some(x=>x.status==="rejected");
+  if (results.length) {
+    return NextResponse.json({query:q,mode,scope,page,safety:safety.bing,
+      provider:"multi-source",providers,count:results.length,partial,results,
+      disclaimer:mode==="regular"?"Strict filtering requested from search providers; some results may slip through.":
+        "SafeSearch is off where supported. Providers, websites and local laws may still limit results."},
+      {headers:{"Cache-Control":"no-store"}});
   }
-
-  try {
-    const results = await searchWikipedia(q);
-    if (process.env.VERCEL_ENV === "preview") {
-      console.info(`[vault-search] provider=wikipedia-opensearch status=200 parsed=${results.length}`);
-    }
-    if (results.length) {
-      return NextResponse.json({ query: q, locale: "us-en", provider: "wikipedia-opensearch", scope: "knowledge", results }, { headers: { "Cache-Control": "no-store" } });
-    }
-  } catch (error) {
-    lastError = error;
+  // Wikipedia is a knowledge fallback, not a broad-media replacement.
+  if (scope==="all"||scope==="sites") {
+    try{
+      const entries=await searchWikipedia(q);
+      const knowledge=rankAndMergeSearch(entries.map(x=>({...x,provider:"wikipedia"})),{query:q,scope,mode});
+      if(knowledge.length)return NextResponse.json({query:q,mode,scope,page,provider:"wikipedia",providers:["wikipedia"],results:knowledge,
+        warning:"General web search was unavailable; showing knowledge results instead."},{headers:{"Cache-Control":"no-store"}});
+    }catch{}
   }
-
-  const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(q)}`;
-  return NextResponse.json({
-    query: q,
-    locale: "us-en",
-    provider: "external-fallback",
-    scope: "search-link",
-    warning: "Web providers are temporarily unavailable. Open the search externally or save the search URL.",
-    results: [{
-      title: `Search Google for “${q}”`,
-      url: googleUrl,
-      snippet: "Open this search in your browser. Vault does not proxy or scrape Google results.",
-      host: "google.com",
-    }],
-  }, { headers: { "Cache-Control": "no-store" } });
-
+  const external=new URL("https://www.google.com/search");
+  external.searchParams.set("q",query);
+  external.searchParams.set("safe",mode==="regular"?"active":"off");
+  return NextResponse.json({query:q,mode,scope,page,provider:"external-fallback",providers:[],results:[],
+    externalUrl:external.toString(),warning:"Search providers could not return results for this query. You can open it in your regular browser."},
+    {headers:{"Cache-Control":"no-store"}});
 }
