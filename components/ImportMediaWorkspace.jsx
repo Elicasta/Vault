@@ -7,6 +7,7 @@ import { buildGeneratorUrlItem, normalizeGeneratorPublicUrl } from "@/lib/genera
 import SourceInspector from "./SourceInspector";
 import ImportGallerySection from "./ImportGallerySection";
 import CapturedMediaImport from "./CapturedMediaImport";
+import GalleryUrlBatchImport from "./GalleryUrlBatchImport";
 import LocalGalleryRecovery from "./LocalGalleryRecovery";
 import { withDiscreetMediaLabels } from "@/lib/private-media-labels.mjs";
 
@@ -164,6 +165,9 @@ export default function ImportMediaWorkspace({ userId, folders=[], items=[], onS
         </button>
       </div>
     </section>
+
+    <GalleryUrlBatchImport folder={folder} onSave={saveToVault} onCreateFolder={onCreateFolder}
+      existingUrls={items.map(item=>item.url||item.canonical_url).filter(Boolean)}/>
 
     <SourceInspector pageUrl={sourceUrl} folder={folder} onSave={saveToVault}
       existingUrls={items.map(item=>item.url||item.canonical_url).filter(Boolean)}/>
