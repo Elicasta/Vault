@@ -422,7 +422,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
             <FolderPicker folders={folders} folder={folder} setFolder={setFolder} newFolderName={newFolderName} setNewFolderName={setNewFolderName} handleCreateFolder={handleCreateFolder} creatingFolder={creatingFolder} />
 
             <button onClick={saveCurrent} disabled={!currentUrl || saving} style={{ width: "100%", padding: "12px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.18)", background: currentUrl ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.04)", color: currentUrl ? T.text1 : T.text4, cursor: currentUrl ? "pointer" : "not-allowed", fontWeight: 700, fontSize: 14 }}>
-              {saving ? "Saving..." : "Save current link"}
+              {saving ? "Saving URL…" : "Save URL to Vault"}
             </button>
 
             <details className="vv-browser-drive-tools">

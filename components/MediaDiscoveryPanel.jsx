@@ -352,7 +352,7 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
       <span>{selectedCount} selected</span>
       <button type="button" disabled={!selectedCount || saving} onClick={saveSelected}>{saving ? "Saving media…" : "Save " + selectedCount + " to Vault"}</button>
     </div>
-    <p className="vv-media-footnote">For Google Drive file copies, choose Preview on an image or video. For videos, Vault saves the playable stream URL as the item and the image as its cover. Unknown stream URLs cannot be saved as videos. Signed or DRM streams may still expire or be unplayable.</p>
+    <p className="vv-media-footnote">Save URL to Vault is always the default. Drive backups are optional and never replace the original URL. For manual Google Drive file copies, choose Preview on an image or video. For videos, Vault saves the playable stream URL as the item and the image as its cover. Unknown stream URLs cannot be saved as videos. Signed or DRM streams may still expire or be unplayable.</p>
     {previewItem && <VideoPreviewModal item={previewItem} onClose={() => setPreviewItem(null)} saving={saving} onChoose={(origin, source) => setResolvedSources((old) => ({ ...old, [origin]: source }))} onSave={saveFromPreview} />}
   </div>;
 }

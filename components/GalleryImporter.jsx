@@ -61,8 +61,11 @@ export function ImageDetailPanel({ page, folder, onSave, onSaved, saving }) {
       {image && <>
         <p>Original image URL: <a href={image.url} target="_blank" rel="noopener noreferrer">{image.url}</a></p>
         <p>{image.resolution === "cover-only" ? "Only the cover was detected; review before saving." : "The image link was extracted separately from its gallery cover."}</p>
-        <GoogleDriveSave url={image.url} type="image" title={page.title || image.title} compact />
-        <button type="button" disabled={working || saving || status === "saved"} onClick={save}>{status === "saved" ? "Saved" : working ? "Saving…" : "Save image to " + (folder || "My Library")}</button>
+        <button type="button" disabled={working || saving || status === "saved"} onClick={save}>{status === "saved" ? "Saved to Vault" : working ? "Saving URL…" : "Save URL to Vault · " + (folder || "My Library")}</button>
+        <details className="vv-drive-secondary">
+          <summary>Optional: Copy image file to Google Drive</summary>
+          <GoogleDriveSave url={image.url} type="image" title={page.title || image.title} compact />
+        </details>
       </>}
       {error && <p role="alert">{error}</p>}
     </div>
@@ -175,7 +178,7 @@ export default function GalleryImporter({ result, folder, onSave, existingUrls =
       </div>
       <p>Scans up to 6 linked gallery pages and 160 media candidates, preferring full-resolution image links. Existing URLs are skipped. Vault saves links, not downloaded copies.</p>
       <div className="vv-gallery-actions">
-        <button type="button" onClick={importGallery} disabled={working}>{working ? "Importing gallery…" : "Save entire gallery (" + count + " candidates)"}</button>
+        <button type="button" onClick={importGallery} disabled={working}>{working ? "Saving URLs to Vault…" : "Save entire gallery to Vault (" + count + " URLs)"}</button>
         {working && <button type="button" onClick={() => { cancelRef.cancelled = true; }}>Cancel</button>}
       </div>
     </div>}

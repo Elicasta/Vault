@@ -7,6 +7,7 @@ import Icon from "@/components/Icons";
 import Player from "@/components/Player";
 import SyncStatus from "@/components/SyncStatus";
 import MediaCard from "./MediaCard";
+import DriveBackupSettings from "./DriveBackupSettings";
 import AddMediaSheet from "./AddMediaSheet";
 import DetailDrawer from "./DetailDrawer";
 import InAppBrowser from "@/components/InAppBrowser";
@@ -516,7 +517,7 @@ export default function VaultV2({ route = "home" }) {
             <button className="v2-btn" type="button" onClick={() => setItemVisibility(item, false).catch(() => {})}>Restore</button>
           </div>
         ))}
-      </div></div><div className="v2-settings-card"><h3>Cloud sync</h3><p>Supabase is the durable source of truth. Unsynced changes stay visibly marked until confirmed.</p><div style={{marginTop:12}}><span className="v2-state-pill" data-state={online?"ok":"warn"}>{online?"Online":"Offline"}</span></div></div><div className="v2-settings-card"><h3>Security</h3><p>Authenticated data access, RLS ownership checks, and protected media proxies are active in this preview.</p></div><div className="v2-settings-card"><h3>Account</h3><p>{user?.email || "Signed in"}</p><button type="button" className="v2-btn" style={{marginTop:14}} onClick={async()=>{await supabase.auth.signOut();window.location.reload();}}><Icon name="logout" size={15}/> Sign out</button></div></div></>;
+      </div></div><DriveBackupSettings userId={user?.id}/><div className="v2-settings-card"><h3>Cloud sync</h3><p>Supabase is the durable source of truth. Unsynced changes stay visibly marked until confirmed.</p><div style={{marginTop:12}}><span className="v2-state-pill" data-state={online?"ok":"warn"}>{online?"Online":"Offline"}</span></div></div><div className="v2-settings-card"><h3>Security</h3><p>Authenticated data access, RLS ownership checks, and protected media proxies are active in this preview.</p></div><div className="v2-settings-card"><h3>Account</h3><p>{user?.email || "Signed in"}</p><button type="button" className="v2-btn" style={{marginTop:14}} onClick={async()=>{await supabase.auth.signOut();window.location.reload();}}><Icon name="logout" size={15}/> Sign out</button></div></div></>;
   }
 
   return (
