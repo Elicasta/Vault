@@ -5,6 +5,7 @@ import { uploadVaultMedia, deleteVaultMedia } from "@/lib/supabase";
 import { itemKey } from "@/lib/utils";
 import { buildGeneratorUrlItem, normalizeGeneratorPublicUrl } from "@/lib/generator-save-url.mjs";
 import SourceInspector from "./SourceInspector";
+import ImportGallerySection from "./ImportGallerySection";
 
 function safeFileName(name) {
   return String(name || "Imported media").normalize("NFKC")
@@ -154,9 +155,13 @@ export default function ImportMediaWorkspace({ userId, folders=[], items=[], onS
     <SourceInspector pageUrl={sourceUrl} folder={folder} onSave={onSave}
       existingUrls={items.map(item=>item.url||item.canonical_url).filter(Boolean)}/>
 
+    <ImportGallerySection pageUrl={sourceUrl} folder={folder} folders={folders}
+      onFolderChange={setFolder} onCreateFolder={onCreateFolder} onSave={onSave}
+      existingUrls={items.map(item=>item.url||item.canonical_url).filter(Boolean)}/>
+
     <section className="vv-generator-section">
       <div className="v2-eyebrow">OPTIONAL · ACTUAL FILE</div>
-      <h3>2. Upload a permanent copy</h3>
+      <h3>3. Upload a permanent copy</h3>
       <p>Use this when a site's link expires, only shows a thumbnail, or is a temporary blob: or data: address. The file is saved in private Supabase Storage.</p>
       <div className={"vv-generator-drop"+(dragging?" dragging":"")}
         onDragOver={e=>{e.preventDefault();setDragging(true);}}
@@ -175,7 +180,7 @@ export default function ImportMediaWorkspace({ userId, folders=[], items=[], onS
     {error&&<p className="vv-generator-error" role="alert">{error}</p>}
 
     <div className="vv-generator-backup">
-      <h3>3. Back up imported files</h3>
+      <h3>4. Back up imported files</h3>
       <p>Private files can be backed up to Google Drive through Vault Settings when Drive authentication is configured. Saved URLs remain links; they are not uploaded copies.</p>
     </div>
     {!!imported.length&&<div className="vv-generator-recent">
