@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { guardProxyRequest, securityErrorResponse } from "@/lib/server/proxy-guard";
 import { safeFetch, validatePublicUrl, readTextLimited } from "@/lib/server/safe-url";
+import { fetchWithRegionFallback } from "@/lib/server/region-fallback.js";
 import { discoverMedia } from "@/lib/server/media-discovery.mjs";
 import { chooseBestImage, isImageFileUrl } from "@/lib/server/image-resolution.mjs";
 
@@ -22,7 +23,7 @@ async function resolveOne(page) {
     return { pageUrl: raw, image: { url: checked.url.href, type: "image", title, thumbnail: coverUrl || checked.url.href, sourcePage: raw, resolution: "direct" } };
   }
   try {
-    const r = await safeFetch(checked.url.href, {
+    const r = await fetchWithRegionFallback(checked.url.href, {
       method: "GET", timeoutMs: 4500, maxBytes: MAX_HTML,
       headers: { "User-Agent": "Mozilla/5.0 (compatible; VaultImageCollector/2.0)",
         Accept: "text/html,application/xhtml+xml,image/*;q=0.8", "Accept-Language": "en-US,en;q=0.9" },
