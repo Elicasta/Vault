@@ -10,7 +10,7 @@ import MediaCard from "./MediaCard";
 import AddMediaSheet from "./AddMediaSheet";
 import DetailDrawer from "./DetailDrawer";
 import InAppBrowser from "@/components/InAppBrowser";
-import GeneratorWorkspace from "@/components/GeneratorWorkspace";
+import ImportMediaWorkspace from "@/components/ImportMediaWorkspace";
 import GoogleDriveBackup from "@/components/GoogleDriveBackup";
 import { isHiddenLibraryItem, withLibraryVisibility } from "@/lib/library-visibility.mjs";
 
@@ -31,8 +31,7 @@ const NAV = [
   ["inbox", "/inbox", "inbox", "Inbox"],
   ["collections", "/collections", "folder", "Collections"],
   ["search", "/search", "search", "Search"],
-  ["venice", "/studios/venice", "image", "Venice AI"],
-  ["perchance", "/studios/perchance", "image", "Perchance AI"],
+  ["import", "/import", "download", "Import Media"],
   ["settings", "/settings", "settings", "Settings"],
 ];
 
@@ -42,14 +41,13 @@ const MOBILE_NAV = [
   ["add", "#add", "plus", "Add"],
   ["collections", "/collections", "folder", "Collections"],
   ["search", "/search", "search", "Search"],
-  ["venice", "/studios/venice", "image", "Venice"],
-  ["perchance", "/studios/perchance", "image", "Perchance"],
+  ["import", "/import", "download", "Import"],
 ];
 
 const ROUTE_TITLES = {
   home: "Home", library: "Library", inbox: "Inbox",
   collections: "Collections", search: "Search", settings: "Settings",
-  venice: "Venice AI", perchance: "Perchance AI",
+  import: "Import Media",
 };
 
 function folderFor(item, state) {
@@ -510,9 +508,9 @@ export default function VaultV2({ route = "home" }) {
       {filtersBar}
       {query.trim()?renderGrid(allFiltered,"No Vault results","Try web search for this phrase, or clear a filter."):<EmptyState icon="search" title="Search your Vault" text="Use the search field above, or search the web for something new to save." action={()=>setBrowserOpen(true)} actionLabel="Search the web"/>}
     </>;
-  } else if(route==="venice" || route==="perchance") {
-    page = <GeneratorWorkspace site={route} userId={user?.id} folders={folders} items={displayItems}
-      onSave={saveItem} onCreateFolder={createCollection} onBrowse={(url)=>{setQuery(url);setBrowserOpen(true);}} />;
+  } else if(route==="import") {
+    page = <ImportMediaWorkspace userId={user?.id} folders={folders} items={displayItems}
+      onSave={saveItem} onCreateFolder={createCollection} />;
   } else if(route==="collections") {
     page = selectedCollection ? <><div className="v2-hero"><button className="v2-linkbtn" onClick={()=>router.push("/collections")}>← All Collections</button><div className="v2-eyebrow">Collection</div><h1 className="v2-h1">{selectedCollection}</h1><p className="v2-lead">{collectionItems.length} item{collectionItems.length===1?"":"s"}</p></div>{renderGrid(collectionItems,"Collection is empty","Add media and choose this Collection as its destination.")}</> : <><div className="v2-hero"><div className="v2-eyebrow">Organize without clutter</div><h1 className="v2-h1">Collections</h1><p className="v2-lead">Folders and galleries share one simple product concept: Collections.</p></div><div style={{display:"flex",justifyContent:"flex-end",marginBottom:16}}><button className="v2-btn v2-btn-primary" onClick={()=>setNewCollectionOpen(true)}><Icon name="plus" size={15}/> New Collection</button></div>{folders.length?<div className="v2-collection-grid">{folders.map((f)=>{const count=displayItems.filter((i)=>folderFor(i,userData[i.key]||{})===f.name).length;return <button className="v2-collection" key={f.name} onClick={()=>router.push("/collections?folder="+encodeURIComponent(f.name))}><div className="v2-collection-icon"><Icon name="folder" size={20}/></div><div><div className="v2-collection-name">{f.name}</div><div className="v2-collection-count">{count} item{count===1?"":"s"}{f.parent_folder?" · in "+f.parent_folder:""}</div></div></button>})}</div>:<EmptyState icon="folder" title="No Collections yet" text="Create a Collection to organize related media." action={()=>setNewCollectionOpen(true)} actionLabel="New Collection"/>}</>;
   } else {
