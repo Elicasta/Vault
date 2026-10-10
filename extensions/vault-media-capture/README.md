@@ -27,3 +27,7 @@ reusable URL. Chrome extensions cannot be used on iOS Chrome.
 
 The extension reads only public media URLs from requests; it does not intercept
 HTTP bodies, cookies, authentication headers, or alter network traffic.
+
+## Vault preview integration
+
+This Chrome companion outputs the `vault-media-capture-v1` JSON format consumed by Vault's Media Collector. The branch preview is used only for validation until its UI and stream handling have been verified.
