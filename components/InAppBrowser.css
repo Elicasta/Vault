@@ -68,6 +68,9 @@
 .vv-media-label strong { font-weight: 700; font-size: 13px; color: #ededee; line-height: 1.35; overflow-wrap: anywhere; }
 .vv-media-label span { color: #a2a4af; font-size: 11px; line-height: 1.35; }
 .vv-media-label .vv-media-url { display: block; color: #7a7c89; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.vv-media-link-actions { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 3px; }
+.vv-media-link-actions button { border: 1px solid rgba(255,255,255,.16); border-radius: 7px; background: rgba(255,255,255,.07); color: #cfd1da; padding: 7px 9px; font-size: 11px; cursor: pointer; }
+.vv-media-link-actions button:hover { background: rgba(255,255,255,.14); }
 .vv-media-message { background: #1c1c21; color: #bfc1ca; padding: 19px; border-radius: 12px; font-size: 13px; margin: 8px 0 15px; line-height: 1.6; overflow-wrap: anywhere; }
 .vv-media-message button { margin-left: 8px; }
 .vv-media-note, .vv-media-footnote { color: #8d8f9c; font-size: 11px; line-height: 1.5; margin: 9px 0; }
