@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 const STUDIO_URLS = {
   venice: "https://venice.ai/",
@@ -12,76 +12,81 @@ const BRIDGE_REPLY = "VAULT_STUDIO_BRIDGE_REPLY";
 export default function StudioLiveBrowser({ site, name, onSaveCurrentUrl }) {
   const src = STUDIO_URLS[site] || STUDIO_URLS.venice;
   const [extension, setExtension] = useState(false);
+  const [tryEmbedded, setTryEmbedded] = useState(false);
   const [frameKey, setFrameKey] = useState(0);
   const [frameState, setFrameState] = useState("loading");
   const [bridgeStatus, setBridgeStatus] = useState("");
   const [expanded, setExpanded] = useState(false);
-  const frame = useRef(null);
-  const bridgePending = useRef(false);
+  const [mobile, setMobile] = useState(false);
 
   useEffect(() => {
-    setFrameState("loading"); setBridgeStatus("");
+    const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+    setMobile(isMobile);
+    // Real-site login and generator storage cannot be promised in iframes.
+    // Do not default to a giant blank iframe, especially on iOS.
+    setTryEmbedded(false);
+    setFrameState("loading");
+    setBridgeStatus("");
+    setExtension(false);
     const receive = (event) => {
       if (event.source !== window || event.origin !== window.location.origin || event.data?.type !== BRIDGE_REPLY) return;
       if (event.data.available) setExtension(true);
-      if (event.data.opened) { setBridgeStatus("Chrome Studio opened with the real site and Vault controls."); bridgePending.current = false; }
-      if (event.data.error) { setBridgeStatus(event.data.error); bridgePending.current = false; }
+      if (event.data.opened) setBridgeStatus("Chrome Studio opened. Your site session stays in its normal Chrome tab.");
+      if (event.data.error) setBridgeStatus(event.data.error);
     };
     window.addEventListener("message", receive);
     window.postMessage({ type: BRIDGE_REQ }, window.location.origin);
     return () => window.removeEventListener("message", receive);
   }, [site]);
 
-  const openNativeStudio = () => {
-    setBridgeStatus(extension ? "Opening Chrome Studio…" : "Chrome companion not detected. Using the original website.");
+  const native = () => {
     if (!extension) { window.open(src, "_blank", "noopener,noreferrer"); return; }
-    bridgePending.current = true;
+    setBridgeStatus("Opening Chrome Studio…");
     window.postMessage({ type: BRIDGE_OPEN, site }, window.location.origin);
-    // Chrome may deny panel opening if a user gesture is not available.
-    // Do not silently claim a working embedded session when it cannot open.
-    setTimeout(() => {
-      if (bridgePending.current) {
-        bridgePending.current = false;
-        setBridgeStatus("Chrome Studio could not be opened here. Open the original site or launch it from the extension.");
-      }
-    }, 2500);
   };
 
-  const reload = () => { setFrameKey((n) => n + 1); setFrameState("loading"); };
-  return (
-    <section className={"vv-studio-live" + (expanded ? " vv-studio-live-expanded" : "")}
-      aria-label={name + " interactive studio"}>
-      <div className="vv-studio-live-toolbar">
-        <div className="vv-studio-live-identity">
-          <span className="vv-studio-live-dot" aria-hidden="true" />
-          <div><strong>Live {name}</strong><small>Work in the original generator interface</small></div>
-        </div>
-        <div className="vv-studio-live-actions">
-          <button type="button" onClick={reload} title="Reload embedded page">Reload</button>
-          <button type="button" onClick={() => onSaveCurrentUrl?.(src)} title="Use website address for Vault save">Save URL</button>
-          <button type="button" onClick={() => setExpanded((x)=>!x)}>{expanded ? "Exit large view" : "Expand"}</button>
-          <button type="button" className="vv-studio-native" onClick={openNativeStudio}>
-            {extension ? "Full Chrome Studio" : "Full browser mode"} <span aria-hidden="true">↗</span>
-          </button>
-        </div>
+  return <section className={"vv-studio-live" + (expanded ? " vv-studio-live-expanded" : "")}
+    aria-label={name + " website and capture controls"}>
+    <div className="vv-studio-live-toolbar">
+      <div className="vv-studio-live-identity">
+        <span className="vv-studio-live-dot" aria-hidden="true" />
+        <div><strong>{name}</strong><small>Original generator · Vault saving tools</small></div>
       </div>
+      <div className="vv-studio-live-actions">
+        <button type="button" onClick={() => onSaveCurrentUrl?.(src)}>Save website URL</button>
+        {tryEmbedded && <button type="button" onClick={() => {setFrameKey(n=>n+1);setFrameState("loading");}}>Reload preview</button>}
+        {!mobile && <button type="button" onClick={() => setExpanded(x=>!x)}>{expanded ? "Collapse" : "Expand"}</button>}
+        {!mobile && extension && <button className="vv-studio-native" type="button" onClick={native}>Full Chrome Studio</button>}
+      </div>
+    </div>
+    {!tryEmbedded ? <div className="vv-studio-site-options">
+      <span className="vv-studio-site-icon" aria-hidden="true">↗</span>
+      <h3>Use {name} with its real browser controls</h3>
+      <p>{mobile
+        ? "Your phone cannot run the desktop Chrome Studio companion. The site cannot be guaranteed to work inside Vault's embedded frame. Open it in Safari, generate normally, then return to Vault to save the link or upload the finished file."
+        : "Some websites block being embedded, especially for sign-in, generation and saved history. Full Chrome Studio uses the actual Chrome website beside Vault's controls."}</p>
+      <div className="vv-studio-site-options-actions">
+        <a href={src} target="_blank" rel="noopener noreferrer" className="vv-studio-original-link">Open {name} website <span aria-hidden="true">↗</span></a>
+        {!mobile && extension && <button type="button" onClick={native}>Open in Chrome Studio</button>}
+        <button type="button" onClick={() => {setTryEmbedded(true);setFrameState("loading");}}>Try embedded website</button>
+      </div>
+      <p className="vv-studio-site-note">Vault cannot read a website's private session, bypass its embed policy, or extract `blob:` and `data:` media from another origin. Save the original URL first; use a file upload for generated media without a durable link.</p>
+    </div> : <>
       <div className="vv-studio-live-content">
-        <iframe key={site + "-" + frameKey} ref={frame}
-          src={src}
-          title={name + " interactive website"}
+        {frameState === "loading" && <div className="vv-studio-live-loading" role="status">Trying embedded website…</div>}
+        <iframe key={site + "-" + frameKey} src={src} title={name + " experimental embedded website"}
           loading="eager"
-          allow="clipboard-read; clipboard-write; fullscreen; camera; microphone; display-capture; identity-credentials-get"
+          allow="clipboard-read; clipboard-write; fullscreen; camera; microphone"
           sandbox="allow-scripts allow-forms allow-same-origin allow-popups allow-popups-to-escape-sandbox allow-downloads"
           referrerPolicy="strict-origin-when-cross-origin"
           onLoad={() => setFrameState("loaded")}
         />
-        {frameState === "loading" && <div className="vv-studio-live-loading" role="status">Opening {name}…</div>}
       </div>
       <div className="vv-studio-live-bottom">
-        <span>Interactive website preview. Sign-in, browser storage, downloads, or some controls may be restricted by the site's embedding policy.</span>
-        <button type="button" onClick={openNativeStudio}>Need working login or generator controls? Use Chrome Studio</button>
+        <span>A white or unresponsive frame means the site is not functioning here. An iframe loading event cannot prove the generator works.</span>
+        <button type="button" onClick={()=>setTryEmbedded(false)}>Stop preview · use working website</button>
       </div>
-      {bridgeStatus && <p className="vv-studio-bridge-status" role="status">{bridgeStatus}</p>}
-    </section>
-  );
+    </>}
+    {bridgeStatus && <p className="vv-studio-bridge-status" role="status">{bridgeStatus}</p>}
+  </section>;
 }
