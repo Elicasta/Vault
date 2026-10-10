@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { ensureProxySession, SECURITY_V2_ENABLED } from "@/lib/security-session";
 import { buildVaultMediaItem } from "@/lib/media-capture-import.mjs";
 import { itemKey, sourceIdOf } from "@/lib/utils";
+import GoogleDriveSave from "./GoogleDriveSave";
 
 async function postLookup(pages, signal) {
   if (SECURITY_V2_ENABLED) await ensureProxySession();
@@ -60,6 +61,7 @@ export function ImageDetailPanel({ page, folder, onSave, onSaved, saving }) {
       {image && <>
         <p>Original image URL: <a href={image.url} target="_blank" rel="noopener noreferrer">{image.url}</a></p>
         <p>{image.resolution === "cover-only" ? "Only the cover was detected; review before saving." : "The image link was extracted separately from its gallery cover."}</p>
+        <GoogleDriveSave url={image.url} type="image" title={page.title || image.title} compact />
         <button type="button" disabled={working || saving || status === "saved"} onClick={save}>{status === "saved" ? "Saved" : working ? "Saving…" : "Save image to " + (folder || "My Library")}</button>
       </>}
       {error && <p role="alert">{error}</p>}
