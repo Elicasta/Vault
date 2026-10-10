@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { ensureProxySession, SECURITY_V2_ENABLED } from "@/lib/security-session";
 import GalleryImporter, { ImageDetailPanel } from "./GalleryImporter";
 import SourceInspector from "./SourceInspector";
+import ResilientImage from "./ResilientImage";
+import ImageAccessPanel from "./ImageAccessPanel";
+import { isDirectImageUrl, shouldRememberSiteDenied } from "@/lib/media-access-fallback.mjs";
 import { siteNeedsBrowser, markSiteBrowserFirst, clearBrowserFirst, isWebsiteAccessDenial, isUnsupportedDiscoveryResponse } from "@/lib/browser-first-fallback.mjs";
 
 function entry(url,title="Website",kind="page"){return {url:String(url||""),title,kind};}
@@ -36,7 +39,7 @@ export default function ImportGallerySection({
   const scan=async (requestedUrl=target,force=false)=>{
     const url=String(requestedUrl||"").trim();
     if(!/^https?:\/\//i.test(url)){setError("Enter the URL of a category or gallery page first.");return;}
-    if(!force&&siteNeedsBrowser(url)){
+    if(!force&&shouldRememberSiteDenied(url)&&siteNeedsBrowser(url)){
       setStatus("browser");setError("This site denied an earlier scan. Open it normally or import browser-captured media.");setGallery(null);
       return;
     }
@@ -54,7 +57,8 @@ export default function ImportGallerySection({
       if(controller.signal.aborted)return;
       if(!response.ok){
         if(isWebsiteAccessDenial(response,data)){
-          markSiteBrowserFirst(url);setStatus("browser");
+          if(shouldRememberSiteDenied(url))markSiteBrowserFirst(url);
+          setStatus("browser");
           setError(data.error||"Website blocks automated scanning.");return;
         }
         if(isUnsupportedDiscoveryResponse(response,data)){
@@ -99,6 +103,8 @@ export default function ImportGallerySection({
   };
 
   const level=gallery?.pageLevel||"";
+  const directImage=isDirectImageUrl(target);
+  const blockedImage=directImage&&(status==="browser"||status==="error");
   const browsing=level==="categories"||level==="gallery-list";
   const allPages=gallery?.browsePages?.length?gallery.browsePages:
     (browsing?gallery?.imagePages||[]:[]);
@@ -142,6 +148,8 @@ export default function ImportGallerySection({
       <p>You can open the source page normally, use browser capture, or upload a downloaded image. This failed page doesn't prevent navigating to other gallery links.</p>
     </div>}
     {status==="loading"&&<p role="status">Opening the selected page and finding its child galleries or images…</p>}
+    {(blockedImage||level==="image")&&<ImageAccessPanel imageUrl={gallery?.media?.find(x=>x.type==="image")?.url||target}
+      title={current.title||"Original image"} denied={blockedImage} sourcePage={target}/>
     {gallery&&<>
       <p role="status" className="vv-import-gallery-counts">
         {pageLabels[level]||"Page"} · {allPages.length} linked page{allPages.length===1?"":"s"}
@@ -152,7 +160,7 @@ export default function ImportGallerySection({
         <div className="vv-import-gallery-items vv-gallery-navigation-items">
           {allPages.map(page=><button type="button" key={page.url} onClick={()=>openPage(page)} title={page.url}
             aria-label={"Open "+(page.kind==="category"?"category":page.kind==="gallery"?"gallery":"page")+": "+(page.title||page.url)}>
-            {page.thumbnail&&<img src={"/api/media?url="+encodeURIComponent(page.thumbnail)} alt="" loading="lazy"/>}
+            {page.thumbnail&&<ResilientImage url={page.thumbnail} alt="" className="vv-gallery-card-preview"/>}
             <span><strong>{page.title||"View page"}</strong></span>
             <small>{page.kind==="category"?"CATEGORY":page.kind==="gallery"?"GALLERY":"OPEN PAGE"} →</small>
           </button>)}
@@ -176,7 +184,7 @@ export default function ImportGallerySection({
           <div className="vv-import-gallery-items">
             {visibleImages.slice(0,60).map(item=><a key={item.url} href={item.url} target="_blank"
               rel="noopener noreferrer" title={item.url}>
-              <img src={"/api/media?url="+encodeURIComponent(item.thumbnail||item.url)} alt={item.title||"Image"} loading="lazy"/>
+              <ResilientImage url={item.thumbnail||item.url} alt={item.title||"Image"} className="vv-gallery-card-preview"/>
               <span>{item.title||"Image"}</span>
             </a>)}
           </div>
@@ -185,7 +193,7 @@ export default function ImportGallerySection({
           <summary>Explore {photoPages.length} photo detail pages</summary>
           <div className="vv-import-gallery-items">
             {photoPages.map(page=><div className="vv-gallery-detail-card" key={page.url}>
-              {page.thumbnail&&<img src={"/api/media?url="+encodeURIComponent(page.thumbnail)} alt="" loading="lazy"/>}
+              {page.thumbnail&&<ResilientImage url={page.thumbnail} alt="" className="vv-gallery-card-preview"/>}
               <strong>{page.title||"Photo detail"}</strong>
               <button type="button" onClick={()=>openPage(page)}>Open page →</button>
               <button type="button" onClick={()=>setSelectedPage(page)}>Find original</button>
