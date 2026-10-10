@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { safeFetch, validatePublicUrl, readTextLimited } from "@/lib/server/safe-url";
+import { validatePublicUrl, readTextLimited } from "@/lib/server/safe-url";
 import { fetchWithRegionFallback } from "@/lib/server/region-fallback.js";
 import { guardProxyRequest, securityErrorResponse } from "@/lib/server/proxy-guard";
 import { discoverMedia } from "@/lib/server/media-discovery.mjs";
