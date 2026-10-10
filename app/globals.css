@@ -113,3 +113,22 @@ input[type="range"] { accent-color: #fff; }
 .vv-generator-caution{font-size:11px!important;color:#9ea2b5!important}
 .vv-generator-status{color:#e2e5f2;font-size:12px}
 @media(max-width:680px){.vv-generator-link-fields{grid-template-columns:minmax(0,1fr)}.vv-generator-link-fields label:first-child{grid-column:auto}.vv-generator-primary-actions button.vv-generator-save-url{flex:1}.vv-generator-url-primary{padding:15px}}
+
+/* Interactive first-party AI studios with Vault workspace controls. */
+.vv-studio-live{display:flex;flex-direction:column;position:relative;min-width:0;height:min(77dvh,840px);min-height:420px;overflow:hidden;border:1px solid rgba(255,255,255,.22);border-radius:16px;background:#101114}
+.vv-studio-live-expanded{height:calc(100dvh - 110px);min-height:530px}
+.vv-studio-live-toolbar{flex-shrink:0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:9px;padding:11px 13px;background:#1a1c24;border-bottom:1px solid #414450}
+.vv-studio-live-identity{display:flex;align-items:center;gap:9px;min-width:0}
+.vv-studio-live-dot{width:9px;height:9px;border-radius:100%;background:#7fdda3;box-shadow:0 0 0 3px rgba(127,221,163,.11);flex-shrink:0}
+.vv-studio-live-identity strong{display:block;font-size:13px;color:#f5f6f7}
+.vv-studio-live-identity small{display:block;font-size:10px;color:#b2b7c4;line-height:1.6}
+.vv-studio-live-actions{display:flex;align-items:center;flex-wrap:wrap;gap:6px}
+.vv-studio-live-actions button,.vv-studio-live-bottom button{border:1px solid #555765;background:#303340;color:#edeef2;border-radius:8px;padding:8px 10px;font-size:11px;cursor:pointer;font-weight:710}
+.vv-studio-live-actions button.vv-studio-native{background:#edf0f7;color:#151720;border-color:#edf0f7}
+.vv-studio-live-content{position:relative;min-height:0;flex:1;background:#fff}
+.vv-studio-live-content iframe{width:100%;height:100%;border:0;background:white;display:block}
+.vv-studio-live-loading{position:absolute;inset:0;background:#181922;display:grid;place-items:center;color:#ced2dc;font-size:13px;pointer-events:none}
+.vv-studio-live-bottom{flex-shrink:0;border-top:1px solid #414450;background:#1b1d26;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:9px;padding:8px 12px}
+.vv-studio-live-bottom span{font-size:10px;color:#b3b7c6;line-height:1.5;flex:1;min-width:180px}
+.vv-studio-bridge-status{background:#222633;color:#d2d9e8;margin:0;padding:10px 12px;font-size:11px}
+@media(max-width:700px){.vv-studio-live{height:70dvh;min-height:460px}.vv-studio-live-toolbar{gap:8px}.vv-studio-live-actions{width:100%}.vv-studio-live-actions button{flex-grow:1}.vv-studio-live-bottom button{width:100%}}
