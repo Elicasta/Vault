@@ -40,3 +40,6 @@ footer{flex-shrink:0;gap:7px;padding:11px 14px}
 #copy{background:#343b4c;color:#e0e7f1;font-size:11px;padding:8px}
 #send:disabled,#copy:disabled{opacity:.4;cursor:not-allowed}
 #state{margin:5px 0;color:#b3c5e4}
+
+.sheet-actions #sheet-link{flex:3;min-width:0;background:#0b111b;color:#e3eaf4;border:1px solid #4d5668;border-radius:8px;padding:9px;font-size:11px}
+.sheet-actions #sheet-load{flex:1;white-space:nowrap}
