@@ -15,6 +15,7 @@ on:
       - "feat/gallery-page-navigation-*"
       - "fix/gallery-image-403-viewer-*"
       - "feat/universal-browser-gallery-capture-*"
+      - "feat/first-party-file-gallery-import-*"
   pull_request:
     branches:
       - "fix/relay-search-hardening-*"
