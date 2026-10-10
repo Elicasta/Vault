@@ -83,13 +83,16 @@ export async function GET(request){
     // One level deep, at most three specifically identified media detail pages.
     if(deeper){
       const eligible=primary.detailPages.filter(x=>kind==="all"||x.type===kind);
-      for(const page of eligible.slice(0,3)){
-        try{
-          const secondary=await inspectPage(page.url,primary.page,1);
-          nested.push(...secondary.candidates.map(x=>({
-            ...x,thumbnail:x.thumbnail||page.thumbnail||"",sourcePage:page.url,
-          })));
-        }catch{}
+      // One parallel batch of up to 3 selected detail pages; never site-wide crawl.
+      const details=await Promise.allSettled(eligible.slice(0,3).map(async page=>({
+        page, data:await inspectPage(page.url,primary.page,1),
+      })));
+      for(const result of details){
+        if(result.status!=="fulfilled")continue;
+        const {page,data}=result.value;
+        nested.push(...data.candidates.map(x=>({
+          ...x,thumbnail:x.thumbnail||page.thumbnail||"",sourcePage:page.url,
+        })));
       }
     }
     const map=new Map();
@@ -100,11 +103,10 @@ export async function GET(request){
     }
     const ordered=[...map.values()].sort((a,b)=>sourceRank(b)-sourceRank(a)).slice(0,32);
     const checked=[];
-    // Verify top six source URLs via public-only, DNS-validated HEAD requests.
-    for(const [index,item] of ordered.entries()){
-      const candidate=index<6?await checkCandidate(item):item;
-      if(candidate)checked.push(candidate);
-    }
+    // Parallel, bounded HEAD verification of top six candidates.
+    const probes=await Promise.allSettled(ordered.slice(0,6).map(checkCandidate));
+    for(const probe of probes)if(probe.status==="fulfilled"&&probe.value)checked.push(probe.value);
+    checked.push(...ordered.slice(6));
     checked.sort((a,b)=>sourceRank(b)-sourceRank(a));
     return NextResponse.json({
       pageUrl:primary.page, pageTitle:primary.title||"",kind, sources:checked,
