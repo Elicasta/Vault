@@ -5,6 +5,7 @@ import { T } from "@/lib/theme";
 import { itemKey, sourceIdOf } from "@/lib/utils";
 import { ensureProxySession, SECURITY_V2_ENABLED } from "@/lib/security-session";
 import MediaDiscoveryPanel from "./MediaDiscoveryPanel";
+import GoogleDriveSave from "./GoogleDriveSave";
 import "./InAppBrowser.css";
 
 const HISTORY_KEY = "vv_browser_history";
@@ -304,6 +305,8 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
 
   const previewResult = (result) => openUrl(result.url);
 
+  const currentDirectType = /\.(?:jpe?g|png|webp|gif|avif|bmp)(?:$|[?#])/i.test(currentUrl)
+    ? "image" : /\.(?:mp4|m4v|mov|webm|ogv)(?:$|[?#])/i.test(currentUrl) ? "video" : "";
   const selectedTitle = metadata?.title || currentHost || (searchQuery ? `Search: ${searchQuery}` : "No page selected");
   const selectedDesc = metadata?.description || (currentUrl ? currentUrl : searchQuery ? "Choose a result below, or save a result directly." : "Search or paste a link to begin.");
   const existingUrls = useMemo(() => existingItems.map((x) => x?.canonical_url || x?.url).filter(Boolean), [existingItems]);
@@ -334,7 +337,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
             <button type="button" aria-pressed={viewMode === "media"} onClick={() => { setViewMode("media"); setShowHistory(false); }}>Media</button>
             <button type="button" aria-pressed={viewMode === "page"} onClick={() => { setViewMode("page"); setShowHistory(false); }}>Page preview</button>
           </div>}
-          {isMobile && <button type="button" className="vv-browser-save-toggle" aria-expanded={showQuickSave} onClick={() => { setShowQuickSave((v) => !v); setShowHistory(false); }}>{showQuickSave ? "Close save options" : "Save options"}</button>}
+          {isMobile && <button type="button" className="vv-browser-save-toggle" aria-expanded={showQuickSave} onClick={() => { setShowQuickSave((v) => !v); setShowHistory(false); }}>{showQuickSave ? "Close" : "Save URL"}</button>}
         </div>
 
         {showHistory && (
@@ -375,14 +378,15 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
                 drillDepth={videoTrail.length}
                 canExploreMore={true}
                 onExplorePage={exploreAnyPage}
+                onLoginToWebsite={() => openExternal(currentUrl)}
               />
             ) : (
               <div className="vv-browser-preview-container">
                 {loadingFrame && <div style={loadBadge}>Loading website…</div>}
                 <div className="vv-website-fallback">
                   <span>{frameBlocked ? "Preview may be blocked by this website." : "Blank preview? The website may prevent embedding."}</span>
-                  <button type="button" onClick={() => openExternal(currentUrl)}>Open original <Icon name="external" size={12}/></button>
-                  <button type="button" onClick={() => { setViewMode("media"); setShowQuickSave(false); }}>Find media</button>
+                  <button type="button" onClick={() => openExternal(currentUrl)}>Sign in on original website <Icon name="external" size={12}/></button>
+                  <button type="button" onClick={() => { setViewMode("media"); setShowQuickSave(false); }}>Rescan / find media</button>
                 </div>
                 <iframe key={currentUrl} src={currentUrl} onLoad={() => { setLoadingFrame(false); }}
                   title="Website preview" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
@@ -404,7 +408,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
             ...(isMobile && !showQuickSave ? { display: "none" } : {}),
           }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
-              <div style={{ fontSize: 13, fontWeight: 700, color: T.text1 }}>Quick save</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: T.text1 }}>Save URL to Vault</div>
               {isMobile && <button type="button" onClick={() => setShowQuickSave(false)} className="vv-close-save">Close</button>}
               {metaState === "checking" && <span style={{ fontSize: 11, color: T.text4 }}>Reading link...</span>}
               {metaState === "fail" && <span style={{ fontSize: 11, color: T.text4 }}>Manual save</span>}
@@ -418,11 +422,17 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
             <FolderPicker folders={folders} folder={folder} setFolder={setFolder} newFolderName={newFolderName} setNewFolderName={setNewFolderName} handleCreateFolder={handleCreateFolder} creatingFolder={creatingFolder} />
 
             <button onClick={saveCurrent} disabled={!currentUrl || saving} style={{ width: "100%", padding: "12px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.18)", background: currentUrl ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.04)", color: currentUrl ? T.text1 : T.text4, cursor: currentUrl ? "pointer" : "not-allowed", fontWeight: 700, fontSize: 14 }}>
-              {saving ? "Saving..." : "Save current link"}
+              {saving ? "Saving..." : "Save URL to Vault"}
             </button>
 
+            <details className="vv-browser-drive-tools">
+              <summary>Save to Google Drive instead</summary>
+              <GoogleDriveSave url={currentDirectType ? currentUrl : ""} type={currentDirectType || "image"}
+                title={selectedTitle} compact onOpenOriginal={() => openExternal(currentUrl)} />
+              {!currentDirectType && <p>For an embedded video, open its Media preview to find the actual stream first. On desktop Chrome, the official Save to Google Drive extension can also save media from the original website.</p>}
+            </details>
             <div style={{ marginTop: 12, padding: 10, borderRadius: 10, background: "rgba(255,255,255,0.04)", color: T.text4, fontSize: 11, lineHeight: 1.45 }}>
-              You can visit any public HTTP(S) website and inspect its media. Some sites disable embedded previews; use Open original. Vault cannot bypass logins, DRM, or website restrictions.
+              You can visit any public HTTP(S) website and inspect its media. Some sites disable embedded previews; use Open original. To sign in via Google, use "Sign in on original website"; Google blocks most embedded sign-in flows. Vault cannot reuse external-site login cookies or bypass DRM.
             </div>
           </div>
         </div>
@@ -468,8 +478,8 @@ function SearchResults({ state, error, query, results, onPreview, onSave, onOpen
         <div style={{ color: T.text4, fontSize: 11, marginTop: 5 }}>{r.host}</div>
         {r.snippet && <div style={{ color: T.text3, fontSize: 12, lineHeight: 1.45, marginTop: 7 }}>{r.snippet}</div>}
         <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-          <button onClick={() => onPreview(r)} style={{ ...smallAction, background:"rgba(255,255,255,.18)", fontWeight:800 }}>Find media</button>
-          <button onClick={() => onSave(r)} disabled={saving} style={smallAction}>{saving ? "Saving..." : "Save page"}</button>
+          <button onClick={() => onSave(r)} disabled={saving} style={{ ...smallAction, background:"rgba(255,255,255,.22)", fontWeight:800 }}>{saving ? "Saving..." : "Save URL to Vault"}</button>
+          <button onClick={() => onPreview(r)} style={smallAction}>Find media</button>
           <button onClick={() => onOpen(r.url)} style={smallAction}>Open site</button>
         </div>
       </div>)}

@@ -238,3 +238,24 @@
   .vv-gallery-top button { width:100%; }
   .vv-website-fallback span { flex-basis:100%; }
 }
+
+/* Google-owned Save to Drive widget. The button authenticates with Google directly. */
+.vv-drive-fallback { display:flex; flex-direction:column; align-items:stretch; gap:9px;
+  margin:13px 0; padding:12px; border:1px solid rgba(194,204,242,.2);
+  background:#1c1d25; border-radius:12px; min-width:0; }
+.vv-drive-fallback.compact { margin:10px 0; }
+.vv-drive-fallback > button { display:flex; align-items:center; justify-content:center; min-height:36px;
+  border:1px solid rgba(255,255,255,.2); border-radius:9px; color:#f3f4f6; padding:9px 13px;
+  background:#30323c; font-size:12px; font-weight:700; cursor:pointer; }
+.vv-drive-fallback p { font-size:12px; color:#b5bbcc; margin:0; line-height:1.45; overflow-wrap:anywhere; }
+.vv-drive-fallback p[role="alert"] { color:#ffb5bb; }
+.vv-drive-fallback a { color:#c0d8ff; font-size:12px; overflow-wrap:anywhere; }
+.vv-drive-google-button { min-height:0; overflow:visible; max-width:100%; }
+.vv-drive-google-button iframe { max-width:100%; }
+.vv-drive-note { font-size:11px!important; }
+
+.vv-browser-drive-tools { margin-top:13px; border:1px solid rgba(255,255,255,.13); border-radius:10px; background:rgba(255,255,255,.035); overflow:hidden; }
+.vv-browser-drive-tools summary { padding:11px 12px; cursor:pointer; color:#e4e6ee; font-size:12px; font-weight:750; }
+.vv-browser-drive-tools[open] summary { border-bottom:1px solid rgba(255,255,255,.13); }
+.vv-browser-drive-tools > p { margin:9px 12px 13px; color:#b8bbcb; font-size:12px; line-height:1.5; }
+.vv-browser-drive-tools .vv-drive-fallback { margin:10px; }

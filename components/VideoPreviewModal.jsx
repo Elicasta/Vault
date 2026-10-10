@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { ensureProxySession, SECURITY_V2_ENABLED } from "@/lib/security-session";
 import { isPlayableVideoSource, uniqueVideoSources } from "@/lib/video-source-resolver.mjs";
+import GoogleDriveSave from "./GoogleDriveSave";
 
 function playableUrl(url) {
   return "/api/stream?url=" + encodeURIComponent(url);
@@ -129,6 +130,12 @@ export default function VideoPreviewModal({ item, onClose, onChoose, onSave, sav
           <strong>{item.type === "video" ? "Cover image URL (thumbnail only)" : "Image URL"}</strong><code>{item.thumbnail || (item.type === "image" ? item.url : "No cover detected")}</code>
         </div>
         {item.type === "video" && !active && !loading && <p className="vv-media-note">Saving is disabled until a playable video source is detected. The cover image will not be saved as a video.</p>}
+        <GoogleDriveSave
+          url={item.type === "image" ? item.url : active?.url || ""}
+          type={item.type}
+          title={item.title}
+          onOpenOriginal={() => window.open(item.sourcePage || item.url, "_blank", "noopener,noreferrer")}
+        />
         <div className="vv-preview-actions">
           {active && <a href={active.url} target="_blank" rel="noreferrer noopener">Open video URL</a>}
           <button type="button" onClick={() => onSave(item, active)} disabled={saving || (item.type === "video" && !active)}>{saving ? "Saving…" : "Save " + (item.type === "video" ? "video + cover" : "image")}</button>

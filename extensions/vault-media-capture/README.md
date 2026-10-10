@@ -51,3 +51,31 @@ Vault Browser accepts public HTTP(S) website URLs without a provider blocklist. 
 When an image gallery is detected, **Import gallery** offers an existing folder or a new folder. It inspects linked detail pages to look for originals, follows up to six same-host gallery pages, and saves up to 160 unique source links with a saved/skipped/unresolved summary. It stores URLs rather than binary copies.
 
 Vault first fetches websites directly. For access or network failures, its signed server-side regional relay automatically tries three different egress functions (US `iad1`, UK `lhr1`, Germany `fra1`) in rotating order. The regional endpoints are not accessible without a short-lived HMAC signature based on `VAULT_PROXY_SESSION_SECRET`, and both ends enforce public-only destinations and bounded bodies. Production deployments must verify that their Vercel plan actually places the three functions in distinct compute regions, and that the site's own geographic policy permits access. This does not bypass accounts, paywalls, DRM or website embedding permissions. Self-routing uses `VERCEL_URL`; a different trusted gateway can be set through `VAULT_REGION_EGRESS_ORIGIN` and `VAULT_REGION_EGRESS_SECRET`.
+
+## Google sign-in and Save to Google Drive fallback
+
+### Signing in on a media website with Google
+
+From Vault Browser, select **Page preview > Sign in on original website**. That opens the real site in a separate tab where Google's normal sign-in/verification can run. Go back to Vault and use **Rescan / find media** for public pages. Note: signing in on another origin does **not** grant Vault's server-side scanner your website cookies. If the site's videos/images only exist inside your authenticated page, use the companion desktop Chrome Media Capture extension from that page; it can observe media already loaded in your signed-in browser without collecting passwords.
+
+### Direct file fallback into Google Drive
+
+For detected media, select **Preview > Save file to Google Drive**. This is Google's officially documented `gapi.savetodrive.render` widget. When clicked it prompts Google to authenticate if needed, then saves the accessible image/video **file bytes** into your Drive (instead of only saving a link in Vault). In the browser's **Quick save > Save to Google Drive instead**, direct image/video file links also have this action.
+
+Vault serves the media using its own authenticated `/api/media` or `/api/stream` route so Google's browser widget has a same-origin source, avoiding cross-origin media restrictions where possible. Image relay cap is 20 MB, video relay cap defaults to 512 MB and may be smaller in regional fallback; your browser must remain open until Google's transfer finishes. Google authentication stays with Google's widget: Vault never requests or stores your Google password or Drive access tokens.
+
+If the file URL is missing or private/DRM-protected, Google's button cannot invent the media. On **desktop Chrome**, open the original signed-in site and use Google's official **Save to Google Drive** Chrome extension in the right-click menu for a visible image, HTML5 video, or screenshot: https://chromewebstore.google.com/detail/save-to-google-drive/gmbmikajjgmnabiglmofipeabaddhgne . Other browsers/iPhone cannot use that desktop extension. The two Google products are independent, and Vault cannot invoke the third-party Chrome extension automatically.
+
+The Google save button stores files in Drive; it does not automatically add the Drive file to Vault or select a Drive folder. The existing Vault folder picker applies to saving links **inside Vault**.
+
+Preview verification: Google Save to Drive uses a same-origin Vault media URL and requires an authenticated Vault session for that URL to respond. The actual Google widget's sign-in and Drive transfer occur in the user's browser, so full end-to-end verification requires an interactive browser session.
+
+## URL-first AI generator saving and Google Drive backup
+
+**Save URL to Vault is the primary action.** In Search, Venice and Perchance workspaces, save a public page/image/video URL into a Collection with a title. URLs that start with blob: are temporary browser objects, not permanent Vault URLs.
+
+**Permanent Copy is optional.** For a Venice or Perchance generation without an accessible file URL, use Chrome Media Capture → Smart Image Capture → Capture main image, or Pick exact image and click the visual element to select it. The Chrome extension saves a cropped PNG in Vault Captures. In Vault's Venice or Perchance workspace, upload that PNG using Save Permanent Copy; this stores real file bytes in private Supabase Storage (50 MB/file max). A screenshot covers visible rendered pixels, not necessarily the original resolution.
+
+**Google Drive Backup is optional.** In Vault Settings, the backup tool can copy eligible private Supabase-stored images/videos to a new Vault Backups folder using Google user consent and drive.file OAuth scope. It skips Drive files previously backed up using file identifiers. The Google Web Client ID environment variable NEXT_PUBLIC_GOOGLE_DRIVE_CLIENT_ID and exact authorized JavaScript origins for preview/production must be configured first. The Google account connection, real Drive file upload, and Chrome smart cropping remain unverified until tested interactively.
+
+Site-specific Google login is opened on the original Venice or Perchance website: their third-party sessions and browser-local generation histories cannot be transferred into the Vault iframe.

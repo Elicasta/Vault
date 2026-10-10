@@ -17,7 +17,7 @@ function Thumbnail({ item }) {
   return <img loading="lazy" alt="" src={direct ? item.thumbnail : "/api/media?url=" + encodeURIComponent(item.thumbnail)} onError={() => { if (!direct) setDirect(true); else setFailed(true); }} referrerPolicy="no-referrer" className="vv-media-thumb" />;
 }
 
-export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolderChange, onCreateFolder, onSave, existingUrls = [], onExploreVideoPage, onExplorePage, focusedVideo = null, drillDepth = 0, canExploreMore = true }) {
+export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolderChange, onCreateFolder, onSave, existingUrls = [], onExploreVideoPage, onExplorePage, onLoginToWebsite, focusedVideo = null, drillDepth = 0, canExploreMore = true }) {
   const [result, setResult] = useState(null);
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
@@ -272,7 +272,11 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
     </div>
 
     {status === "loading" && <div className="vv-media-message" role="status">Inspecting images, video players and individual media links…</div>}
-    {status === "error" && <div className="vv-media-message" role="alert">{error} <button type="button" onClick={() => scan(pageUrl)}>Retry</button></div>}
+    {status === "error" && <div className="vv-media-message" role="alert">{error}
+      <button type="button" onClick={() => scan(pageUrl)}>Retry</button>
+      <button type="button" onClick={() => onLoginToWebsite?.()}>Sign in on website</button>
+      <p>For Google verification, sign in at the original website. Its cookies cannot be transferred to Vault's server scanner. Desktop Chrome Media Capture can inspect media opened within your authenticated browser session.</p>
+    </div>}
     {status === "done" && !items.length && !(result?.videoPages || []).length && !(result?.imagePages || []).length && <div className="vv-media-message">No links were visible in this page's HTML. Some sites load them dynamically; try the Chrome capture extension or visit the individual video page.</div>}
     {result?.truncated && <p className="vv-media-note">This page contains more media than the current scan limit. The highest-confidence matches are shown.</p>}
     {result?.filteredAds > 0 && <p className="vv-media-note">{result.filteredAds} advertising or invalid URL candidates excluded.</p>}
@@ -348,7 +352,7 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
       <span>{selectedCount} selected</span>
       <button type="button" disabled={!selectedCount || saving} onClick={saveSelected}>{saving ? "Saving media…" : "Save " + selectedCount + " to Vault"}</button>
     </div>
-    <p className="vv-media-footnote">For videos, Vault saves the playable stream URL as the item and the image as its cover. Unknown stream URLs cannot be saved as videos. Signed or DRM streams may still expire or be unplayable.</p>
+    <p className="vv-media-footnote">For Google Drive file copies, choose Preview on an image or video. For videos, Vault saves the playable stream URL as the item and the image as its cover. Unknown stream URLs cannot be saved as videos. Signed or DRM streams may still expire or be unplayable.</p>
     {previewItem && <VideoPreviewModal item={previewItem} onClose={() => setPreviewItem(null)} saving={saving} onChoose={(origin, source) => setResolvedSources((old) => ({ ...old, [origin]: source }))} onSave={saveFromPreview} />}
   </div>;
 }

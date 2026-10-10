@@ -77,6 +77,17 @@ chrome.tabs.onUpdated.addListener((tabId, change) => {
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+  if (message?.type === "VAULT_SMART_PICK") {
+    const tabId=sender.tab?.id;
+    const rect=message.rect;
+    if(!Number.isInteger(tabId)||!rect || ![rect.left,rect.top,rect.width,rect.height].every(Number.isFinite)) {
+      sendResponse({ok:false});return;
+    }
+    chrome.storage.session.set({["vault_smart_selected_"+tabId]:{
+      url:message.url,rect,viewportW:message.viewportW,viewportH:message.viewportH,at:Date.now(),
+    }}).then(()=>sendResponse({ok:true})).catch(()=>sendResponse({ok:false}));
+    return true;
+  }
   if (message?.type !== "VAULT_CAPTURE_GET" || !Number.isInteger(message.tabId)) return;
   (async () => {
     let entries = Array.from(state.get(message.tabId)?.values() || []);
