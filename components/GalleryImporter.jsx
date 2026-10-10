@@ -4,6 +4,7 @@ import { ensureProxySession, SECURITY_V2_ENABLED } from "@/lib/security-session"
 import { buildVaultMediaItem } from "@/lib/media-capture-import.mjs";
 import { itemKey, sourceIdOf } from "@/lib/utils";
 import GoogleDriveSave from "./GoogleDriveSave";
+import ResilientImage from "./ResilientImage";
 
 async function postLookup(pages, signal) {
   if (SECURITY_V2_ENABLED) await ensureProxySession();
@@ -53,7 +54,7 @@ export function ImageDetailPanel({ page, folder, onSave, onSaved, saving }) {
     finally { setWorking(false); }
   };
   return <section className="vv-image-detail" aria-label="Full-resolution image page">
-    <img alt={page.title || "Gallery cover"} src={"/api/media?url=" + encodeURIComponent(image?.thumbnail || page.thumbnail || "")}/>
+    <ResilientImage key={page.url} alt={page.title || "Gallery cover"} url={image?.thumbnail || page.thumbnail || ""} showFallbackLink className="vv-image-detail-preview"/>
     <div>
       <span className="vv-media-eyebrow">IMAGE PAGE · FIND ORIGINAL</span>
       <h3>{page.title || "Image"}</h3>
@@ -65,6 +66,8 @@ export function ImageDetailPanel({ page, folder, onSave, onSaved, saving }) {
         <button type="button" disabled={working || saving || status === "saved"} onClick={save}>{status === "saved" ? "Saved" : working ? "Saving…" : "Save image to " + (folder || "My Library")}</button>
       </>}
       {error && <p role="alert">{error}</p>}
+      {error && <a href={page.url} target="_blank" rel="noopener noreferrer">Open original photo page</a>}
+      {error && <p className="vv-media-note">Some image hosts return 403 to automated requests. Open the photo on the website, use its own permitted download action, then upload the file to Vault.</p>
     </div>
   </section>;
 }
