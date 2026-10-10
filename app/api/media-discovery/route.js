@@ -3,6 +3,7 @@ import { validatePublicUrl, readTextLimited } from "@/lib/server/safe-url";
 import { fetchWithRegionFallback } from "@/lib/server/region-fallback.js";
 import { guardProxyRequest, securityErrorResponse } from "@/lib/server/proxy-guard";
 import { discoverMedia } from "@/lib/server/media-discovery.mjs";
+import { isEliteBabesUrl, enrichEliteBabesDiscovery } from "@/lib/server/site-adapters/elitebabes.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -35,7 +36,15 @@ export async function GET(request) {
     const finalUrl = response.url || checked.url.href;
     if (!response.ok) {
       await response.body?.cancel().catch(() => {});
-      return NextResponse.json({ error: "Website returned HTTP " + response.status }, { status: 502, headers: NO_STORE });
+      const denied = response.status === 401 || response.status === 403 || response.status === 451;
+      const tailored = isEliteBabesUrl(checked.url.href);
+      return NextResponse.json({
+        error: denied
+          ? (tailored ? "EliteBabes did not allow Vault's server to read this page (HTTP " + response.status + "). Open the original site in your browser, then use Chrome Media Capture or save the page URL." : "The website denied automated inspection (HTTP " + response.status + "). Open it in your browser, or save its URL instead.")
+          : "Website returned HTTP " + response.status,
+        code: denied ? "SITE_ACCESS_DENIED" : "UPSTREAM_ERROR",
+        sourceUrl: checked.url.href, browserCaptureSupported: tailored,
+      }, { status: denied ? 403 : 502, headers: NO_STORE });
     }
 
     const contentType = String(response.headers.get("content-type") || "").toLowerCase();
@@ -58,7 +67,7 @@ export async function GET(request) {
     }
 
     const html = await readTextLimited(response, MAX_HTML_BYTES);
-    const result = discoverMedia(html, finalUrl);
+    const result = enrichEliteBabesDiscovery(discoverMedia(html, finalUrl), html, finalUrl);
     return NextResponse.json(result, { headers: NO_STORE });
   } catch (error) {
     return securityErrorResponse(error, "Could not inspect this page");
