@@ -42,8 +42,11 @@ export default function GeneratorWorkspace({ site = "venice", userId, folders = 
   const siteItems = items.filter((x) => x.folder === config.folder || x.folder === selectedFolder).slice(0,18);
 
   useEffect(() => {
-    setSelectedFolder(config.folder); setSourceUrl(""); setSourceTitle("");
-    setError(""); setStatus("");
+    setSelectedFolder(config.folder); setError(""); setStatus("");
+    const params = new URLSearchParams(window.location.search);
+    const suggested = normalizeGeneratorPublicUrl(params.get("url") || "");
+    setSourceUrl(suggested);
+    setSourceTitle(suggested ? String(params.get("title") || "").slice(0,180) : "");
   }, [site, config.folder]);
 
   const saveUrl = async () => {
