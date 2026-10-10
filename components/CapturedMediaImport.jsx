@@ -70,11 +70,17 @@ export default function CapturedMediaImport({ pageUrl = "", onSave, folder = "",
     </div>
     {entries.length > 0 && <div className="vv-import-gallery-list">
       <p>{entries.length} detected · {pending.length} selected and not already saved.</p>
-      <div style={{maxHeight:240,overflowY:"auto"}}>
-        {entries.map((item) => <label key={item.url} style={{display:"flex",gap:8,padding:"6px 0",alignItems:"center"}}>
-          <input type="checkbox" checked={existing.has(item.url) || selected.includes(item.url)} disabled={busy || existing.has(item.url)}
-            onChange={e => setSelected(old => e.target.checked ? [...old,item.url] : old.filter(url => url !== item.url))} />
-          <span style={{overflowWrap:"anywhere",fontSize:12}}>{item.type === "image" ? "Image" : "Video"} · {item.title || "Media"} {existing.has(item.url) ? "(saved)" : ""}</span>
+      <div className="vv-import-gallery-items" style={{maxHeight:360,overflowY:"auto"}}>
+        {entries.map((item) => <label key={item.url} className="vv-browser-captured-item" style={{display:"flex",flexDirection:"column",gap:6,padding:8,alignItems:"start",cursor:"pointer"}}>
+          <img src={"/api/media?url=" + encodeURIComponent(item.thumbnail || item.url)} alt="" loading="lazy"
+            referrerPolicy="no-referrer" style={{width:"100%",height:130,objectFit:"contain",background:"#101015"}}
+            onError={e => { const direct = item.thumbnail || item.url; if(e.currentTarget.src !== direct) e.currentTarget.src = direct; else e.currentTarget.style.display="none"; }} />
+          <span style={{display:"flex",gap:6,alignItems:"center",fontSize:12}}>
+            <input type="checkbox" checked={existing.has(item.url) || selected.includes(item.url)} disabled={busy || existing.has(item.url)}
+              onChange={e => setSelected(old => e.target.checked ? [...old,item.url] : old.filter(url => url !== item.url))} />
+            {item.type === "image" ? "Image" : "Video"} {existing.has(item.url) ? "(saved)" : ""}
+          </span>
+          <small style={{overflowWrap:"anywhere",fontSize:11}}>{item.title || "Media"}</small>
         </label>)}
       </div>
       <button type="button" onClick={saveSelected} disabled={busy || !pending.length}>{busy ? "Importing…" : "Save " + pending.length + " selected to Vault"}</button>
