@@ -9,6 +9,7 @@ on:
       - "feat/unrestricted-public-site-browsing-*"
       - "feat/google-login-drive-save-fallback-*"
       - "feat/in-vault-interactive-ai-studios-*"
+      - "feat/unified-media-import-*"
   pull_request:
     branches:
       - "fix/relay-search-hardening-*"
