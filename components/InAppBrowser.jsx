@@ -9,28 +9,29 @@ import "./InAppBrowser.css";
 
 const HISTORY_KEY = "vv_browser_history";
 
-function isLikelyUrl(input) {
-  const raw = String(input || "").trim();
-  if (!raw) return false;
-  if (/^https?:\/\//i.test(raw)) return true;
-  return /^[\w.-]+\.[a-z]{2,}(?:[/:?#].*)?$/i.test(raw);
-}
-
 function normalizeUrl(input) {
   const raw = String(input || "").trim();
-  if (!raw) return "";
-  if (/^https?:\/\//i.test(raw)) return raw;
-  if (/^[\w.-]+\.[a-z]{2,}(?:[/:?#].*)?$/i.test(raw)) return `https://${raw}`;
-  return "";
+  if (!raw || /[\u0000-\u001f\u007f]/.test(raw)) return "";
+  try {
+    // Try any HTTP(S) public site, regardless of hostname, TLD or provider.
+    const scheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(raw);
+    const url = new URL(scheme ? raw : "https://" + raw);
+    if (!["http:", "https:"].includes(url.protocol) || !url.hostname || url.username || url.password) return "";
+    const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "").replace(/\.$/, "");
+    // Local and private networks must not be navigable through the collector.
+    if (/^(?:localhost|metadata\.google\.internal)$/.test(host) ||
+        /\.(?:localhost|local|lan|home|internal)$/.test(host) ||
+        /^(?:127\.|10\.|192\.168\.|169\.254\.|0\.|100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|172\.(?:1[6-9]|2\d|3[01])\.)/.test(host) ||
+        /^(?:::1|::|fc[0-9a-f]{2}:|fd[0-9a-f]{2}:|fe80:|ff[0-9a-f]{2}:)/i.test(host)) return "";
+    if (!scheme && !host.includes(".") && !/^\d+\.\d+\.\d+\.\d+$/.test(host)) return "";
+    return url.href;
+  } catch { return ""; }
 }
+
+function isLikelyUrl(input) { return Boolean(normalizeUrl(input)); }
 
 function hostOf(url) {
   try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return ""; }
-}
-
-function shouldSkipIframe(url) {
-  const host = hostOf(url);
-  return /(^|\.)(google\.com|duckduckgo\.com|bing\.com|youtube\.com|youtu\.be|reddit\.com|instagram\.com|tiktok\.com|facebook\.com|x\.com|twitter\.com)$/i.test(host);
 }
 
 export default function InAppBrowser({ onClose, onSave, folders = [], existingItems = [], isMobile = false, onCreateFolder, initialQuery = "" }) {
@@ -195,21 +196,30 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
     setAddress(target);
     setSearchQuery("");
     setShowHistory(false);
-    setFrameBlocked(shouldSkipIframe(target));
-    setLoadingFrame(!shouldSkipIframe(target));
+    // Attempt every public website; a site's own embedding policy may still prevent iframe display.
+    setFrameBlocked(false);
+    setLoadingFrame(true);
     if (addHistory) commitHistory(target);
   };
 
   const exploreVideoPage = (card) => {
     const target = normalizeUrl(card?.url);
-    if (!target || target === currentUrl || videoTrail.length >= 6) return;
-    setVideoTrail((old) => [...old, { url: currentUrl, focused: focusedVideo }]);
+    if (!target || target === currentUrl) return;
+    setVideoTrail((old) => [...old, { url: currentUrl, focused: focusedVideo }].slice(-79));
     openUrl(target, { preserveTrail: true });
     setFocusedVideo({
       ...card, type: "video",
       thumbnail: card.thumbnail || "",
       sourcePage: currentUrl || card.sourcePage || target,
     });
+  };
+
+  const exploreAnyPage = (page) => {
+    const target = normalizeUrl(page?.url);
+    if (!target || target === currentUrl) return;
+    setVideoTrail((old) => [...old, { url: currentUrl, focused: focusedVideo }].slice(-79));
+    openUrl(target, { preserveTrail: true });
+    setFocusedVideo(page?.kind === "image-page" ? { ...page, type: "image" } : null);
   };
 
   const backVideoPage = () => {
@@ -318,7 +328,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
         </div>
 
         <div className="vv-browser-modebar" role="toolbar" aria-label="Browser views">
-          {videoTrail.length > 0 && <button type="button" className="vv-browser-back" onClick={backVideoPage} title="Back to listing">← Back to listing</button>}
+          {videoTrail.length > 0 && <button type="button" className="vv-browser-back" onClick={backVideoPage} title="Back to previous page">← Back</button>}
           <span className="vv-browser-locator">{currentHost || (searchQuery ? "Search results" : "Browse the web")}{focusedVideo ? " · Video detail" : ""}</span>
           {currentUrl && <div className="vv-browser-switch" role="group" aria-label="Page mode">
             <button type="button" aria-pressed={viewMode === "media"} onClick={() => { setViewMode("media"); setShowHistory(false); }}>Media</button>
@@ -363,15 +373,21 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
                 onExploreVideoPage={exploreVideoPage}
                 focusedVideo={focusedVideo}
                 drillDepth={videoTrail.length}
-                canExploreMore={videoTrail.length < 6}
+                canExploreMore={true}
+                onExplorePage={exploreAnyPage}
               />
-            ) : frameBlocked ? (
-              <BlockedPreview url={currentUrl} host={currentHost} onOpen={() => openExternal(currentUrl)} />
             ) : (
-              <>
-                {loadingFrame && <div style={loadBadge}>Loading...</div>}
-                <iframe src={currentUrl} onLoad={() => { setLoadingFrame(false); setFrameBlocked(false); }} title="In-app browser" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox" referrerPolicy="no-referrer-when-downgrade" style={{ width: "100%", height: "100%", minHeight: isMobile ? 420 : 620, border: "none", background: "#fff" }} />
-              </>
+              <div className="vv-browser-preview-container">
+                {loadingFrame && <div style={loadBadge}>Loading website…</div>}
+                <div className="vv-website-fallback">
+                  <span>{frameBlocked ? "Preview may be blocked by this website." : "Blank preview? The website may prevent embedding."}</span>
+                  <button type="button" onClick={() => openExternal(currentUrl)}>Open original <Icon name="external" size={12}/></button>
+                  <button type="button" onClick={() => { setViewMode("media"); setShowQuickSave(false); }}>Find media</button>
+                </div>
+                <iframe key={currentUrl} src={currentUrl} onLoad={() => { setLoadingFrame(false); }}
+                  title="Website preview" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+                  referrerPolicy="no-referrer-when-downgrade" style={{ width:"100%", flex:1, minHeight:0, border:"none", background:"#fff" }} />
+              </div>
             )}
           </div>
 
@@ -406,7 +422,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
             </button>
 
             <div style={{ marginTop: 12, padding: 10, borderRadius: 10, background: "rgba(255,255,255,0.04)", color: T.text4, fontSize: 11, lineHeight: 1.45 }}>
-              Search now uses a server-side US/English results list. Preview opens only when the destination site allows iframe viewing. Saving does not depend on preview loading.
+              You can visit any public HTTP(S) website and inspect its media. Some sites disable embedded previews; use Open original. Vault cannot bypass logins, DRM, or website restrictions.
             </div>
           </div>
         </div>

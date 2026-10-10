@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { safeFetch, validatePublicUrl, readTextLimited } from "@/lib/server/safe-url";
+import { validatePublicUrl, readTextLimited } from "@/lib/server/safe-url";
+import { fetchWithRegionFallback } from "@/lib/server/region-fallback.js";
 import { guardProxyRequest, securityErrorResponse } from "@/lib/server/proxy-guard";
 import { discoverMedia } from "@/lib/server/media-discovery.mjs";
 
@@ -20,7 +21,7 @@ export async function GET(request) {
   if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: checked.status, headers: NO_STORE });
 
   try {
-    const response = await safeFetch(checked.url.href, {
+    const response = await fetchWithRegionFallback(checked.url.href, {
       method: "GET",
       timeoutMs: 11_000,
       maxBytes: MAX_HTML_BYTES,

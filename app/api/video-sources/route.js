@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { safeFetch, validatePublicUrl, readTextLimited } from "@/lib/server/safe-url";
+import { validatePublicUrl, readTextLimited } from "@/lib/server/safe-url";
+import { fetchWithRegionFallback } from "@/lib/server/region-fallback.js";
 import { guardProxyRequest, securityErrorResponse } from "@/lib/server/proxy-guard";
 import { discoverMedia, discoverEmbeddedPlayerUrls } from "@/lib/server/media-discovery.mjs";
 import { uniqueVideoSources, isVideoFileUrl } from "@/lib/video-source-resolver.mjs";
@@ -30,7 +31,7 @@ export async function GET(request) {
   }
 
   try {
-    const upstream = await safeFetch(checked.url.href, {
+    const upstream = await fetchWithRegionFallback(checked.url.href, {
       method: "GET", timeoutMs: 10_000, maxBytes: HTML_LIMIT,
       headers: { "User-Agent": UA, Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,video/*;q=0.8,*/*;q=0.5", "Accept-Language": "en-US,en;q=0.9" },
     });
@@ -68,7 +69,7 @@ export async function GET(request) {
         try {
           const checkedFrame = await validatePublicUrl(frame);
           if (!checkedFrame.ok) continue;
-          const nested = await safeFetch(checkedFrame.url.href, {
+          const nested = await fetchWithRegionFallback(checkedFrame.url.href, {
             method: "GET", timeoutMs: 6000, maxBytes: HTML_LIMIT,
             headers: { "User-Agent": UA, Accept: "text/html,application/xhtml+xml;q=0.9,video/*;q=0.8", Referer: new URL(finalUrl).origin + "/" },
           });
