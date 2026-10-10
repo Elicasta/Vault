@@ -91,7 +91,18 @@
     }
     return {items,duplicates,invalid,unrecognized,total};
   }
-  const api={parseSpreadsheetRows:extractRows,parseDelimited,cleanUrl,inferType};
+  function sheetCsvExportUrl(raw) {
+    try {
+      const u=new URL(String(raw||"").trim());
+      if(u.protocol!=="https:"||u.hostname!=="docs.google.com"||u.username||u.password)return "";
+      const match=u.pathname.match(/^\/spreadsheets\/d\/([A-Za-z0-9_-]{10,})\/(?:edit|view|export|htmlview)?\/?$/);
+      if(!match)return "";
+      const gid=String(u.searchParams.get("gid")||u.hash.match(/gid=(\d+)/)?.[1]||"0");
+      if(!/^\d{1,12}$/.test(gid))return "";
+      return "https://docs.google.com/spreadsheets/d/"+match[1]+"/export?format=csv&gid="+gid;
+    }catch{return "";}
+  }
+  const api={parseSpreadsheetRows:extractRows,parseDelimited,cleanUrl,inferType,sheetCsvExportUrl};
   root.VaultBatchParser=api;
   if(typeof module!=="undefined"&&module.exports)module.exports=api;
 })(typeof globalThis!=="undefined"?globalThis:this);
