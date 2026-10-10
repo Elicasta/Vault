@@ -278,12 +278,32 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
     </div>
     {addingFolder && <div className="vv-media-new-folder"><input aria-label="New collection name" autoFocus placeholder="Collection name" value={newFolder} onChange={(e) => setNewFolder(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") addFolder(); }} /><button type="button" onClick={addFolder} disabled={!newFolder.trim()}>Create</button><button type="button" onClick={() => setAddingFolder(false)}>Cancel</button></div>}
 
-    <GalleryImporter
+    {(result?.browsePages || []).length > 0 && <section className="vv-video-pages vv-category-navigation" aria-label="Browse categories and galleries">
+      <div className="vv-video-pages-header">
+        <div>
+          <h3>{result.pageLevel === "categories" ? "Choose a category" : result.pageLevel === "gallery-list" ? "Open a gallery" : "Explore linked pages"}</h3>
+          <p>Click into a category, then open its gallery. The Back and Forward controls keep your page path inside Vault.</p>
+        </div>
+        <span>{result.browsePages.length} pages</span>
+      </div>
+      <div className="vv-video-pages-grid">
+        {result.browsePages.map(page => <button type="button" className="vv-video-page-card" key={page.url}
+          onClick={() => onExplorePage?.(page)} title={page.url}>
+          <div className="vv-video-page-cover">
+            <Thumbnail item={{...page,type:"image"}} />
+            <span>OPEN {page.kind==="category"?"CATEGORY":page.kind==="gallery"?"GALLERY":"PAGE"} →</span>
+          </div>
+          <strong>{truncate(page.title||page.url,75)}</strong>
+          <small>{page.kind==="category"?"Category":page.kind==="gallery"?"Gallery":"Linked page"} · explore inside Vault</small>
+        </button>)}
+      </div>
+    </section>}
+    {result?.pageLevel === "gallery" && <GalleryImporter
       result={result} folder={folder} onFolderChange={onFolderChange}
       onCreateFolder={onCreateFolder} folders={folders} onSave={onSave}
       existingUrls={[...existingUrls, ...savedThisSession]}
       onSaved={(url) => setSavedThisSession((old) => [...old, url])}
-    />
+    />}
 
     <div className="vv-media-tools">
       <div className="vv-media-filters" role="group" aria-label="Filter media">
@@ -305,7 +325,7 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
     </div>}
     {status === "browser" && <><p className="vv-media-note">{isEliteBabesUrl(pageUrl) ? "This site has a gallery adapter; when its page is unavailable to Vault, use the original website and capture accessible media in your own browser." : "This site requires a browser-first import. Review and save its accessible media directly in Vault below."}</p>
       <CapturedMediaImport pageUrl={pageUrl} folder={folder} onSave={onSave} existingUrls={[...existingUrls,...savedThisSession]}/></>}
-    {status === "done" && !items.length && !(result?.videoPages || []).length && !(result?.imagePages || []).length && <div className="vv-media-message">No links were visible in this page's HTML. Some sites load them dynamically; try the Chrome capture extension or visit the individual video page.</div>}
+    {status === "done" && !items.length && !(result?.videoPages || []).length && !(result?.imagePages || []).length && !(result?.browsePages || []).length && <div className="vv-media-message">No links were visible in this page's HTML. Some sites load them dynamically; try the Chrome capture extension or visit the individual video page.</div>}
     {result?.truncated && <p className="vv-media-note">This page contains more media than the current scan limit. The highest-confidence matches are shown.</p>}
     {result?.filteredAds > 0 && <p className="vv-media-note">{result.filteredAds} advertising or invalid URL candidates excluded.</p>}
 
@@ -325,7 +345,7 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
       {!canExploreMore && <p className="vv-media-note">Exploration depth limit reached. Go back to continue browsing.</p>}
     </section>}
 
-    {(result?.imagePages || []).length > 0 && <section className="vv-video-pages" aria-label="Explore image pages">
+    {(result?.pageLevel === "gallery" || !(result?.browsePages || []).length) && (result?.imagePages || []).length > 0 && <section className="vv-video-pages" aria-label="Explore image pages">
       <div className="vv-video-pages-header"><div><h3>Explore image pages</h3>
         <p>Open a gallery photo's detail page to look for the original image URL rather than its smaller cover.</p></div>
         <span>{result.imagePages.length} pages</span>
