@@ -43,15 +43,57 @@ function updateStatus() {
   copyBtn.disabled = selected.size === 0;
 }
 function scanDOM() {
-  return [...document.querySelectorAll("video,source,img,meta[property='og:video'],meta[property='og:image']")].slice(0, 300).map((node) => {
-    let url, type, thumbnail = "";
-    const tag = node.tagName.toLowerCase();
-    if (tag === "video") { type = "video"; url = node.currentSrc || node.src; thumbnail = node.poster || ""; }
-    else if (tag === "source") { type = "video"; url = node.src; }
-    else if (tag === "img") { type = "image"; url = node.currentSrc || node.src; }
-    else if (tag === "meta") { type = node.getAttribute("property") === "og:image" ? "image" : "video"; url = node.content; }
-    return { url, type, thumbnail, title: node.alt || node.title || document.title || type, sourcePage: location.href };
-  }).filter((item) => item.url && item.url.startsWith("http"));
+  const map = new Map();
+  const IMAGE = /\.(?:jpe?g|png|webp|avif|gif|bmp)(?:$|[?#])/i;
+  function absolute(raw) {
+    try {
+      if (!raw || /^(?:blob|data|javascript):/i.test(raw)) return "";
+      const u=new URL(raw, location.href);
+      return ["http:","https:"].includes(u.protocol) && !u.username && !u.password ? u.href : "";
+    } catch { return ""; }
+  }
+  function bestSrcset(raw) {
+    const list=String(raw||"").split(",").map(v=>{
+      const m=v.trim().match(/^(\S+)(?:\s+(\d+)(?:w|x))?/);
+      return m?{url:absolute(m[1]),size:Number(m[2]||0)}:null;
+    }).filter(x=>x?.url);
+    return list.sort((a,b)=>b.size-a.size)[0]?.url||"";
+  }
+  function add(url,type,title,thumbnail,sourceKind) {
+    const resolved=absolute(url);
+    if(!resolved||map.has(resolved)||map.size>=300)return;
+    map.set(resolved,{url:resolved,type,title:String(title||"Image").slice(0,180),
+      thumbnail:absolute(thumbnail)||resolved,sourceKind,sourcePage:location.href});
+  }
+  for(const img of [...document.querySelectorAll("img")].slice(0,500)){
+    if(img.naturalWidth && img.naturalWidth<56 || img.naturalHeight && img.naturalHeight<56)continue;
+    const thumb=absolute(img.currentSrc||bestSrcset(img.getAttribute("srcset"))||img.getAttribute("data-src")||img.src);
+    const title=img.alt||img.title||document.title||"Image";
+    const parent=img.closest("a[href]");
+    const full=absolute(parent?.getAttribute("data-full")||parent?.getAttribute("data-original")||
+      img.getAttribute("data-full")||img.getAttribute("data-original")||img.getAttribute("data-zoom"));
+    const linked=absolute(parent?.href);
+    if(full)add(full,"image",title,thumb,"browser-original-candidate");
+    if(linked&&IMAGE.test(linked))add(linked,"image",title,thumb,"browser-linked-full-image");
+    const bigger=bestSrcset(img.getAttribute("data-srcset")||img.getAttribute("srcset"));
+    if(bigger&&bigger!==thumb)add(bigger,"image",title,thumb,"browser-srcset");
+    if(thumb)add(thumb,"image",title,thumb,"browser-visible-image");
+  }
+  for(const node of [...document.querySelectorAll("video,source,meta[property='og:video'],meta[property='og:image']")].slice(0,120)){
+    const tag=node.tagName.toLowerCase();
+    const type=tag==="video"||tag==="source"&&node.parentElement?.tagName.toLowerCase()==="video"||
+      node.getAttribute("property")==="og:video"?"video":"image";
+    const media=node.currentSrc||node.src||node.getAttribute("content")||"";
+    if(media)add(media,type,node.alt||node.title||document.title,
+      type==="video"?(node.poster||""):"","browser-page-media");
+  }
+  for(const node of [...document.querySelectorAll("[data-original],[data-full],[style*='background-image']")].slice(0,220)){
+    const direct=absolute(node.getAttribute("data-original")||node.getAttribute("data-full"));
+    if(direct)add(direct,"image",node.title||document.title,"","browser-original-candidate");
+    const m=String(node.getAttribute("style")||"").match(/background-image\s*:\s*url\(['"]?([^'")]+)/i);
+    if(m)add(m[1],"image",node.title||document.title,"","browser-background-image");
+  }
+  return [...map.values()];
 }
 async function fetchCaptured() {
   const response = await chrome.runtime.sendMessage({ type: "VAULT_CAPTURE_GET", tabId: currentTab.id });
@@ -61,8 +103,8 @@ async function scanPage() {
   if (!currentTab?.id) return;
   try {
     await fetchCaptured();
-    const frames = await chrome.scripting.executeScript({ target: { tabId: currentTab.id, allFrames: false }, func: scanDOM });
-    for (const item of frames?.[0]?.result || []) add(item);
+    const frames = await chrome.scripting.executeScript({ target: { tabId: currentTab.id, allFrames: true }, func: scanDOM });
+    for(const frame of frames || [])for(const item of frame.result || [])add(item);
     render();
   } catch (error) {
     render();
@@ -89,7 +131,7 @@ copyBtn.addEventListener("click", async () => {
   const items = [...saved.values()].filter((item) => selected.has(item.url));
   try {
     await navigator.clipboard.writeText(JSON.stringify({ format: "vault-media-capture-v1", sourcePage: currentTab?.url || "", items }, null, 2));
-    statusEl.textContent = "Copied " + items.length + " links. Open Vault → Search → Media → Import captured URLs.";
+    statusEl.textContent = "Copied " + items.length + " links. Open Vault → Import Media → Import from your browser.";
   } catch (error) { statusEl.textContent = "Copy failed: " + (error.message || "Clipboard unavailable"); }
 });
 start().catch((error) => { statusEl.textContent = "Cannot inspect tab: " + (error.message || "Unavailable"); });
