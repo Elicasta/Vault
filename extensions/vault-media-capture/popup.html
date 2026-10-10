@@ -22,6 +22,12 @@
     <button data-filter="video">Videos</button>
     <button data-filter="image">Images</button>
   </div>
+  <div class="smart-capture">
+    <h2>Smart Image Capture</h2>
+    <p>Capture only the visible image or canvas, not the surrounding page interface. Open the saved PNG in your Venice/Perchance Vault workspace to preserve it as a private file.</p>
+    <div class="toolbar"><button id="smart-crop">Capture main image</button><button id="pick-image">Pick exact image</button></div>
+    <small id="smart-result" role="status"></small>
+  </div>
   <p id="state" role="status">Reading the active tab…</p>
   <div id="items"></div>
   <footer>
@@ -30,5 +36,6 @@
     <p>No requests are modified. Captured URLs stay in the extension until copied and may contain short-lived tokens.</p>
   </footer>
 <script src="popup.js"></script>
+<script src="smart-screenshot.js"></script>
 </body>
 </html>
