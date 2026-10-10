@@ -9,7 +9,7 @@ import ImageAccessPanel from "./ImageAccessPanel";
 import { isDirectImageUrl, shouldRememberSiteDenied } from "@/lib/media-access-fallback.mjs";
 import { siteNeedsBrowser, markSiteBrowserFirst, clearBrowserFirst, isWebsiteAccessDenial, isUnsupportedDiscoveryResponse } from "@/lib/browser-first-fallback.mjs";
 
-function entry(url,title="Website",kind="page"){return {url:String(url||""),title,kind};}
+function entry(url,title="Website",kind="page",thumbnail=""){return {url:String(url||""),title,kind,thumbnail};}
 const short=(value,max=55)=>String(value||"").length>max?String(value).slice(0,max-1)+"…":String(value||"");
 
 export default function ImportGallerySection({
@@ -79,7 +79,7 @@ export default function ImportGallerySection({
     }catch{return;}
     setPrevious(old=>[...old,current].slice(-29));
     setNext([]);
-    setCurrent(entry(page.url,page.title||"Page",page.kind||"page"));
+    setCurrent(entry(page.url,page.title||"Page",page.kind||"page",page.thumbnail||""));
     scan(page.url);
   };
   const back=()=>{
@@ -104,7 +104,9 @@ export default function ImportGallerySection({
 
   const level=gallery?.pageLevel||"";
   const directImage=isDirectImageUrl(target);
-  const blockedImage=directImage&&(status==="browser"||status==="error");
+  const blockedImage=(directImage||["image-page","photo-page"].includes(current.kind))&&(status==="browser"||status==="error");
+  const coverOnly=blockedImage&&!directImage;
+  const viewerUrl=coverOnly?current.thumbnail:(gallery?.media?.find(x=>x.type==="image")?.url||target);
   const browsing=level==="categories"||level==="gallery-list";
   const allPages=gallery?.browsePages?.length?gallery.browsePages:
     (browsing?gallery?.imagePages||[]:[]);
@@ -148,8 +150,8 @@ export default function ImportGallerySection({
       <p>You can open the source page normally, use browser capture, or upload a downloaded image. This failed page doesn't prevent navigating to other gallery links.</p>
     </div>}
     {status==="loading"&&<p role="status">Opening the selected page and finding its child galleries or images…</p>}
-    {(blockedImage||level==="image")&&<ImageAccessPanel imageUrl={gallery?.media?.find(x=>x.type==="image")?.url||target}
-      title={current.title||"Original image"} denied={blockedImage} sourcePage={target}/>
+    {(blockedImage||level==="image")&&<ImageAccessPanel imageUrl={viewerUrl}
+      title={current.title||"Original image"} denied={blockedImage} sourcePage={target} coverOnly={coverOnly}/>
     {gallery&&<>
       <p role="status" className="vv-import-gallery-counts">
         {pageLabels[level]||"Page"} · {allPages.length} linked page{allPages.length===1?"":"s"}
