@@ -54,7 +54,7 @@ test("server source lookup is guarded and bounded, and no guessed video post URL
  assert.match(api,/validatePublicUrl/);
  assert.match(api,/method:"HEAD"/);
  assert.match(api,/slice\(0,3\)/);
- assert.match(api,/item\.verified/);
+ assert.match(api,/checked\.filter\(x=>x\.verified\)/);
  assert.match(api,/Cache-Control/);
  assert.match(panel,/Find the actual image or video link/);
  assert.match(panel,/Save verified file/);
