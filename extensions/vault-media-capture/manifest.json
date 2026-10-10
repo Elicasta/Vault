@@ -2,14 +2,15 @@
   "manifest_version": 3,
   "name": "Vault Media Capture",
   "version": "1.0.0",
-  "description": "Inspect public video and image URLs loaded by the active tab and copy selected URLs into Vault.",
+  "description": "Capture media URLs and smart-cropped images from sites you visit. Save downloaded files in Vault.",
   "permissions": [
     "activeTab",
     "scripting",
     "tabs",
     "webRequest",
     "storage",
-    "clipboardWrite"
+    "clipboardWrite",
+    "downloads"
   ],
   "host_permissions": [
     "<all_urls>"
