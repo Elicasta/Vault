@@ -166,3 +166,40 @@
   .vv-preview-header strong { font-size: 14px; }
   .vv-preview-actions button { flex: 1; }
 }
+
+/* Stable nested video browsing in Media Collector */
+.vv-browser-back {
+  color: #f0f0f3; font-size: 12px; font-weight: 750; white-space: nowrap;
+  padding: 9px 11px; background: rgba(255,255,255,.09); border: 1px solid rgba(255,255,255,.18);
+  border-radius: 9px; cursor: pointer; flex-shrink: 0;
+}
+.vv-video-pages { padding: 14px 0 20px; border-bottom: 1px solid rgba(255,255,255,.12); margin-bottom: 19px; }
+.vv-video-pages-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 13px; }
+.vv-video-pages-header h3 { margin: 0 0 5px; font-weight: 760; font-size: 18px; color: #ededf0; }
+.vv-video-pages-header p { color: #a5a6b0; font-size: 12px; line-height: 1.5; margin: 0; }
+.vv-video-pages-header > span { border: 1px solid rgba(255,255,255,.16); padding: 6px 8px; border-radius: 8px; color: #b6b8c2; font-size: 11px; white-space: nowrap; }
+.vv-video-pages-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 185px), 1fr)); gap: 10px; }
+.vv-video-page-card { cursor: pointer; display: flex; flex-direction: column; text-align: left; min-width: 0; padding: 0 0 11px;
+  color: #ededf1; background: #17171b; border: 1px solid rgba(255,255,255,.13); border-radius: 12px; overflow: hidden; }
+.vv-video-page-card:hover, .vv-video-page-card:focus-visible { border-color: rgba(255,255,255,.65); }
+.vv-video-page-card:disabled { opacity: .48; cursor: not-allowed; }
+.vv-video-page-cover { width: 100%; aspect-ratio: 16/10; position: relative; background: #0b0b0e; overflow: hidden; }
+.vv-video-page-cover .vv-media-thumb { width: 100%; height: 100%; object-fit: contain; }
+.vv-video-page-cover > span { position: absolute; bottom: 8px; right: 8px; background: rgba(0,0,0,.85); color: white; border: 1px solid rgba(255,255,255,.25); border-radius: 6px; padding: 6px 8px; font-weight: 800; font-size: 10px; }
+.vv-video-page-card > strong { padding: 11px 11px 4px; color: #eee; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.vv-video-page-card > small { padding: 0 11px; font-size: 11px; color: #a5a7af; }
+.vv-video-detail-focus { display: grid; grid-template-columns: minmax(110px, 180px) minmax(0, 1fr); min-width: 0; gap: 14px;
+  padding: 12px; border-radius: 13px; border: 1px solid rgba(226,232,255,.28); background: #1a1c25; margin-bottom: 14px; }
+.vv-video-detail-cover { aspect-ratio: 16/10; min-height: 90px; background: #09090c; border-radius: 9px; overflow: hidden; }
+.vv-video-detail-cover .vv-media-thumb { width: 100%; height: 100%; object-fit: contain; }
+.vv-video-detail-copy { min-width: 0; }
+.vv-video-detail-copy strong { display: block; font-size: 15px; margin: 4px 0; color: #eee; overflow-wrap: anywhere; }
+.vv-video-detail-copy p { font-size: 12px; color: #bcc1cf; line-height: 1.5; margin: 8px 0; }
+.vv-video-detail-copy button { border: 1px solid rgba(255,255,255,.2); background: #2b2c35; padding: 8px 11px; border-radius: 8px; color: white; cursor: pointer; font-weight: 700; font-size: 12px; }
+@media(max-width:600px) {
+  .vv-browser-back { font-size: 11px; padding: 8px; }
+  .vv-video-pages-grid { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 8px; }
+  .vv-video-detail-focus { grid-template-columns: minmax(0,1fr); gap: 9px; }
+  .vv-video-detail-cover { aspect-ratio: 16/9; max-height: 185px; }
+  .vv-video-pages-header h3 { font-size: 16px; }
+}

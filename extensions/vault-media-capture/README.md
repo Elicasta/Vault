@@ -39,3 +39,7 @@ In Vault's Media Collector, use **Copy URL** or **Open URL** on any detected ass
 ## Video and cover pairing
 
 The playable MP4/WebM/HLS URL is stored as the Vault item URL, while the poster/image URL is the cover. Use Preview to verify a source before saving. A page that exposes only a poster cannot be saved as a video. When a saved stream repeatedly fails or renders only audio, choose Remove from Library from the player; its record and link remain available under Settings > Hidden links for restoration.
+
+## Inside-Vault video page exploration
+
+From a gallery, choose **Explore video pages → Open page** to inspect the individual video's page without leaving Vault. The selected cover image travels with the page. Vault inspects the page and up to one nested iframe player for MP4, WebM or HLS URLs; the detected stream URL is what saves to the library, not its poster. Use **Back to listing** to return to the previous gallery. Some dynamically rendered or protected sites cannot expose a public stream to the web app: use the desktop Chrome companion when permitted.

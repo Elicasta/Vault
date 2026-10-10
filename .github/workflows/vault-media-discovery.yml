@@ -5,6 +5,7 @@ on:
     branches:
       - "feat/media-first-discovery-*"
       - "fix/video-source-cover-preview-*"
+      - "feat/deep-video-drilldown-*"
   pull_request:
     branches:
       - "fix/relay-search-hardening-*"

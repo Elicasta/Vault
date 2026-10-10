@@ -52,6 +52,8 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
   const [searchError, setSearchError] = useState("");
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [viewMode, setViewMode] = useState("media");
+  const [videoTrail, setVideoTrail] = useState([]);
+  const [focusedVideo, setFocusedVideo] = useState(null);
   const [showQuickSave, setShowQuickSave] = useState(false);
   const onCloseRef = useRef(onClose);
   onCloseRef.current = onClose;
@@ -137,6 +139,8 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
     searchAbort.current = controller;
     const sequence = ++searchSequence.current;
     setSearchQuery(q);
+    setVideoTrail([]);
+    setFocusedVideo(null);
     setViewMode("results");
     setShowQuickSave(false);
     setCurrentUrl("");
@@ -179,9 +183,10 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const openUrl = (url, { addHistory = true } = {}) => {
+  const openUrl = (url, { addHistory = true, preserveTrail = false } = {}) => {
     const target = normalizeUrl(url);
     if (!target) return;
+    if (!preserveTrail) { setVideoTrail([]); setFocusedVideo(null); }
     searchAbort.current?.abort();
     ++searchSequence.current;
     setCurrentUrl(target);
@@ -193,6 +198,26 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
     setFrameBlocked(shouldSkipIframe(target));
     setLoadingFrame(!shouldSkipIframe(target));
     if (addHistory) commitHistory(target);
+  };
+
+  const exploreVideoPage = (card) => {
+    const target = normalizeUrl(card?.url);
+    if (!target || target === currentUrl || videoTrail.length >= 6) return;
+    setVideoTrail((old) => [...old, { url: currentUrl, focused: focusedVideo }]);
+    openUrl(target, { preserveTrail: true });
+    setFocusedVideo({
+      ...card, type: "video",
+      thumbnail: card.thumbnail || "",
+      sourcePage: currentUrl || card.sourcePage || target,
+    });
+  };
+
+  const backVideoPage = () => {
+    if (!videoTrail.length) return;
+    const last = videoTrail[videoTrail.length - 1];
+    setVideoTrail((old) => old.slice(0, -1));
+    openUrl(last.url, { addHistory: false, preserveTrail: true });
+    setFocusedVideo(last.focused);
   };
 
   const go = (value = address) => {
@@ -293,7 +318,8 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
         </div>
 
         <div className="vv-browser-modebar" role="toolbar" aria-label="Browser views">
-          <span className="vv-browser-locator">{currentHost || (searchQuery ? "Search results" : "Browse the web")}</span>
+          {videoTrail.length > 0 && <button type="button" className="vv-browser-back" onClick={backVideoPage} title="Back to listing">← Back to listing</button>}
+          <span className="vv-browser-locator">{currentHost || (searchQuery ? "Search results" : "Browse the web")}{focusedVideo ? " · Video detail" : ""}</span>
           {currentUrl && <div className="vv-browser-switch" role="group" aria-label="Page mode">
             <button type="button" aria-pressed={viewMode === "media"} onClick={() => { setViewMode("media"); setShowHistory(false); }}>Media</button>
             <button type="button" aria-pressed={viewMode === "page"} onClick={() => { setViewMode("page"); setShowHistory(false); }}>Page preview</button>
@@ -334,6 +360,10 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
                 onCreateFolder={onCreateFolder}
                 onSave={onSave}
                 existingUrls={existingUrls}
+                onExploreVideoPage={exploreVideoPage}
+                focusedVideo={focusedVideo}
+                drillDepth={videoTrail.length}
+                canExploreMore={videoTrail.length < 6}
               />
             ) : frameBlocked ? (
               <BlockedPreview url={currentUrl} host={currentHost} onOpen={() => openExternal(currentUrl)} />

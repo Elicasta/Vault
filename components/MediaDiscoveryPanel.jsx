@@ -16,7 +16,7 @@ function Thumbnail({ item }) {
   return <img loading="lazy" alt="" src={direct ? item.thumbnail : "/api/media?url=" + encodeURIComponent(item.thumbnail)} onError={() => { if (!direct) setDirect(true); else setFailed(true); }} referrerPolicy="no-referrer" className="vv-media-thumb" />;
 }
 
-export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolderChange, onCreateFolder, onSave, existingUrls = [] }) {
+export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolderChange, onCreateFolder, onSave, existingUrls = [], onExploreVideoPage, focusedVideo = null, drillDepth = 0, canExploreMore = true }) {
   const [result, setResult] = useState(null);
   const [status, setStatus] = useState("idle");
   const [error, setError] = useState("");
@@ -33,6 +33,9 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
   const [previewItem, setPreviewItem] = useState(null);
   const [resolvedSources, setResolvedSources] = useState({});
   const [savedThisSession, setSavedThisSession] = useState([]);
+  const [detailSources, setDetailSources] = useState([]);
+  const [detailState, setDetailState] = useState("idle");
+  const [detailError, setDetailError] = useState("");
   const abort = useRef(null);
   const seq = useRef(0);
 
@@ -69,6 +72,36 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
     // scan belongs to this page instance; do not restart for a rerender.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pageUrl]);
+
+  useEffect(() => {
+    if (!focusedVideo?.url || focusedVideo.url !== pageUrl) {
+      setDetailSources([]); setDetailState("idle"); setDetailError(""); return;
+    }
+    let cancelled = false;
+    const controller = new AbortController();
+    setDetailSources([]); setDetailError(""); setDetailState("loading");
+    (async () => {
+      if (SECURITY_V2_ENABLED) await ensureProxySession();
+      const request = () => fetch("/api/video-sources?url=" + encodeURIComponent(pageUrl), { signal: controller.signal, credentials: "same-origin", cache: "no-store" });
+      let response = await request();
+      if (response.status === 401 && SECURITY_V2_ENABLED) {
+        await ensureProxySession(null, { force: true }); response = await request();
+      }
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "Could not inspect the video page.");
+      if (cancelled) return;
+      const sources = uniqueVideoSources(data.sources || [], { sourcePage: pageUrl, thumbnail: focusedVideo.thumbnail });
+      setDetailSources(sources);
+      setDetailState("done");
+      if (!sources.length) setDetailError(data.reason || "This page exposes only its cover. Try Chrome network capture.");
+      if (sources.length === 1) setResolvedSources((old) => ({ ...old, [pageUrl]: sources[0] }));
+    })().catch((e) => { if (!cancelled) { setDetailState("error"); setDetailError(e.message || "Video lookup failed."); } });
+    return () => { cancelled = true; controller.abort(); };
+  }, [pageUrl, focusedVideo?.url, focusedVideo?.thumbnail]);
+
+  const detailItem = focusedVideo && focusedVideo.url === pageUrl
+    ? { ...focusedVideo, type: "video", title: result?.pageTitle || focusedVideo.title || "Video", thumbnail: result?.media?.find((m) => m.type === "video" && m.thumbnail)?.thumbnail || focusedVideo.thumbnail || "" }
+    : null;
 
   const items = useMemo(() => {
     const map = new Map();
@@ -188,6 +221,21 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
       <button type="button" className="vv-media-refresh" onClick={() => scan(pageUrl)} disabled={status === "loading" || saving}>Rescan page</button>
     </div>
 
+    {detailItem && <section className="vv-video-detail-focus" aria-label="Individual video page">
+      <div className="vv-video-detail-cover"><Thumbnail item={detailItem} /></div>
+      <div className="vv-video-detail-copy">
+        <div className="vv-media-eyebrow">INDIVIDUAL VIDEO PAGE · LEVEL {drillDepth + 1}</div>
+        <strong>{detailItem.title}</strong>
+        {detailState === "loading" && <p role="status">Searching this video page for the playable stream…</p>}
+        {detailState === "done" && detailSources.length > 0 && <p role="status">Found {detailSources.length} playable video source{detailSources.length === 1 ? "" : "s"}. The image stays separate as its cover.</p>}
+        {detailError && <p role="status">{detailError}</p>}
+        <div className="vv-media-link-actions">
+          <button className="vv-media-preview-button" type="button" onClick={() => setPreviewItem(detailItem)}>Preview / choose video URL</button>
+          {detailSources.length === 1 && <button type="button" disabled={saving} onClick={() => saveFromPreview(detailItem, detailSources[0])}>Save actual video + cover</button>}
+        </div>
+      </div>
+    </section>}
+
     <div className="vv-media-collection">
       <label htmlFor="vv-media-folder">Save into</label>
       <select id="vv-media-folder" value={folder} onChange={(e) => onFolderChange(e.target.value)}>
@@ -212,9 +260,25 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
 
     {status === "loading" && <div className="vv-media-message" role="status">Inspecting images, video players and individual media links…</div>}
     {status === "error" && <div className="vv-media-message" role="alert">{error} <button type="button" onClick={() => scan(pageUrl)}>Retry</button></div>}
-    {status === "done" && !items.length && <div className="vv-media-message">No public media links were exposed in this page's HTML. Try the Chrome network capture option below for dynamically loaded videos.</div>}
+    {status === "done" && !items.length && !(result?.videoPages || []).length && <div className="vv-media-message">No links were visible in this page's HTML. Some sites load them dynamically; try the Chrome capture extension or visit the individual video page.</div>}
     {result?.truncated && <p className="vv-media-note">This page contains more media than the current scan limit. The highest-confidence matches are shown.</p>}
     {result?.filteredAds > 0 && <p className="vv-media-note">{result.filteredAds} advertising or invalid URL candidates excluded.</p>}
+
+    {(result?.videoPages || []).length > 0 && <section className="vv-video-pages" aria-label="Explore video pages">
+      <div className="vv-video-pages-header">
+        <div><h3>Explore video pages</h3><p>Thumbnails can link to individual posts. Open one inside Vault to identify its playable video URL.</p></div>
+        <span>{result.videoPages.length} pages</span>
+      </div>
+      <div className="vv-video-pages-grid">
+        {result.videoPages.map((page) => <button type="button" key={page.url} className="vv-video-page-card"
+          onClick={() => onExploreVideoPage?.(page)} disabled={!canExploreMore} title={page.url}>
+          <div className="vv-video-page-cover"><Thumbnail item={{ ...page, type: "video" }} /><span>OPEN PAGE →</span></div>
+          <strong>{truncate(page.title || page.url, 75)}</strong>
+          <small>{page.confidence === "likely-video" ? "Likely video page" : "Possible detail page · verify"}</small>
+        </button>)}
+      </div>
+      {!canExploreMore && <p className="vv-media-note">Exploration depth limit reached. Go back to continue browsing.</p>}
+    </section>}
 
     <div className="vv-media-grid">
       {visible.map((item) => {
@@ -228,7 +292,9 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
             <span>{alreadySaved ? "Already saved" : item.type === "video" && !isPlayableVideoSource(item) && !resolvedSources[item.url] ? "Cover / post detected · video source needed" : item.confidence === "high" ? "High-confidence source" : "Page-detected media"}</span>
             <span className="vv-media-url" title={item.url}>{truncate(item.url, 95)}</span>
             <span className="vv-media-link-actions">
-              <button type="button" className="vv-media-preview-button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPreviewItem(item); }}>Preview {item.type === "video" ? "video" : "image"}</button>
+              {item.type === "video" && !isPlayableVideoSource(item) && canExploreMore &&
+                <button type="button" className="vv-media-preview-button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onExploreVideoPage?.(item); }}>Open video page →</button>}
+              <button type="button" className={item.type === "video" && !isPlayableVideoSource(item) ? "" : "vv-media-preview-button"} onClick={(e) => { e.preventDefault(); e.stopPropagation(); setPreviewItem(item); }}>Preview {item.type === "video" ? "video" : "image"}</button>
               <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigator.clipboard.writeText(resolvedSources[item.url]?.url || item.url).then(() => setSaveReport("URL copied to clipboard.")).catch(() => setSaveReport("Clipboard unavailable; use Open URL.")); }}>Copy URL</button>
               <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); window.open(item.url, "_blank", "noopener,noreferrer"); }}>Open URL</button>
             </span>
