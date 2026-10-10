@@ -71,7 +71,10 @@ export default function ImportGallerySection({
       </button>
     </div>
     <p className="vv-import-gallery-hint">Uses the URL entered above. Finds public images and linked photo detail pages, not just preview thumbnails.</p>
-    {error && <p role="alert" className="vv-generator-error">{error}</p>}
+    {error && <div role="alert" className="vv-generator-error">
+      <p>{error}</p>
+      {/^https?:\/\//i.test(target) && <p><a href={target} target="_blank" rel="noopener noreferrer">Open original gallery in your browser</a>. If the site blocks Vault scanning, save the page URL above or import captured images with the Chrome companion.</p>}
+    </div>}
     {status === "loading" && <p role="status">Looking for image cards, original links and gallery pages…</p>}
     {gallery && <>
       <p role="status" className="vv-import-gallery-counts">
