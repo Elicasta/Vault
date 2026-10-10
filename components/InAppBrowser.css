@@ -253,3 +253,9 @@
 .vv-drive-google-button { min-height:0; overflow:visible; max-width:100%; }
 .vv-drive-google-button iframe { max-width:100%; }
 .vv-drive-note { font-size:11px!important; }
+
+.vv-browser-drive-tools { margin-top:13px; border:1px solid rgba(255,255,255,.13); border-radius:10px; background:rgba(255,255,255,.035); overflow:hidden; }
+.vv-browser-drive-tools summary { padding:11px 12px; cursor:pointer; color:#e4e6ee; font-size:12px; font-weight:750; }
+.vv-browser-drive-tools[open] summary { border-bottom:1px solid rgba(255,255,255,.13); }
+.vv-browser-drive-tools > p { margin:9px 12px 13px; color:#b8bbcb; font-size:12px; line-height:1.5; }
+.vv-browser-drive-tools .vv-drive-fallback { margin:10px; }
