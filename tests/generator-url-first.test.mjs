@@ -31,17 +31,16 @@ test("blob, data, local/private URL forms cannot masquerade as durable media lin
   assert.throws(()=>buildGeneratorUrlItem("blob:https://venice.ai/123",{keyOf:()=>1}),/public website or media URL/);
 });
 
-test("saving UI makes URL first, permanent file copy second and Drive backup last",()=>{
-  const source=fs.readFileSync("components/GeneratorWorkspace.jsx","utf8");
+test("unified importing keeps Save URL first, gallery second, file copy third, Drive backup fourth",()=>{
+  const source=fs.readFileSync("components/ImportMediaWorkspace.jsx","utf8");
   const browser=fs.readFileSync("components/InAppBrowser.jsx","utf8");
   const p=source.indexOf(">1. Save URL to Vault<");
-  const f=source.indexOf(">3. Save Permanent Copy<");
-  const b=source.indexOf(">4. Back up permanent files<");
-  assert.ok(p>=0&&f>p&&b>f,"URL should be primary before file and Drive backups");
-  assert.match(source,/buildGeneratorUrlItem\(actual/);
-  assert.match(source,/onSave\(item\)/);
+  const gallery=source.indexOf("<ImportGallerySection");
+  const upload=source.indexOf(">3. Upload a permanent copy<");
+  const backup=source.indexOf(">4. Back up imported files<");
+  assert.ok(p>=0&&gallery>p&&upload>gallery&&backup>upload);
+  assert.match(source,/buildGeneratorUrlItem\(url/);
+  assert.match(source,/await onSave\(media\)/);
+  assert.match(source,/onCreateFolder/);
   assert.match(browser,/Save URL to Vault/);
-  const actions=browser.indexOf("function SearchResults(");
-  const browserActions=browser.slice(actions);
-  assert.ok(browserActions.indexOf("Save URL to Vault")>=0 && browserActions.indexOf("Save URL to Vault")<browserActions.indexOf("Find media"));
 });

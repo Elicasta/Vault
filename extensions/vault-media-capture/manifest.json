@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Vault Media Capture",
-  "version": "1.1.0",
-  "description": "Use Venice and Perchance as real browser sites with Vault Studio saving beside them; capture images, video URLs and rendered media.",
+  "version": "1.1.1",
+  "description": "Find real image/video requests and capture clean image screenshots from the current website; import media into Vault.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -10,8 +10,7 @@
     "webRequest",
     "storage",
     "clipboardWrite",
-    "downloads",
-    "sidePanel"
+    "downloads"
   ],
   "host_permissions": [
     "<all_urls>"
@@ -22,19 +21,5 @@
   "action": {
     "default_title": "Vault Media Capture",
     "default_popup": "popup.html"
-  },
-  "side_panel": {
-    "default_path": "studio-panel.html"
-  },
-  "content_scripts": [
-    {
-      "matches": [
-        "<all_urls>"
-      ],
-      "js": [
-        "vault-studio-bridge.js"
-      ],
-      "run_at": "document_start"
-    }
-  ]
+  }
 }

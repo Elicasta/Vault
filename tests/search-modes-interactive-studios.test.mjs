@@ -57,19 +57,22 @@ test("Vault browser exposes clear safety controls and media scopes with regular 
   assert.match(view,/Filter by website/);
   assert.match(view,/More results/);
 });
-test("Venice and Perchance live studio preserve first-party pages and offer native Chrome controls",()=>{
-  const view=fs.readFileSync("components/StudioLiveBrowser.jsx","utf8");
-  const workspace=fs.readFileSync("components/GeneratorWorkspace.jsx","utf8");
+test("Vault uses universal import with gallery depth and keeps Chrome image capture",()=>{
+  const vault=fs.readFileSync("components/vault-v2/VaultV2.jsx","utf8");
+  const importer=fs.readFileSync("components/ImportMediaWorkspace.jsx","utf8");
+  const gallery=fs.readFileSync("components/ImportGallerySection.jsx","utf8");
   const extension=JSON.parse(fs.readFileSync("extensions/vault-media-capture/manifest.json","utf8"));
-  const panel=fs.readFileSync("extensions/vault-media-capture/studio-panel.html","utf8");
-  const background=fs.readFileSync("extensions/vault-media-capture/background.js","utf8");
-  assert.match(view,/https:\/\/venice\.ai/);
-  assert.match(view,/https:\/\/perchance\.org/);
-  assert.match(view,/Full Chrome Studio/);
-  assert.match(workspace,/<StudioLiveBrowser/);
-  assert.ok(extension.permissions.includes("sidePanel"));
-  assert.match(panel,/Studio Browser/);
-  assert.match(panel,/Save current page URL/);
-  assert.match(background,/chrome\.sidePanel\.setOptions/);
-  assert.match(background,/chrome\.tabs\.create/);
+  const popup=fs.readFileSync("extensions/vault-media-capture/popup.html","utf8");
+  assert.match(vault,/\/import/);
+  assert.doesNotMatch(vault,/Venice AI|Perchance AI|route==="venice"/);
+  assert.match(importer,/Save URL to Vault/);
+  assert.match(importer,/uploadVaultMedia/);
+  assert.match(importer,/ImportGallerySection/);
+  assert.match(gallery,/GalleryImporter/);
+  assert.match(gallery,/ImageDetailPanel/);
+  assert.match(gallery,/onCreateFolder/);
+  assert.match(popup,/Smart Image Capture/);
+  assert.ok(!extension.permissions.includes("sidePanel"));
+  assert.match(fs.readFileSync("app/studios/perchance/page.jsx","utf8"),/redirect\("\/import"\)/);
+  assert.match(fs.readFileSync("app/studios/venice/page.jsx","utf8"),/redirect\("\/import"\)/);
 });

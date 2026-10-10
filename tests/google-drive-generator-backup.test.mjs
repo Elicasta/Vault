@@ -51,16 +51,17 @@ test("Google backup flow downloads private authenticated storage bytes and never
   assert.doesNotMatch(component,/localStorage\.setItem|sessionStorage\.setItem/);
 });
 
-test("Venice and Perchance workspaces preserve actual private files",()=>{
-  const source=fs.readFileSync("components/GeneratorWorkspace.jsx","utf8");
+test("universal Import Media preserves real private files and Google Drive backup",()=>{
+  const source=fs.readFileSync("components/ImportMediaWorkspace.jsx","utf8");
   const vault=fs.readFileSync("components/vault-v2/VaultV2.jsx","utf8");
-  assert.match(source,/uploadVaultMedia\(userId, file\)/);
-  assert.match(source,/deleteVaultMedia\(userId, upload\.locator\)/);
+  assert.match(source,/uploadVaultMedia\(userId,file\)/);
+  assert.match(source,/deleteVaultMedia\(userId,upload\.locator\)/);
   assert.match(source,/clipboardData/);
-  assert.match(source,/venice\.ai/);
-  assert.match(source,/perchance\.org/);
+  assert.match(source,/Save URL to Vault/);
+  assert.match(source,/ImportGallerySection/);
   assert.match(vault,/GoogleDriveBackup/);
-  assert.match(vault,/GeneratorWorkspace/);
+  assert.match(vault,/ImportMediaWorkspace/);
+  assert.doesNotMatch(vault,/GeneratorWorkspace|Venice AI|Perchance AI/);
 });
 
 test("Chrome companion smart screenshot crops media, not whole page, requiring user click",()=>{

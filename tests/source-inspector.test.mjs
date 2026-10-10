@@ -61,10 +61,15 @@ test("server source lookup is guarded and bounded, and no guessed video post URL
  assert.match(panel,/navigator\.clipboard\.writeText/);
  assert.match(finder,/<SourceInspector/);
 });
-test("mobile AI studios never default to a giant blank iframe",()=>{
- const browser=fs.readFileSync("components/StudioLiveBrowser.jsx","utf8");
- assert.match(browser,/setTryEmbedded\(false\)/);
- assert.match(browser,/Try embedded website/);
- assert.match(browser,/Open \{name\} website/);
- assert.match(browser,/iPhone\|iPad/);
+test("universal Import Media replaces nonfunctional mobile AI iframes but retains deep source scans",()=>{
+ const general=fs.readFileSync("components/ImportMediaWorkspace.jsx","utf8");
+ const gallery=fs.readFileSync("components/ImportGallerySection.jsx","utf8");
+ const nav=fs.readFileSync("components/vault-v2/VaultV2.jsx","utf8");
+ assert.match(general,/Import Media/);
+ assert.match(general,/SourceInspector/);
+ assert.match(general,/ImportGallerySection/);
+ assert.match(gallery,/GalleryImporter/);
+ assert.match(gallery,/ImageDetailPanel/);
+ assert.match(nav,/\/import/);
+ assert.doesNotMatch(nav,/StudioLiveBrowser|GeneratorWorkspace|Perchance AI|Venice AI/);
 });

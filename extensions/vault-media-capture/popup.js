@@ -89,17 +89,7 @@ copyBtn.addEventListener("click", async () => {
   const items = [...saved.values()].filter((item) => selected.has(item.url));
   try {
     await navigator.clipboard.writeText(JSON.stringify({ format: "vault-media-capture-v1", sourcePage: currentTab?.url || "", items }, null, 2));
-    statusEl.textContent = "Copied " + items.length + " links. Open Vault → Media → Import captured URLs.";
+    statusEl.textContent = "Copied " + items.length + " links. Open Vault → Search → Media → Import captured URLs.";
   } catch (error) { statusEl.textContent = "Copy failed: " + (error.message || "Clipboard unavailable"); }
 });
 start().catch((error) => { statusEl.textContent = "Cannot inspect tab: " + (error.message || "Unavailable"); });
-
-document.querySelector("#open-studio-panel").addEventListener("click",async()=>{
-  const state=document.querySelector("#studio-panel-state");
-  state.textContent="Opening Vault Studio…";
-  try {
-    const result=await chrome.runtime.sendMessage({type:"VAULT_STUDIO_PANEL_OPEN"});
-    state.textContent=result?.opened?"Vault Studio side panel opened.":result?.error||"Panel could not open.";
-    if(result?.opened)window.close();
-  }catch(e){state.textContent=e.message||"Could not open Studio panel.";}
-});

@@ -77,62 +77,8 @@ chrome.tabs.onUpdated.addListener((tabId, change) => {
 });
 
 
-const STUDIO_URLS = {
-  venice: "https://venice.ai/",
-  perchance: "https://perchance.org/ai-text-to-image-generator",
-};
-async function launchStudio(site) {
-  if (!Object.prototype.hasOwnProperty.call(STUDIO_URLS,site)) throw new Error("Unknown site");
-  const tab = await chrome.tabs.create({url:STUDIO_URLS[site],active:true});
-  await chrome.sidePanel.setOptions({tabId:tab.id,path:"studio-panel.html",enabled:true});
-  try {await chrome.sidePanel.open({tabId:tab.id});return {opened:true,panel:true};}
-  catch {return {opened:true,panel:false,error:"Use the Vault extension's Studio panel button to open controls."};}
-}
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-  if (message?.type === "VAULT_STUDIO_PANEL_OPEN") {
-    (async()=>{
-      const [tab]=await chrome.tabs.query({active:true,lastFocusedWindow:true});
-      if (!tab?.id) throw new Error("Choose a Venice or Perchance tab.");
-      await chrome.sidePanel.setOptions({tabId:tab.id,path:"studio-panel.html",enabled:true});
-      await chrome.sidePanel.open({tabId:tab.id});
-      return {opened:true};
-    })().then(sendResponse).catch(e=>sendResponse({opened:false,error:e.message}));
-    return true;
-  }
-  if (message?.type === "VAULT_STUDIO_SAVE_LINK") {
-    (async () => {
-      if (!["venice","perchance"].includes(message.site)) throw new Error("Unknown studio");
-      const url = new URL(String(message.url || ""));
-      if (!["http:","https:"].includes(url.protocol) || url.username || url.password) throw new Error("Save a public media or page URL");
-      const stored = await chrome.storage.local.get("vault_studio_origin");
-      const origin = String(stored.vault_studio_origin || "");
-      if (!origin || !origin.includes("vault")) return {ok:false,reason:"no-vault-tab"};
-      const tabs = await chrome.tabs.query({});
-      const matching = tabs.filter(tab => {
-        try {const address = new URL(tab.url);return address.origin===origin && address.pathname.startsWith("/studios/");}
-        catch{return false;}
-      });
-      if (!matching.length) return {ok:false,reason:"no-vault-tab"};
-      const correct = matching.find(tab => tab.url.includes("/studios/" + message.site)) || matching[0];
-      return await chrome.tabs.sendMessage(correct.id, {type:"VAULT_STUDIO_AUTOSAVE",site:message.site,url:url.href});
-    })().then(sendResponse).catch(error=>sendResponse({ok:false,error:error.message||"Save failed"}));
-    return true;
-  }
-  if (message?.type === "VAULT_STUDIO_OPEN") {
-    const source = sender?.tab?.url || "";
-    if (source && /^https?:\/\//i.test(source)) {
-      try {
-        const u = new URL(source);
-        if (/^\/studios\/(?:venice|perchance)(?:\/|$)/.test(u.pathname) &&
-            (u.hostname.includes("vault") || u.hostname === "localhost")) {
-          chrome.storage.local.set({vault_studio_origin:u.origin}).catch(()=>{});
-        }
-      } catch {}
-    }
-    launchStudio(message.site).then(sendResponse).catch(e=>sendResponse({opened:false,error:e.message}));
-    return true;
-  }
 
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message?.type === "VAULT_SMART_PICK") {
     const tabId=sender.tab?.id;
     const rect=message.rect;
