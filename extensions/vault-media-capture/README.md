@@ -1,47 +1,62 @@
-# Vault Media Capture — Chrome desktop
+# Vault — Save Images (Chrome extension v1.2)
 
-Vault can search public image/video pages and inspect their source links, but a website cannot inspect another site's private session or cross-origin network traffic. The optional Chrome companion observes media requests already made by the current browser tab, and supports clean visible-image screenshots. It does not bypass sign-in, paywalls, DRM, or website access controls.
+A desktop Chrome companion for the existing Vault website. Vault's Import Media page and its saving system are **unchanged**.
 
-## Install and capture links
+## Install in Chrome
 
-1. Download the extension folder from this repository.
-2. In desktop Chrome visit `chrome://extensions`, turn on Developer mode, and choose **Load unpacked**.
-3. Select `extensions/vault-media-capture`.
-4. Open any website and load the images/videos you want to save.
-5. Open **Vault Media Capture**, choose **Scan page**, filter to Images or Videos, and select the items.
-6. Click **Copy selected for Vault**.
-7. In Vault → **Search** → browser/media collector, use **Import actual URLs from Chrome capture** to paste the copied `vault-media-capture-v1` JSON.
+1. Download or clone the Elicasta/Vault repository on the feature branch and locate the extensions/vault-media-capture folder.
+2. In desktop Chrome, open **chrome://extensions**.
+3. Enable **Developer mode** and choose **Load unpacked**.
+4. Select the vault-media-capture folder, not the entire Vault repository. Pin the extension.
+5. In the extension, expand **Vault destination** once and check the URL. The initial default is the latest development preview; change it when a stable Vault domain becomes available.
 
-Captured links are stored in the extension's tab-scoped session storage for up to one hour (up to 200 links per tab), not automatically transferred to any cloud account. Some media URLs contain expiring access tokens and may stop working. Vault stores the actual media URL only when recognized as a file; video covers remain separate from video sources.
+This is an unpacked development extension, not a Chrome Web Store install. Chrome on iPhone cannot load desktop Chrome extensions.
 
-## Smart Image Capture
+## Save a single image
 
-If a site renders an image on canvas or uses a temporary `blob:` / `data:` URL, a reusable public image link may not exist.
+Right-click a visible image and select **Save image to Vault**. The extension opens the configured Vault Import Media page and prepares the image URL in **Import from your browser**. Confirm and click **Save selected to Vault** in the existing website.
 
-1. Open the image in desktop Chrome.
-2. In the extension click **Capture main image**, or choose **Pick exact image**, click the image, and reopen the extension to capture.
-3. Chrome saves a cropped PNG of the visible image element. Surrounding interface is excluded where possible; overlays and offscreen portions may still affect the capture.
-4. In Vault → **Import Media** → **Upload a permanent copy**, choose the saved PNG. Vault stores the file in private Supabase Storage (subject to the per-file size limit).
+Alternatively, choose **Add image to Vault capture queue** to collect multiple right-clicked images before opening Vault.
 
-Smart Capture creates a screenshot of displayed pixels, not necessarily the original full-resolution image. For original quality, prefer the website's Download action.
+**Important:** This saves the image's URL, not automatically a permanent copy of its bytes. Some URLs expire or reject access outside the original site. For permanent storage, use the source website's permitted Save Image As action, then upload that file into Vault.
 
-## Gallery importing without the Chrome extension
+## Save a whole gallery
 
-Vault → **Import Media** also supports the gallery workflow:
+1. Open the gallery normally in Chrome and scroll so lazy-loaded images appear.
+2. Click the Vault extension and choose **Find images on page**.
+3. Filter Images/Videos and choose items, or click **Select all**.
+4. Click **Send selected to Vault**. The extension also copies JSON to your clipboard as a fallback.
+5. In Vault's existing import review, confirm the selection and press **Save selected to Vault**.
 
-1. Paste the gallery page URL and choose a Collection or create one.
-2. Press **Scan gallery**. Vault detects direct images and linked image-detail pages.
-3. Use **Explore photo pages for originals** to inspect an individual photo's full-size link.
-4. When a gallery is detected, choose **Import gallery** to scan up to six same-host gallery pages (160 media candidates maximum), dedupe and save the detected links in your selected Collection.
+Gallery scanning uses image elements, image anchors, responsive srcsets, CSS backgrounds, network requests already made by Chrome, and accessible frames. Some items are thumbnails; not every website exposes full-resolution URLs. The extension does not bypass website access restrictions.
 
-These are URL saves, not file copies. **Find Source** also verifies candidate original image/video URLs by public MIME response where possible. Private websites, DRM, and browser-only media require the original download and file upload.
+## Import URL lists from Google Sheets
 
-## Security and limitations
+This preserves the older spreadsheet workflow without needing Google OAuth or changing Vault's website.
 
-The extension uses `webRequest`, `tabs`, `scripting`, `activeTab`, `storage`, `clipboardWrite`, and `downloads` to observe already-loaded media, copy selected URLs and save a user-triggered cropped image. It does not collect cookies/passwords, intercept response bodies, or change network requests. It is not supported on iOS Safari/Chrome.
+- **Copy/paste:** Select cells or columns containing URLs in Google Sheets, copy, expand **Import a Google Sheets URL list** in Vault's extension, paste, then click **Add URLs to selection**.
+- **CSV/TSV:** Export CSV from Google Sheets (File → Download → Comma Separated Values), then use **Choose CSV / TSV** in the extension.
+- Supported headings (case-insensitive): URL, Image URL, Link, Title, Type, Source Page, Thumbnail; one-column lists also work.
+- Recognizes JPG, PNG, WebP, GIF, AVIF, HEIC, MP4, MOV, WebM and similar URLs. For extensionless image links, include a Type column with image, or select **Treat links without image extensions as images**.
+- Duplicates are removed; batches have a 300-item maximum. You review before saving. This is a **URL-list import**, not a live Google Sheets sync or automatic download of all URLs.
 
-Google Drive backup of **permanently stored** Vault media is a separate, optional feature in Vault Settings. It requires a configured Google OAuth client and permission from the signed-in user; it is not enabled merely by installing this extension.
+## Sending to the existing Vault import page
 
-## Status
+The extension opens your configured HTTPS Vault address at /import, fills the existing **Browser-captured media links** field and clicks **Review captured media**. The final Save is a separate user action. If you're signed out, sign in and return to /import. If automatic handoff doesn't succeed, use **Copy selected (manual fallback)** and paste the JSON into the existing Vault field.
 
-These changes are on a preview branch until actual browser and media-source flows have been verified. Production is unchanged.
+No changes to Vault's page, database or saved-media model are necessary.
+
+## Smart screenshot capture
+
+If content is rendered to canvas or a temporary blob URL, use **Capture main image** or **Pick exact image** from the extension. This saves a screenshot of visible pixels (not original resolution). Upload the saved PNG into Vault using the existing file uploader.
+
+## Privacy and limitations
+
+- Context-menu saving and batch import are user-triggered, not silent background uploads.
+- The extension observes media URLs in Chrome tabs, but does not read passwords, cookies or OAuth credentials. No media is automatically transmitted to Vault.
+- Captured URLs may contain expiring signed query parameters; don't share copied exports publicly. Handoff targets the HTTPS Vault address you configured.
+- Broad host permissions are used to capture media from different sites. Install only from a trusted source.
+- The extension runs on desktop Chrome, not iPhone Chrome. Google Sheets import uses copied/exported data, not a Google account connection.
+- Sites may block direct image access, restrict frames or hide originals; success on every website is not guaranteed.
+
+Production is untouched; this is a preview development branch until manually tested in Chrome.

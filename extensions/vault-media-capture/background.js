@@ -103,3 +103,118 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   })().catch(() => sendResponse({ items: [] }));
   return true;
 });
+
+
+// Extension-initiated Save to Vault uses the website's existing import form.
+// No Vault credentials or cookies are handled by the extension.
+const VAULT_DEFAULT_URL="https://vault-preview-temp-9tnwnrk1f-elicastas-projects.vercel.app";
+const pendingImport=new Map();
+function isMediaUrl(url) {
+  return /\.(?:jpe?g|png|webp|avif|gif|bmp|mp4|webm|m4v|mov|m3u8)(?:$|[?#])/i.test(url);
+}
+function safeVaultOrigin(raw) {
+  try {
+    const u=new URL(String(raw||"").trim());
+    if(u.protocol!=="https:"||u.username||u.password||!u.hostname||u.hostname==="localhost")return "";
+    return u.origin;
+  }catch{return "";}
+}
+function cleanImportItems(items) {
+  const list=[],seen=new Set();
+  for(const item of (Array.isArray(items)?items:[]).slice(0,350)){
+    const url=normalize(item?.url);
+    if(!url||seen.has(url)||!["image","video"].includes(item?.type))continue;
+    seen.add(url);
+    list.push({
+      url,type:item.type,
+      title:String(item.title|| (item.type==="image"?"Saved image":"Saved video")).slice(0,180),
+      thumbnail:normalize(item.thumbnail)|| (item.type==="image"?url:""),
+      sourcePage:normalize(item.sourcePage)||url,
+      sourceKind:item.sourceKind==="spreadsheet-import"?"browser-network-capture":
+        /^browser-/.test(item.sourceKind||"")?item.sourceKind:"browser-network-capture",
+    });
+    if(list.length>=300)break;
+  }
+  return list;
+}
+async function configuredVaultOrigin(){
+  const settings=await chrome.storage.local.get("vault_import_origin").catch(()=>({}));
+  return safeVaultOrigin(settings.vault_import_origin)||VAULT_DEFAULT_URL;
+}
+function insertIntoVaultPage(payload) {
+  const control='textarea[aria-label="Browser-captured media links"]';
+  return new Promise(resolve=>{
+    let tries=0;
+    const timer=setInterval(()=>{
+      const field=document.querySelector(control);
+      if(field){
+        clearInterval(timer);
+        const proto=Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype,"value");
+        proto?.set?.call(field,payload);
+        field.dispatchEvent(new Event("input",{bubbles:true}));
+        field.dispatchEvent(new Event("change",{bubbles:true}));
+        setTimeout(()=>{
+          const button=Array.from(document.querySelectorAll("button"))
+            .find(b=>b.textContent?.trim()==="Review captured media");
+          if(button&&!button.disabled)button.click();
+          resolve(true);
+        },350);
+      }else if(++tries>=120){clearInterval(timer);resolve(false);}
+    },500);
+  });
+}
+async function tryVaultDelivery(tabId, tabUrl) {
+  const job=pendingImport.get(tabId);
+  if(!job||job.busy||Date.now()>job.expiresAt)return;
+  try{
+    const current=new URL(tabUrl||"");
+    if(current.origin!==job.origin||current.pathname!=="/import")return;
+  }catch{return;}
+  job.busy=true;
+  try {
+    const result=await chrome.scripting.executeScript({
+      target:{tabId},world:"MAIN",func:insertIntoVaultPage,args:[job.payload],
+    });
+    if(result?.[0]?.result===true) pendingImport.delete(tabId);
+  }catch { /* Users may be signing in; retry when the page reloads. */ }
+  finally{job.busy=false;}
+}
+async function launchVaultImport(items, rawOrigin) {
+  const cleaned=cleanImportItems(items);
+  if(!cleaned.length)throw new Error("Select images or videos before importing.");
+  const origin=safeVaultOrigin(rawOrigin)||await configuredVaultOrigin();
+  const payload=JSON.stringify({format:"vault-media-capture-v1",items:cleaned});
+  const tab=await chrome.tabs.create({url:origin+"/import",active:true});
+  if(!Number.isInteger(tab?.id))throw new Error("Could not open Vault.");
+  pendingImport.set(tab.id,{origin,payload,expiresAt:Date.now()+5*60*1000,busy:false});
+  if(tab.status==="complete")tryVaultDelivery(tab.id,tab.url);
+  return {ok:true,count:cleaned.length,tabId:tab.id};
+}
+chrome.runtime.onInstalled.addListener(()=>{
+  chrome.contextMenus.create({id:"vault_save_image",title:"Save image to Vault",contexts:["image"]},()=>{void chrome.runtime.lastError;});
+  chrome.contextMenus.create({id:"vault_queue_image",title:"Add image to Vault capture queue",contexts:["image"]},()=>{void chrome.runtime.lastError;});
+});
+chrome.contextMenus.onClicked.addListener((info,tab)=>{
+  if(!["vault_save_image","vault_queue_image"].includes(info.menuItemId))return;
+  if(!Number.isInteger(tab?.id))return;
+  const image=normalize(info.srcUrl||"");
+  if(!image)return;
+  const linked=normalize(info.linkUrl||"");
+  const full=isMediaUrl(linked)?linked:image;
+  const item={url:full,type:"image",title:"Saved image",thumbnail:image,
+    sourcePage:normalize(tab.url||"")||full,sourceKind:"browser-linked-full-image"};
+  const map=state.get(tab.id)||new Map();
+  map.set(full,item);
+  state.set(tab.id,map);
+  schedulePersist(tab.id);
+  if(info.menuItemId==="vault_save_image")launchVaultImport([item]).catch(()=>{});
+});
+chrome.tabs.onUpdated.addListener((tabId,change,tab)=>{
+  if(change.status==="complete")tryVaultDelivery(tabId,tab?.url);
+});
+chrome.tabs.onRemoved.addListener(tabId=>pendingImport.delete(tabId));
+chrome.runtime.onMessage.addListener((msg,sender,sendResponse)=>{
+  if(msg?.type!=="VAULT_OPEN_IMPORT")return;
+  launchVaultImport(msg.items,msg.origin).then(sendResponse).catch(e=>sendResponse({ok:false,error:e.message}));
+  return true;
+});

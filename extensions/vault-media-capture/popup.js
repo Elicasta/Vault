@@ -1,6 +1,14 @@
 const itemsEl = document.querySelector("#items");
 const statusEl = document.querySelector("#state");
 const copyBtn = document.querySelector("#copy");
+const sendBtn = document.querySelector("#send");
+const sheetText = document.querySelector("#sheet-text");
+const sheetResult = document.querySelector("#sheet-result");
+const unknownAsImage = document.querySelector("#unknown-as-image");
+const vaultUrlInput = document.querySelector("#vault-url");
+const vaultHostLabel = document.querySelector("#vault-host-label");
+const vaultUrlResult = document.querySelector("#vault-url-result");
+const DEFAULT_VAULT = "https://vault-preview-temp-9tnwnrk1f-elicastas-projects.vercel.app";
 const selectedEl = document.querySelector("#selected");
 const selected = new Set();
 const saved = new Map();
@@ -31,6 +39,16 @@ function render() {
     checkbox.type = "checkbox"; checkbox.checked = selected.has(item.url);
     checkbox.addEventListener("change", () => { if (checkbox.checked) selected.add(item.url); else selected.delete(item.url); updateStatus(); });
     const details = document.createElement("div");
+    if (item.type === "image" && item.thumbnail && entries.length < 65) {
+      const thumb = document.createElement("img");
+      thumb.className = "item-thumb";
+      thumb.alt = "";
+      thumb.loading = "lazy";
+      thumb.referrerPolicy = "no-referrer";
+      thumb.src = item.thumbnail;
+      thumb.addEventListener("error", () => { thumb.style.display = "none"; }, { once:true });
+      label.append(thumb);
+    }
     const title = document.createElement("strong"); title.textContent = item.title;
     const url = document.createElement("span"); url.textContent = item.url; url.title = item.url;
     details.append(title, url); label.append(checkbox, details); itemsEl.append(label);
@@ -41,6 +59,7 @@ function render() {
 function updateStatus() {
   selectedEl.textContent = selected.size + " selected";
   copyBtn.disabled = selected.size === 0;
+  sendBtn.disabled = selected.size === 0;
 }
 function scanDOM() {
   const map = new Map();
@@ -114,6 +133,7 @@ async function scanPage() {
 async function start() {
   [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!currentTab?.id) { statusEl.textContent = "Open a website to capture media."; return; }
+  await loadVaultDestination();
   await scanPage();
 }
 document.querySelector("#scan").addEventListener("click", scanPage);
@@ -127,11 +147,102 @@ document.querySelectorAll("[data-filter]").forEach((button) => button.addEventLi
   document.querySelectorAll("[data-filter]").forEach((b) => b.setAttribute("aria-pressed", String(b === button)));
   render();
 }));
+function selectedItems() {
+  return [...saved.values()].filter(item=>selected.has(item.url));
+}
+function makePayload(items) {
+  return JSON.stringify({format:"vault-media-capture-v1",sourcePage:currentTab?.url||"",items},null,2);
+}
 copyBtn.addEventListener("click", async () => {
-  const items = [...saved.values()].filter((item) => selected.has(item.url));
+  const items=selectedItems();
   try {
-    await navigator.clipboard.writeText(JSON.stringify({ format: "vault-media-capture-v1", sourcePage: currentTab?.url || "", items }, null, 2));
-    statusEl.textContent = "Copied " + items.length + " links. Open Vault → Import Media → Import from your browser.";
-  } catch (error) { statusEl.textContent = "Copy failed: " + (error.message || "Clipboard unavailable"); }
+    await navigator.clipboard.writeText(makePayload(items));
+    statusEl.textContent="Copied "+items.length+" links. Paste them into Vault → Import Media → Import from your browser.";
+  } catch (error) {statusEl.textContent="Copy failed: "+(error.message||"Clipboard unavailable");}
+});
+function safeVaultOrigin(raw) {
+  try {
+    const url=new URL(String(raw||"").trim());
+    return url.protocol==="https:"&&!url.username&&!url.password?url.origin:"";
+  }catch{return "";}
+}
+async function loadVaultDestination(){
+  const config=await chrome.storage.local.get("vault_import_origin").catch(()=>({}));
+  const origin=safeVaultOrigin(config.vault_import_origin)||DEFAULT_VAULT;
+  vaultUrlInput.value=origin;
+  vaultHostLabel.textContent=new URL(origin).hostname;
+  return origin;
+}
+document.querySelector("#save-vault-url").addEventListener("click",async()=>{
+  const origin=safeVaultOrigin(vaultUrlInput.value);
+  if(!origin){vaultUrlResult.textContent="Enter an HTTPS Vault address without a username or password.";return;}
+  try{
+    await chrome.storage.local.set({vault_import_origin:origin});
+    vaultHostLabel.textContent=new URL(origin).hostname;
+    vaultUrlResult.textContent="Destination saved. Selected items will be sent here.";
+  }catch(error){vaultUrlResult.textContent="Could not save destination: "+(error?.message||"Unknown error");}
+});
+sendBtn.addEventListener("click",async()=>{
+  const items=selectedItems();
+  if(!items.length)return;
+  sendBtn.disabled=true;
+  try{
+    // Clipboard copy is the fallback when a user must sign in before the
+    // existing Vault form can be populated by the extension.
+    await navigator.clipboard.writeText(makePayload(items)).catch(()=>{});
+    const response=await chrome.runtime.sendMessage({
+      type:"VAULT_OPEN_IMPORT",
+      items,origin:safeVaultOrigin(vaultUrlInput.value)||DEFAULT_VAULT,
+    });
+    if(!response?.ok)throw new Error(response?.error||"Could not open the Vault importer.");
+    statusEl.textContent="Opening Vault with "+response.count+" items. Review them, then press Save selected in Vault. If you need to sign in, paste the copied list afterward.";
+  }catch(error){statusEl.textContent="Send failed: "+(error?.message||"Unknown error")+". Use Copy selected instead.";}
+  finally{updateStatus();}
+});
+document.querySelector("#sheet-add").addEventListener("click",()=>{
+  const parser=globalThis.VaultBatchParser;
+  if(!parser){sheetResult.textContent="Sheet parser is unavailable. Reload the extension.";return;}
+  const result=parser.parseSpreadsheetRows(sheetText.value,{
+    unknownAsImage:unknownAsImage.checked,
+    sourcePage:currentTab?.url||"",
+  });
+  let newCount=0;
+  for(const item of result.items){
+    if(!saved.has(item.url)){newCount++;selected.add(item.url);}
+    add(item);
+  }
+  render();
+  sheetResult.textContent=newCount+" new links added; "+result.duplicates+" repeated, "+
+    result.invalid+" invalid, "+result.unrecognized+" unrecognized. "+
+    (result.unrecognized?"For extensionless image URLs, check the option above and retry.":"Ready to send to Vault.");
+});
+document.querySelector("#sheet-load").addEventListener("click",async()=>{
+  const parser=globalThis.VaultBatchParser;
+  const source=document.querySelector("#sheet-link").value;
+  const csvUrl=parser?.sheetCsvExportUrl(source);
+  if(!csvUrl){sheetResult.textContent="Use a Google Sheets link ending in /edit or /view. For private sheets, copy cells or export CSV instead.";return;}
+  sheetResult.textContent="Loading public sheet CSV…";
+  try{
+    const response=await fetch(csvUrl,{credentials:"omit",redirect:"follow",cache:"no-store"});
+    const type=String(response.headers.get("content-type")||"").toLowerCase();
+    if(!response.ok||type.includes("text/html")){
+      throw new Error("This sheet isn't publicly accessible as CSV. Copy its cells or export a CSV file instead.");
+    }
+    const body=await response.text();
+    if(body.length>1_000_000)throw new Error("Sheet is too large; use a smaller CSV export (under 1 MB).");
+    sheetText.value=body;
+    document.querySelector("#sheet-add").click();
+  }catch(e){sheetResult.textContent=e.message||"Could not load Google Sheets CSV.";}
+});
+document.querySelector("#sheet-file").addEventListener("change",async event=>{
+  const file=event.target.files?.[0];
+  event.target.value="";
+  if(!file)return;
+  if(file.size>1_000_000){sheetResult.textContent="Choose a CSV/TSV file under 1 MB.";return;}
+  try{
+    sheetText.value=await file.text();
+    document.querySelector("#sheet-section").open=true;
+    document.querySelector("#sheet-add").click();
+  }catch(error){sheetResult.textContent="Could not read the file: "+(error?.message||"Unknown error");}
 });
 start().catch((error) => { statusEl.textContent = "Cannot inspect tab: " + (error.message || "Unavailable"); });

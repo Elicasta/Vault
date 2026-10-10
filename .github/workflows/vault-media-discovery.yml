@@ -16,6 +16,7 @@ on:
       - "fix/gallery-image-403-viewer-*"
       - "feat/universal-browser-gallery-capture-*"
       - "feat/first-party-file-gallery-import-*"
+      - "feat/vault-chrome-save-and-sheet-import-*"
   pull_request:
     branches:
       - "fix/relay-search-hardening-*"
@@ -48,3 +49,10 @@ jobs:
         run: npx tsc --noEmit
       - name: Build
         run: npm run build
+      - name: Package Chrome extension for testing
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: vault-chrome-extension-v1.2
+          path: extensions/vault-media-capture/
+          if-no-files-found: error
+          retention-days: 14
