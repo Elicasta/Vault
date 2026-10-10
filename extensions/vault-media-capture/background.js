@@ -173,7 +173,7 @@ async function tryVaultDelivery(tabId, tabUrl) {
   job.busy=true;
   try {
     const result=await chrome.scripting.executeScript({
-      target:{tabId},func:insertIntoVaultPage,args:[job.payload],
+      target:{tabId},world:"MAIN",func:insertIntoVaultPage,args:[job.payload],
     });
     if(result?.[0]?.result===true) pendingImport.delete(tabId);
   }catch { /* Users may be signing in; retry when the page reloads. */ }
