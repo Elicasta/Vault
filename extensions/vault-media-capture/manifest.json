@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Vault Media Capture",
-  "version": "1.1.1",
-  "description": "Find real image/video requests and capture clean image screenshots from the current website; import media into Vault.",
+  "name": "Vault — Save Images",
+  "version": "1.2.0",
+  "description": "Save images by right-click, collect gallery images, and import Google Sheets URL lists to your existing Vault library.",
   "permissions": [
     "activeTab",
     "scripting",
@@ -10,7 +10,8 @@
     "webRequest",
     "storage",
     "clipboardWrite",
-    "downloads"
+    "downloads",
+    "contextMenus"
   ],
   "host_permissions": [
     "<all_urls>"
