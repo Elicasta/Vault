@@ -75,7 +75,7 @@ test("browser stays on Vault origin when drilling down and has a real back stack
   assert.match(browser, /setVideoTrail\(\(old\) => \[\.\.\.old/);
   assert.match(browser, /<MediaDiscoveryPanel/);
   assert.match(browser, /onExploreVideoPage=\{exploreVideoPage\}/);
-  assert.match(browser, /Back to listing/);
+  assert.match(browser, /Back to previous page/);
   assert.match(panel, /Explore video pages/);
   assert.match(panel, /onExploreVideoPage\?\.\(page\)/);
   assert.match(panel, /Searching this video page for the playable stream/);
@@ -88,7 +88,7 @@ test("source resolver limits automatic crawl to selected page and explicit neste
   const route = fs.readFileSync("app/api/video-sources/route.js", "utf8");
   assert.match(route, /discoverEmbeddedPlayerUrls\(html, finalUrl, \{ limit: 2 \}\)/);
   assert.match(route, /validatePublicUrl\(frame\)/);
-  assert.match(route, /safeFetch\(checkedFrame\.url\.href/);
+  assert.match(route, /fetchWithRegionFallback\(checkedFrame\.url\.href/);
   assert.match(route, /guardProxyRequest\(request, "discovery"\)/);
   assert.match(route, /nestedSources/);
   assert.doesNotMatch(route, /Promise\.all\(.*frames/);
