@@ -320,10 +320,13 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
     </div>
 
     {status === "loading" && <div className="vv-media-message" role="status">Inspecting images, video players and individual media links…</div>}
-    {isDirectImageUrl(pageUrl) && (status === "browser" || status === "error" || result?.pageLevel === "image") &&
-      <ImageAccessPanel imageUrl={result?.media?.find(x=>x.type==="image")?.url||pageUrl}
+    {(isDirectImageUrl(pageUrl)||focusedVideo?.type==="image") &&
+      (status === "browser" || status === "error" || result?.pageLevel === "image") &&
+      <ImageAccessPanel
+        imageUrl={isDirectImageUrl(pageUrl)?(result?.media?.find(x=>x.type==="image")?.url||pageUrl):(focusedVideo?.thumbnail||"")}
         title={focusedVideo?.title||result?.pageTitle||"Original image"}
-        denied={status==="browser"} sourcePage={pageUrl}/>}
+        denied={status==="browser"} sourcePage={pageUrl}
+        coverOnly={!isDirectImageUrl(pageUrl)}/>} 
 
     {(status === "error" || status === "browser") && <div className="vv-media-message" role="alert">{error}
       <button type="button" onClick={() => { clearBrowserFirst(pageUrl); scan(pageUrl,true); }}>Retry scan</button>
