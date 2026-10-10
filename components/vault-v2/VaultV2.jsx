@@ -382,7 +382,7 @@ export default function VaultV2({ route = "home" }) {
   };
 
   const displayItems = useMemo(
-    () => resolveMediaPreviews(items.filter((item) => !isHiddenLibraryItem(item)), coverLibrary),
+    () => resolveMediaPreviews(items, coverLibrary).filter((item) => !isHiddenLibraryItem(item)),
     [items, coverLibrary]
   );
   const hiddenItems = useMemo(() => items.filter(isHiddenLibraryItem), [items]);
