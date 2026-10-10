@@ -6,6 +6,8 @@ import { isPlayableVideoSource, uniqueVideoSources, prepareVideoToSave } from "@
 import VideoPreviewModal from "./VideoPreviewModal";
 import GalleryImporter, { ImageDetailPanel } from "./GalleryImporter";
 import SourceInspector from "./SourceInspector";
+import CapturedMediaImport from "./CapturedMediaImport";
+import { siteNeedsBrowser, markSiteBrowserFirst, clearBrowserFirst, isWebsiteAccessDenial } from "@/lib/browser-first-fallback.mjs";
 import { itemKey, sourceIdOf } from "@/lib/utils";
 
 const truncate = (text, max = 80) => String(text || "").length > max ? String(text).slice(0, max - 1) + "…" : String(text || "");
@@ -41,7 +43,7 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
   const abort = useRef(null);
   const seq = useRef(0);
 
-  const scan = async (url) => {
+  const scan = async (url, force = false) => {
     if (!url) return;
     abort.current?.abort();
     const controller = new AbortController();
@@ -49,6 +51,11 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
     const ticket = ++seq.current;
     setStatus("loading"); setResult(null); setSelected([]); setExtra([]); setResolvedSources({});
     setError(""); setSaveReport("");
+    if (!force && siteNeedsBrowser(url)) {
+      setStatus("browser");
+      setError("This site has already declined automated scanning in this browser session. Use browser capture or retry once.");
+      return;
+    }
     try {
       if (SECURITY_V2_ENABLED) await ensureProxySession();
       const request = () => fetch("/api/media-discovery?url=" + encodeURIComponent(url), { signal: controller.signal, credentials: "same-origin", cache: "no-store" });
@@ -58,7 +65,15 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
         response = await request();
       }
       const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Media discovery failed (HTTP " + response.status + ")");
+      if (!response.ok) {
+        if (isWebsiteAccessDenial(response, data)) {
+          markSiteBrowserFirst(url);
+          setStatus("browser");
+          setError(data.error || "The site denied server-side scanning. Use browser capture.");
+          return;
+        }
+        throw new Error(data.error || "Media discovery failed (HTTP " + response.status + ")");
+      }
       if (controller.signal.aborted || ticket !== seq.current) return;
       setResult(data);
       setStatus("done");
@@ -275,11 +290,12 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
     </div>
 
     {status === "loading" && <div className="vv-media-message" role="status">Inspecting images, video players and individual media links…</div>}
-    {status === "error" && <div className="vv-media-message" role="alert">{error}
-      <button type="button" onClick={() => scan(pageUrl)}>Retry</button>
+    {(status === "error" || status === "browser") && <div className="vv-media-message" role="alert">{error}
+      <button type="button" onClick={() => { clearBrowserFirst(pageUrl); scan(pageUrl,true); }}>Retry scan</button>
       <button type="button" onClick={() => onLoginToWebsite?.()}>Open original website</button>
       <p>A 403 can mean the source blocks automated scanning even when it opens normally in your browser. Vault cannot transfer the website's browser session to its server. Open the original site, then use Chrome Media Capture to import media from pages you can access. You can always save the original page URL in Vault.</p>
     </div>}
+    {status === "browser" && <CapturedMediaImport pageUrl={pageUrl} folder={folder} onSave={onSave} existingUrls={[...existingUrls,...savedThisSession]}/>} 
     {status === "done" && !items.length && !(result?.videoPages || []).length && !(result?.imagePages || []).length && <div className="vv-media-message">No links were visible in this page's HTML. Some sites load them dynamically; try the Chrome capture extension or visit the individual video page.</div>}
     {result?.truncated && <p className="vv-media-note">This page contains more media than the current scan limit. The highest-confidence matches are shown.</p>}
     {result?.filteredAds > 0 && <p className="vv-media-note">{result.filteredAds} advertising or invalid URL candidates excluded.</p>}
