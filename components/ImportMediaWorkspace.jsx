@@ -7,6 +7,7 @@ import { buildGeneratorUrlItem, normalizeGeneratorPublicUrl } from "@/lib/genera
 import SourceInspector from "./SourceInspector";
 import ImportGallerySection from "./ImportGallerySection";
 import CapturedMediaImport from "./CapturedMediaImport";
+import GalleryUrlBatchImport from "./GalleryUrlBatchImport";
 import LocalGalleryRecovery from "./LocalGalleryRecovery";
 import { withDiscreetMediaLabels } from "@/lib/private-media-labels.mjs";
 
@@ -128,7 +129,6 @@ export default function ImportMediaWorkspace({ userId, folders=[], items=[], onS
       <span><strong>Discreet titles and notes</strong><small style={{display:"block",opacity:.75}}>On by default. Saved cards use neutral names and notes. Original URLs are kept so links still work. This does not hide your browser history or encrypt external links.</small></span>
     </label>
 
-    <LocalGalleryRecovery sourceUrl={sourceUrl} uploading={uploading} onImportFiles={importFiles}/>
     <section className="vv-generator-url-primary" aria-label="Save URL to Vault">
       <div className="v2-eyebrow">PRIMARY · SAVE THE LINK</div>
       <h3>1. Save URL to Vault</h3>
@@ -165,6 +165,9 @@ export default function ImportMediaWorkspace({ userId, folders=[], items=[], onS
       </div>
     </section>
 
+    <GalleryUrlBatchImport folder={folder} onSave={saveToVault} onCreateFolder={onCreateFolder}
+      existingUrls={items.map(item=>item.url||item.canonical_url).filter(Boolean)}/>
+
     <SourceInspector pageUrl={sourceUrl} folder={folder} onSave={saveToVault}
       existingUrls={items.map(item=>item.url||item.canonical_url).filter(Boolean)}/>
 
@@ -175,6 +178,8 @@ export default function ImportMediaWorkspace({ userId, folders=[], items=[], onS
 
     <CapturedMediaImport pageUrl={sourceUrl} folder={folder} onSave={saveToVault}
       existingUrls={items.map(item=>item.url||item.canonical_url).filter(Boolean)}/>
+
+    <LocalGalleryRecovery sourceUrl={sourceUrl} uploading={uploading} onImportFiles={importFiles}/>
 
     <section className="vv-generator-section">
       <div className="v2-eyebrow">OPTIONAL · ACTUAL FILE</div>

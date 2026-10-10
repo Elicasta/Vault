@@ -21,7 +21,7 @@ function DetailPreview({ item, isImage }) {
   const [idx, setIdx] = useState(0);
 
   const rawCandidates = useMemo(() => {
-    const provider = getThumbCandidates(item?.url || "");
+    const provider = item?.type==="link" ? [] : getThumbCandidates(item?.url || "");
     return [...new Set([
       item?.display_thumbnail,
       item?.thumbnail,
@@ -39,7 +39,7 @@ function DetailPreview({ item, isImage }) {
   useEffect(() => {
     setIdx(0);
     setMetaThumb("");
-    if (!item?.url) return;
+    if (!item?.url || item?.type==="link") return;
     let active = true;
     fetch(`/api/metadata?url=${encodeURIComponent(item.url)}`, { cache: "no-store" })
       .then((r) => r.ok ? r.json() : null)
@@ -52,7 +52,7 @@ function DetailPreview({ item, isImage }) {
   }, [item?.key, item?.url]);
 
   const src = candidates[idx] || "";
-  if (!src) return <div className="v2-detail-preview-fallback"><Icon name={isImage ? "grid" : "video"} size={30}/><span>Preview unavailable</span></div>;
+  if (!src) return <div className="v2-detail-preview-fallback"><Icon name={item?.type==="link"?"link":isImage?"grid":"video"} size={30}/><span>{item?.type==="link"?"Saved gallery/page link":"Preview unavailable"}</span></div>;
 
   return (
     <img
@@ -87,6 +87,7 @@ export default function DetailDrawer({
 
   const source = useMemo(() => getSourceMeta(item?.url || ""), [item?.url]);
   const isImage = source.id === "image" || String(item?.type || "").toLowerCase().includes("image");
+  const isLink = item?.type==="link" && /^https?:\/\//i.test(item?.url||"");
   const duration = Number(state?.duration || 0);
   const progress = Number(state?.progress || 0);
   const progressPct = duration > 0 ? Math.max(0, Math.min(100, progress / duration * 100)) : 0;
@@ -188,7 +189,11 @@ export default function DetailDrawer({
           <div className="v2-detail-source">{source.name}{item.folder || state.folder ? ` · ${item.folder || state.folder}` : " · Inbox"}</div>
 
           <div className="v2-action-row">
-            <button type="button" className="v2-btn v2-btn-primary" onClick={() => onPlay(item)}><Icon name={isImage ? "zoomIn" : "play"} size={15} filled={!isImage}/> {isImage ? "Open image" : "Open / Play"}</button>
+            {isLink ?
+              <a className="v2-btn v2-btn-primary" href={item.url} target="_blank" rel="noopener noreferrer">
+                <Icon name="link" size={15}/> Open original gallery
+              </a> :
+              <button type="button" className="v2-btn v2-btn-primary" onClick={() => onPlay(item)}><Icon name={isImage ? "zoomIn" : "play"} size={15} filled={!isImage}/> {isImage ? "Open image" : "Open / Play"}</button>}
             <button type="button" className="v2-btn" onClick={() => onRemoveFromLibrary?.(item)} title="Hide without deleting the URL"><Icon name="eyeOff" size={15}/> Remove from Library</button>
             <button type="button" className="v2-btn" onClick={() => onFavorite(item.key, !!state.favorite)}>
               <Icon name="star" size={15} filled={!!state.favorite}/>{state.favorite ? "Favorited" : "Favorite"}

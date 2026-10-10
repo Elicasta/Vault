@@ -294,3 +294,39 @@ input[type="range"] { accent-color: #fff; }
  .vv-local-gallery-recovery{padding:14px}
  .vv-local-gallery-actions button,.vv-local-gallery-actions a{flex:1 1 140px}
 }
+
+
+/* Gallery URL-first import: no image download / no need for remote HTML access. */
+.vv-gallery-url-saver,.vv-url-list-import{display:grid;gap:12px;min-width:0}
+.vv-gallery-url-saver{border:1px solid rgba(255,255,255,.18);background:#1b2230;border-radius:12px;padding:14px;margin:12px 0}
+.vv-gallery-url-saver-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;flex-wrap:wrap}
+.vv-gallery-url-saver-head h4{margin:0;font-size:14px;color:#f6f7fb}
+.vv-gallery-url-saver-head p{margin:5px 0 0;font-size:12px;color:#c7d1e1;line-height:1.6}
+.vv-gallery-url-saver-head>span{color:#c7defc;font-size:12px;white-space:nowrap}
+.vv-gallery-url-saver-actions,.vv-url-list-toolbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.vv-gallery-url-saver-actions button,.vv-url-list-toolbar button{padding:9px 12px;border-radius:9px;color:#eff3fc;background:#3a4254;border:1px solid rgba(255,255,255,.2);cursor:pointer;font-size:12px;font-weight:700}
+.vv-gallery-url-saver-actions button:disabled,.vv-url-list-toolbar button:disabled{opacity:.45;cursor:not-allowed}
+.vv-gallery-url-saver-actions .vv-gallery-url-saver-save,.vv-url-list-toolbar button:last-child{background:#e8edf7;color:#141b2a}
+.vv-gallery-url-saver-list,.vv-url-list-results{display:grid;gap:5px;max-height:325px;overflow-y:auto;padding:2px}
+.vv-gallery-url-saver-item,.vv-url-list-row{display:flex;align-items:center;gap:10px;min-width:0;padding:11px 10px;background:#171b24;border:1px solid rgba(255,255,255,.11);border-radius:9px}
+.vv-gallery-url-saver-item input,.vv-url-list-row input{flex:none}
+.vv-gallery-url-saver-item>span,.vv-url-list-row>span{display:grid;gap:3px;min-width:0;flex:1}
+.vv-gallery-url-saver-item strong,.vv-url-list-row strong{font-size:12px;color:#f1f4f9;overflow-wrap:anywhere}
+.vv-gallery-url-saver-item small,.vv-url-list-row small{font-size:10px;color:#b1bdd1}
+.vv-gallery-url-saver-item a,.vv-url-list-row a{font-size:11px;color:#a8c8fa;text-overflow:ellipsis;white-space:nowrap;overflow:hidden;display:block}
+.vv-url-list-fields{display:grid;gap:11px}
+.vv-url-list-fields label{display:grid;gap:7px;font-size:12px;color:#cfdbeb}
+.vv-url-list-fields textarea,.vv-url-list-fields input{width:100%;min-width:0;background:#101521;color:#eef1fb;border:1px solid rgba(255,255,255,.2);border-radius:9px;padding:10px;font-size:12px}
+.vv-url-list-fields textarea{line-height:1.6}
+.vv-url-list-fields>button{justify-self:start;padding:10px 13px;border:1px solid rgba(255,255,255,.25);border-radius:9px;background:#e7edf7;color:#111827;font-size:12px;font-weight:700;cursor:pointer}
+.vv-url-list-toolbar>strong{font-size:12px;margin-right:auto}
+.vv-url-list-results>p{font-size:11px;color:#adbbd0}
+.vv-blocked-gallery-link{display:grid;gap:9px;padding:14px;border-radius:11px;background:#2a3441;border:1px solid rgba(255,255,255,.18);margin-bottom:12px}
+.vv-blocked-gallery-link strong{font-size:13px;color:#f7f9ff}
+.vv-blocked-gallery-link p{margin:0;font-size:12px;color:#cdd6e7;overflow-wrap:anywhere}
+.vv-blocked-gallery-link button{justify-self:start;padding:10px;border-radius:9px;background:#f3f6fd;color:#151b28;border:0;cursor:pointer;font-size:12px;font-weight:700}
+@media(max-width:650px){
+ .vv-gallery-url-saver,.vv-url-list-import{padding:12px}
+ .vv-gallery-url-saver-actions button,.vv-url-list-toolbar button{flex:1 1 130px}
+ .vv-gallery-url-saver-list,.vv-url-list-results{max-height:270px}
+}

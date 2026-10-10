@@ -13,10 +13,12 @@ function pct(data) {
 
 export default function MediaCard({ item, state = {}, onOpen }) {
   const source = getSourceMeta(item.url || "");
+  const isLink = item.type === "link";
   const candidates = useMemo(() => {
-    const list = [item.display_thumbnail, item.thumbnail, ...getThumbCandidates(item.url || "")].filter(Boolean);
+    // A blocked gallery is a link. Never guess its image URL from the page path.
+    const list = [item.display_thumbnail, item.thumbnail, ...(isLink ? [] : getThumbCandidates(item.url || ""))].filter(Boolean);
     return [...new Set(list)];
-  }, [item.display_thumbnail, item.thumbnail, item.url]);
+  }, [item.display_thumbnail, item.thumbnail, item.url, isLink]);
   const [index, setIndex] = useState(0);
   const thumb = candidates[index] ? proxiedMediaUrl(candidates[index]) : "";
   const progress = pct(state);
@@ -31,7 +33,7 @@ export default function MediaCard({ item, state = {}, onOpen }) {
         aria-label={`Open ${item.title || "media"}`}
       >
         <div className="v2-art">
-          <div className="v2-art-fallback"><Icon name={isImage ? "grid" : "play"} size={28} /></div>
+          <div className="v2-art-fallback"><Icon name={isLink ? "link" : isImage ? "grid" : "play"} size={28} /></div>
           {thumb ? (
             <img
               src={thumb}
@@ -42,14 +44,14 @@ export default function MediaCard({ item, state = {}, onOpen }) {
             />
           ) : null}
           <div className="v2-art-shade" />
-          <div className="v2-playbubble"><Icon name={isImage ? "zoomIn" : "play"} size={17} filled={!isImage} /></div>
+          <div className="v2-playbubble"><Icon name={isLink ? "link" : isImage ? "zoomIn" : "play"} size={17} filled={!isImage&&!isLink} /></div>
           {state.favorite ? <div className="v2-favbadge" aria-label="Favorite"><Icon name="star" size={15} filled /></div> : null}
           <SyncBadge entityKey={item.key} style={{ left: 10, right: "auto", top: 10, bottom: "auto" }} />
         </div>
         <div className="v2-card-meta">
           <div className="v2-card-title" title={item.title || item.url}>{item.title || item.url}</div>
           <div className="v2-card-sub">
-            <span>{source.name}</span>
+            <span>{isLink ? "Saved gallery link" : source.name}</span>
             {state.rating ? <><span className="v2-dot" /><span>★ {state.rating}</span></> : null}
             {item.folder || state.folder ? <><span className="v2-dot" /><span>{item.folder || state.folder}</span></> : null}
           </div>
