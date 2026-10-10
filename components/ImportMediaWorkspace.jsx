@@ -7,6 +7,7 @@ import { buildGeneratorUrlItem, normalizeGeneratorPublicUrl } from "@/lib/genera
 import SourceInspector from "./SourceInspector";
 import ImportGallerySection from "./ImportGallerySection";
 import CapturedMediaImport from "./CapturedMediaImport";
+import LocalGalleryRecovery from "./LocalGalleryRecovery";
 import { withDiscreetMediaLabels } from "@/lib/private-media-labels.mjs";
 
 function safeFileName(name) {
@@ -67,7 +68,7 @@ export default function ImportMediaWorkspace({ userId, folders=[], items=[], onS
   };
 
   const importFiles=useCallback(async incoming=>{
-    const files=Array.from(incoming||[]).filter(Boolean).slice(0,20);
+    const files=Array.from(incoming||[]).filter(Boolean).slice(0,50);
     if(!files.length||uploading)return;
     setUploading(true);setError("");setStatus("");
     let saved=0,failed=0;
@@ -127,6 +128,7 @@ export default function ImportMediaWorkspace({ userId, folders=[], items=[], onS
       <span><strong>Discreet titles and notes</strong><small style={{display:"block",opacity:.75}}>On by default. Saved cards use neutral names and notes. Original URLs are kept so links still work. This does not hide your browser history or encrypt external links.</small></span>
     </label>
 
+    <LocalGalleryRecovery sourceUrl={sourceUrl} uploading={uploading} onImportFiles={importFiles}/>
     <section className="vv-generator-url-primary" aria-label="Save URL to Vault">
       <div className="v2-eyebrow">PRIMARY · SAVE THE LINK</div>
       <h3>1. Save URL to Vault</h3>
@@ -168,6 +170,7 @@ export default function ImportMediaWorkspace({ userId, folders=[], items=[], onS
 
     <ImportGallerySection pageUrl={sourceUrl} folder={folder} folders={folders}
       onFolderChange={setFolder} onCreateFolder={onCreateFolder} onSave={saveToVault}
+      onImportFiles={importFiles} uploading={uploading}
       existingUrls={items.map(item=>item.url||item.canonical_url).filter(Boolean)}/>
 
     <CapturedMediaImport pageUrl={sourceUrl} folder={folder} onSave={saveToVault}
@@ -182,7 +185,7 @@ export default function ImportMediaWorkspace({ userId, folders=[], items=[], onS
         onDragLeave={()=>setDragging(false)}
         onDrop={e=>{e.preventDefault();setDragging(false);if(e.dataTransfer?.files?.length)importFiles(e.dataTransfer.files);}}>
         <strong>Drop an image, video, audio file, or clean screenshot</strong>
-        <span>Or select files from your device · up to 50 MB each</span>
+        <span>Or select up to 50 files at a time · up to 50 MB each</span>
         <input ref={fileRef} type="file" accept="image/*,video/*,audio/*" multiple
           aria-label="Select media files to upload" onChange={e=>importFiles(e.target.files)} disabled={uploading}/>
         <small>Images copied to your clipboard can also be pasted while this import area is focused.</small>
