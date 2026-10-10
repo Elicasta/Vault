@@ -9,7 +9,7 @@ test("image-only gallery cards become navigable video pages, not saved images or
   const html = [
     "<title>Video Gallery</title>",
     '<a href="/post/clip-1" class="gallery-item"><img alt="First clip" src="/covers/one.webp"></a>',
-    '<a href="/content/clip-2"><img alt="Second clip" src="/covers/two.webp"></a>',
+    '<a href="/content/abcdef"><img alt="Gallery item two" src="/covers/two.webp"></a>',
     '<a href="/login"><img alt="Login" src="/covers/login.webp"></a>',
     '<a href="https://doubleclick.net/ads/preroll"><img src="/covers/ad.webp"></a>',
     '<a href="/image.jpg"><img alt="Photo" src="/covers/photo.webp"></a>',
@@ -17,7 +17,7 @@ test("image-only gallery cards become navigable video pages, not saved images or
   const result = discoverMedia(html, page);
   assert.equal(result.videoPages.length, 2);
   const urls = result.videoPages.map((p) => p.url);
-  assert.deepEqual(urls, ["https://demo.example/post/clip-1", "https://demo.example/content/clip-2"]);
+  assert.deepEqual(urls, ["https://demo.example/post/clip-1", "https://demo.example/content/abcdef"]);
   assert.equal(result.videoPages[0].thumbnail, "https://demo.example/covers/one.webp");
   assert.equal(result.videoPages[1].confidence, "possible-detail");
   assert.equal(result.media.some((m) => m.url === result.videoPages[0].thumbnail), false, "Cover belongs to video page, not standalone image result");
