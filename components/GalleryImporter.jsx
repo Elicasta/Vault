@@ -178,7 +178,7 @@ export default function GalleryImporter({ result, folder, onSave, existingUrls =
       </div>
       <p>Scans up to 6 linked gallery pages and 160 media candidates, preferring full-resolution image links. Existing URLs are skipped. Vault saves links, not downloaded copies.</p>
       <div className="vv-gallery-actions">
-        <button type="button" onClick={importGallery} disabled={working}>{working ? "Importing gallery…" : "Save entire gallery (" + count + " candidates)"}</button>
+        <button type="button" onClick={importGallery} disabled={working}>{working ? "Saving URLs to Vault…" : "Save entire gallery to Vault (" + count + " URLs)"}</button>
         {working && <button type="button" onClick={() => { cancelRef.cancelled = true; }}>Cancel</button>}
       </div>
     </div>}
