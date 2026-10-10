@@ -57,3 +57,43 @@ input[type="range"] { accent-color: #fff; }
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Venice + Perchance: permanent generator capture workspaces */
+.vv-generator-workspace{display:grid;gap:18px;color:#efeff3;min-width:0}
+.vv-generator-header{display:flex;align-items:flex-start;justify-content:space-between;gap:18px;border-bottom:1px solid rgba(255,255,255,.12);padding-bottom:20px}
+.vv-generator-header h2{font-size:clamp(24px,3vw,34px);font-weight:750;letter-spacing:-.035em;margin:6px 0 8px}
+.vv-generator-header p,.vv-generator-section p,.vv-generator-backup p{font-size:13px;color:#a7a9b5;line-height:1.65;max-width:650px}
+.vv-generator-open,.vv-generator-section button,.vv-drive-backup-actions button{display:inline-flex;align-items:center;justify-content:center;gap:8px;white-space:normal;max-width:100%;padding:11px 14px;text-decoration:none;border-radius:11px;background:#efeff2;color:#16171c;border:1px solid rgba(255,255,255,.15);font-size:13px;font-weight:730;cursor:pointer}
+.vv-generator-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.vv-generator-section,.vv-generator-backup,.vv-generator-recent{background:#111216;border:1px solid rgba(255,255,255,.11);padding:20px;border-radius:16px;min-width:0}
+.vv-generator-section h3,.vv-generator-backup h3,.vv-generator-recent h3{font-size:15px;margin:0 0 10px;font-weight:720}
+.vv-generator-section label{display:grid;gap:7px;margin:12px 0;color:#cecfd8;font-size:12px}
+.vv-generator-section input[type=url],.vv-generator-section select{font-size:16px;min-width:0;width:100%;padding:10px 11px;border:1px solid #3a3c47;border-radius:9px;color:#e9e9ee;background:#202127}
+.vv-generator-drop{display:flex;flex-direction:column;align-items:center;text-align:center;gap:11px;border:1px dashed #666979;background:#1d1f28;border-radius:13px;padding:23px 15px;min-width:0}
+.vv-generator-drop.dragging{border-color:#aabfe9;background:#242838}
+.vv-generator-drop strong{font-size:13px;line-height:1.5}
+.vv-generator-drop span,.vv-generator-drop small{font-size:11px;color:#9fa4b5;line-height:1.55}
+.vv-generator-drop input[type=file]{display:block;max-width:100%;font-size:12px}
+.vv-generator-error{color:#ffbcbc!important;overflow-wrap:anywhere}
+.vv-generator-recent>div{display:grid;gap:8px}
+.vv-generator-recent>div>div{display:flex;justify-content:space-between;gap:10px;border-top:1px solid rgba(255,255,255,.08);padding:8px 0;font-size:12px;min-width:0}
+.vv-generator-recent>div>div>span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.vv-generator-recent>div>div>small{color:#a5a5b3}
+.vv-drive-backup{border:1px solid rgba(255,255,255,.15);border-radius:12px;padding:16px;background:#191b24;margin:16px 0;min-width:0}
+.vv-drive-backup h3{font-size:15px;margin:5px 0 8px}
+.vv-drive-backup p{font-size:12px;color:#c1c3cd;line-height:1.55;overflow-wrap:anywhere}
+.vv-drive-backup-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+.vv-drive-backup-status{border:1px solid #474955;background:#262830;padding:7px 9px;color:#d2d4df;font-size:11px;border-radius:8px}
+.vv-drive-backup-setup{padding:12px;background:#252536;border:1px solid #55516a;border-radius:9px;font-size:12px;color:#d5d4e5;line-height:1.55}
+.vv-drive-backup-setup code{overflow-wrap:anywhere}
+.vv-drive-backup-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:14px 0}
+.vv-drive-backup-actions a{font-size:12px;color:#c8d5fa}
+.vv-drive-backup-actions button:disabled{opacity:.4}
+.vv-drive-backup-links{display:grid;gap:5px;font-size:12px}
+.vv-drive-backup-links a{color:#cddcf6;overflow-wrap:anywhere}
+.vv-drive-backup-note{font-size:11px!important;color:#999ba9!important}
+.vv-drive-fallback{margin-top:14px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);padding:12px;border-radius:10px;font-size:12px;display:grid;gap:8px}
+.vv-drive-fallback button{padding:10px;background:#ededf1;border:0;border-radius:9px;color:#14141a;font-weight:730;cursor:pointer;justify-self:start}
+.vv-drive-fallback a{color:#d1dcf8}
+.vv-drive-google-button{min-height:20px}
+@media(max-width:800px){.vv-generator-grid{grid-template-columns:minmax(0,1fr)}.vv-generator-header{flex-direction:column}.vv-generator-section{padding:16px}.vv-generator-open{width:100%}}
