@@ -301,7 +301,7 @@ export default function MediaDiscoveryPanel({ pageUrl, folder, folders, onFolder
     {(status === "error" || status === "browser") && <div className="vv-media-message" role="alert">{error}
       <button type="button" onClick={() => { clearBrowserFirst(pageUrl); scan(pageUrl,true); }}>Retry scan</button>
       <button type="button" onClick={() => onLoginToWebsite?.()}>Open original website</button>
-      <p>Some addresses return downloads, API data, or browser-only pages rather than readable HTML. Other sites block server access. Vault cannot transfer website cookies to its scanner. Open the original page to use its own Download action, or import Chrome-captured URLs; saving the page URL is always available.</p>
+      <p>Some addresses return downloads, API data, or browser-only pages rather than readable HTML. Other sites block server access. Website cookies cannot be transferred to Vault's server scanner. Open the original page to use its own Download action, or import Chrome-captured URLs; saving the page URL is always available.</p>
     </div>}
     {status === "browser" && <><p className="vv-media-note">{isEliteBabesUrl(pageUrl) ? "This site has a gallery adapter; when its page is unavailable to Vault, use the original website and capture accessible media in your own browser." : "This site requires a browser-first import. Review and save its accessible media directly in Vault below."}</p>
       <CapturedMediaImport pageUrl={pageUrl} folder={folder} onSave={onSave} existingUrls={[...existingUrls,...savedThisSession]}/></>}
