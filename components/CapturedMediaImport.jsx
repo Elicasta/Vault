@@ -3,6 +3,8 @@
 import { useMemo, useState } from "react";
 import { buildVaultMediaItem, parseCapturedMedia } from "@/lib/media-capture-import.mjs";
 import { itemKey, sourceIdOf } from "@/lib/utils";
+import { browserGalleryBookmarklet } from "@/lib/browser-gallery-capture.mjs";
+import ResilientImage from "./ResilientImage";
 
 // Use media already loaded by a user's normal browser, never imitate their
 // cookies or try to defeat HTTP 403 in Vault's server-side fetch.
@@ -14,14 +16,25 @@ export default function CapturedMediaImport({ pageUrl = "", onSave, folder = "",
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [savedLocally, setSavedLocally] = useState([]);
+  const [setupOpen,setSetupOpen] = useState(false);
+  const [copyStatus,setCopyStatus] = useState("");
   const existing = useMemo(() => new Set([...existingUrls, ...savedLocally]), [existingUrls, savedLocally]);
   const pending = entries.filter(item => selected.includes(item.url) && !existing.has(item.url));
+
+  const copyCaptureAction = async () => {
+    setCopyStatus("");
+    try {
+      await navigator.clipboard.writeText(browserGalleryBookmarklet());
+      setCopyStatus("Capture Gallery bookmarklet copied. Follow the Safari setup steps below.");
+      setSetupOpen(true);
+    } catch { setSetupOpen(true);setCopyStatus("Clipboard unavailable. You can select and copy the bookmarklet code below."); }
+  };
 
   const inspect = () => {
     setError(""); setStatus("");
     try {
       const list = parseCapturedMedia(payload, pageUrl);
-      if (!list.length) throw new Error("No image or video URLs found. In Chrome, open the page, run Vault Media Capture, and copy the selected links.");
+      if (!list.length) throw new Error("No media links were found. Open the actual gallery in your browser, scroll until its images load, then run Capture Gallery and paste its results here.");
       setEntries(list);
       setSelected(list.map(item => item.url));
       setStatus(list.length + " media links loaded. Review your selection before importing.");
@@ -53,13 +66,31 @@ export default function CapturedMediaImport({ pageUrl = "", onSave, folder = "",
   };
 
   return <section className="vv-capture-import vv-generator-section" aria-label="Import browser-captured media">
-    <div className="v2-eyebrow">BROWSER-FIRST FALLBACK · ALL WEBSITES</div>
-    <h3>2b. Import from your browser</h3>
-    <p>When a site rejects automated scanning (403), open it normally in desktop Chrome. Vault Media Capture reads image and video URLs already loaded in that tab. Copy selected URLs, paste them below, and save them without sending cookies or passwords to Vault.</p>
+    <div className="v2-eyebrow">BROWSER-FIRST · 403-SAFE WORKFLOW</div>
+    <h3>Import from the website you're viewing</h3>
+    <p>When Vault's server cannot inspect a gallery, capture the public image URLs already shown in your browser. This works with many layouts without a custom website adapter. It does not circumvent access restrictions or download restricted files.</p>
     {pageUrl && /^https?:\/\//i.test(pageUrl) && <p>
       <a href={pageUrl} target="_blank" rel="noopener noreferrer">Open the original page</a>
     </p>}
-    <p>Desktop Chrome only. On iPhone or iPad, save the original page URL or use the site's permitted download option followed by Upload a permanent copy.</p>
+    <div className="vv-browser-capture-install">
+      <div>
+        <strong>Safari on iPhone / iPad</strong>
+        <p>Set up a Capture Gallery bookmark once. In Safari, open a photo gallery normally, let its images load, then run that bookmark. Return here and paste the image list.</p>
+        <button type="button" onClick={copyCaptureAction}>Copy Safari Capture Gallery bookmarklet</button>
+        <button type="button" onClick={()=>setSetupOpen(x=>!x)} aria-expanded={setupOpen}>{setupOpen?"Hide setup":"Show setup steps"}</button>
+      </div>
+      <div>
+        <strong>Chrome on desktop</strong>
+        <p>Open the gallery normally and run Vault Media Capture. Choose the images and click Copy. Paste them into Vault below.</p>
+      </div>
+    </div>
+    {copyStatus&&<p role="status">{copyStatus}</p>}
+    {setupOpen&&<div className="vv-browser-capture-steps">
+      <p><strong>Safari setup (once):</strong> Bookmark any webpage in Safari. Edit that bookmark, name it <em>Capture Gallery</em>, replace its address with the copied code, then save.</p>
+      <p><strong>For each gallery:</strong> Open it on the original website, scroll until its pictures load, run the Capture Gallery bookmark, then copy its results and return to Vault.</p>
+      <p>If Safari prevents clipboard access, the bookmarklet shows a text box for manual copy. Some embedded browsers and websites prevent bookmarklets.</p>
+      <textarea aria-label="Safari Capture Gallery bookmarklet code" readOnly value={browserGalleryBookmarklet()} rows={3} onFocus={e=>e.currentTarget.select()} />
+    </div>}
     <textarea rows={4} value={payload} onChange={e => setPayload(e.target.value)}
       placeholder="Paste the JSON copied from Vault Media Capture, or image/video URLs one per line"
       aria-label="Browser-captured media links" disabled={busy}/>
@@ -72,9 +103,7 @@ export default function CapturedMediaImport({ pageUrl = "", onSave, folder = "",
       <p>{entries.length} detected · {pending.length} selected and not already saved.</p>
       <div className="vv-import-gallery-items" style={{maxHeight:360,overflowY:"auto"}}>
         {entries.map((item) => <label key={item.url} className="vv-browser-captured-item" style={{display:"flex",flexDirection:"column",gap:6,padding:8,alignItems:"start",cursor:"pointer"}}>
-          <img src={"/api/media?url=" + encodeURIComponent(item.thumbnail || item.url)} alt="" loading="lazy"
-            referrerPolicy="no-referrer" style={{width:"100%",height:130,objectFit:"contain",background:"#101015"}}
-            onError={e => { const direct = item.thumbnail || item.url; if(e.currentTarget.src !== direct) e.currentTarget.src = direct; else e.currentTarget.style.display="none"; }} />
+          <ResilientImage url={item.thumbnail || item.url} alt="" className="vv-browser-capture-thumb" />
           <span style={{display:"flex",gap:6,alignItems:"center",fontSize:12}}>
             <input type="checkbox" checked={existing.has(item.url) || selected.includes(item.url)} disabled={busy || existing.has(item.url)}
               onChange={e => setSelected(old => e.target.checked ? [...old,item.url] : old.filter(url => url !== item.url))} />
@@ -87,6 +116,6 @@ export default function CapturedMediaImport({ pageUrl = "", onSave, folder = "",
     </div>}
     {status && <p role="status">{status}</p>}
     {error && <p role="alert">{error}</p>}
-    <small>Original URLs remain subject to the source site's access rules. Expiring links may need a file upload instead.</small>
+    <small>Vault saves source URLs, not the image bytes. Captured links may expire or fail outside the source site. For permanent storage, use the original website's permitted Save Image action and upload the downloaded file.</small>
   </section>;
 }

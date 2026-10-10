@@ -4,10 +4,11 @@ import { useEffect, useRef, useState } from "react";
 import { ensureProxySession, SECURITY_V2_ENABLED } from "@/lib/security-session";
 import GalleryImporter, { ImageDetailPanel } from "./GalleryImporter";
 import SourceInspector from "./SourceInspector";
+import CapturedMediaImport from "./CapturedMediaImport";
 import ResilientImage from "./ResilientImage";
 import ImageAccessPanel from "./ImageAccessPanel";
 import { isDirectImageUrl, shouldRememberSiteDenied } from "@/lib/media-access-fallback.mjs";
-import { siteNeedsBrowser, markSiteBrowserFirst, clearBrowserFirst, isWebsiteAccessDenial, isUnsupportedDiscoveryResponse } from "@/lib/browser-first-fallback.mjs";
+import { pageNeedsBrowser, markPageBrowserFirst, clearPageBrowserFirst, isWebsiteAccessDenial, isUnsupportedDiscoveryResponse } from "@/lib/browser-first-fallback.mjs";
 
 function entry(url,title="Website",kind="page",thumbnail=""){return {url:String(url||""),title,kind,thumbnail};}
 const short=(value,max=55)=>String(value||"").length>max?String(value).slice(0,max-1)+"…":String(value||"");
@@ -39,7 +40,7 @@ export default function ImportGallerySection({
   const scan=async (requestedUrl=target,force=false)=>{
     const url=String(requestedUrl||"").trim();
     if(!/^https?:\/\//i.test(url)){setError("Enter the URL of a category or gallery page first.");return;}
-    if(!force&&shouldRememberSiteDenied(url)&&siteNeedsBrowser(url)){
+    if(!force&&shouldRememberSiteDenied(url)&&pageNeedsBrowser(url)){
       setStatus("browser");setError("This site denied an earlier scan. Open it normally or import browser-captured media.");setGallery(null);
       return;
     }
@@ -57,7 +58,7 @@ export default function ImportGallerySection({
       if(controller.signal.aborted)return;
       if(!response.ok){
         if(isWebsiteAccessDenial(response,data)){
-          if(shouldRememberSiteDenied(url))markSiteBrowserFirst(url);
+          if(shouldRememberSiteDenied(url))markPageBrowserFirst(url);
           setStatus("browser");
           setError(data.error||"Website blocks automated scanning.");return;
         }
@@ -124,7 +125,7 @@ export default function ImportGallerySection({
         <h3>2. Browse and import image galleries</h3>
         <p>Open a category first, then the gallery inside it. Browse its photos and import only when you've reached the actual gallery.</p>
       </div>
-      <button type="button" disabled={status==="loading"||!target} onClick={()=>{clearBrowserFirst(target);scan(target,true);}}>
+      <button type="button" disabled={status==="loading"||!target} onClick={()=>{clearPageBrowserFirst(target);scan(target,true);}}>
         {status==="loading"?"Loading…":gallery?"Rescan this page":"Scan page"}
       </button>
     </div>
@@ -150,6 +151,12 @@ export default function ImportGallerySection({
       <p>You can open the source page normally, use browser capture, or upload a downloaded image. This failed page doesn't prevent navigating to other gallery links.</p>
     </div>}
     {status==="loading"&&<p role="status">Opening the selected page and finding its child galleries or images…</p>}
+    {status==="browser"&&<div className="vv-gallery-browser-recovery">
+      <h4>Capture this gallery in your browser</h4>
+      <p>Vault's server was denied this page. Open this exact gallery on its original website, then capture the image links displayed in Safari or Chrome.</p>
+      <CapturedMediaImport key={target} pageUrl={target} folder={folder}
+        existingUrls={savedUrls} onSave={onSave}/>
+    </div>}
     {(blockedImage||level==="image")&&<ImageAccessPanel imageUrl={viewerUrl}
       title={current.title||"Original image"} denied={blockedImage} sourcePage={target} coverOnly={coverOnly}/>}
     {gallery&&<>

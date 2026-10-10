@@ -104,13 +104,13 @@ test("Vault shows browser-first collector inside its browser and import workspac
   const api = fs.readFileSync("app/api/media-discovery/route.js", "utf8");
   assert.match(browser, /onSave=\{saveToVault\}/);
   assert.match(browser, /useState\(true\).*discreetLabels|discreetLabels, setDiscreetLabels\] = useState\(true\)/);
-  assert.match(discovery, /siteNeedsBrowser/);
-  assert.match(discovery, /markSiteBrowserFirst/);
+  assert.match(discovery, /pageNeedsBrowser/);
+  assert.match(discovery, /markPageBrowserFirst/);
   assert.match(discovery, /ELITEBABES.*VAULT GALLERY ADAPTER/);
   assert.match(discovery, /<CapturedMediaImport/);
   assert.match(importer, /<CapturedMediaImport/);
   assert.match(importer, /withDiscreetMediaLabels/);
-  assert.match(gallery, /siteNeedsBrowser/);
+  assert.match(gallery, /pageNeedsBrowser/);
   assert.match(api, /enrichEliteBabesDiscovery/);
   assert.match(api, /SITE_ACCESS_DENIED/);
   assert.ok(!api.includes("cookie:"));
