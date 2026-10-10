@@ -340,7 +340,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
           <button onClick={() => setShowHistory((v) => !v)} style={toolBtn} title="History"><Icon name="clock" size={15} /></button>
         </div>
 
-        {searchQuery && <div className="vv-search-filters" role="group" aria-label="Search settings">
+        {(!currentUrl || searchQuery) && <div className="vv-search-filters" role="group" aria-label="Search settings">
           <div className="vv-search-mode-row">
             <span>Search mode</span>
             <div className="vv-search-modes" role="group" aria-label="SafeSearch">
@@ -511,6 +511,7 @@ function EmptySearch() {
 
 function SearchResults({ state, error, query, results, info, mode, page, onPreview, onSave, onOpen, onRetry, onPage, saving }) {
   const [hostFilter, setHostFilter] = useState("all");
+  useEffect(() => setHostFilter("all"), [query,mode,page,results]);
   const hosts = useMemo(()=>[...new Set(results.map(x=>x.host).filter(Boolean))].sort(),[results]);
   const visible = hostFilter==="all" ? results : results.filter(x=>x.host===hostFilter);
   return <div className="vv-search-results">
@@ -546,6 +547,10 @@ function SearchResults({ state, error, query, results, info, mode, page, onPrevi
     </>}
     <div className="vv-search-card-grid">
       {visible.map(r=><article key={r.url} className="vv-search-result-card">
+        {r.kind==="image" && /\.(?:jpe?g|png|webp|gif|avif)(?:$|[?#])/i.test(r.url) &&
+          <img className="vv-search-result-image" loading="lazy" alt={r.title}
+            src={"/api/media?url="+encodeURIComponent(r.url)}/>}
+
         <button className="vv-search-result-title" type="button" onClick={()=>onPreview(r)}>{r.title}</button>
         <div className="vv-search-result-metadata">
           <span>{r.host}</span><span>{r.kind==="media"?"Media":r.kind==="image"?"Image":r.kind==="video"?"Video":"Page"}</span>
