@@ -90,7 +90,7 @@ export default function CapturedMediaImport({ pageUrl = "", onSave, folder = "",
       <p><strong>For each gallery:</strong> Open it on the original website, scroll until its pictures load, run the Capture Gallery bookmark, then copy its results and return to Vault.</p>
       <p>If Safari prevents clipboard access, the bookmarklet shows a text box for manual copy. Some embedded browsers and websites prevent bookmarklets.</p>
       <textarea aria-label="Safari Capture Gallery bookmarklet code" readOnly value={browserGalleryBookmarklet()} rows={3} onFocus={e=>e.currentTarget.select()} />
-    </div>
+    </div>}
     <textarea rows={4} value={payload} onChange={e => setPayload(e.target.value)}
       placeholder="Paste the JSON copied from Vault Media Capture, or image/video URLs one per line"
       aria-label="Browser-captured media links" disabled={busy}/>
