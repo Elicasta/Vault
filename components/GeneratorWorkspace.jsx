@@ -65,6 +65,37 @@ export default function GeneratorWorkspace({ site = "venice", userId, folders = 
     finally{setSavingUrl(false);}
   };
 
+  // A Chrome Studio tab may request a URL save through the installed Vault
+  // companion. Only same-origin bridge events are accepted, and saving still
+  // uses the signed-in Vault account and regular user-scoped Supabase rules.
+  useEffect(() => {
+    const onCompanionSave = async (event) => {
+      if (event.source !== window || event.origin !== window.location.origin ||
+          event.data?.type !== "VAULT_STUDIO_AUTOSAVE") return;
+      const message = event.data;
+      let saved = false, error = "";
+      try {
+        if (!userId) throw new Error("Sign into Vault to save the URL.");
+        if (message.site !== site) throw new Error("Open the matching studio in Vault to save this link.");
+        const url = normalizeGeneratorPublicUrl(message.url);
+        if (!url) throw new Error("This isn't a durable public URL. Use image capture instead.");
+        const folder = config.folder;
+        if (!folders.some((f) => f.name === folder)) await onCreateFolder(folder);
+        const item = buildGeneratorUrlItem(url, {site,siteName:config.name,folder,keyOf:itemKey});
+        await onSave(item);
+        setSourceUrl(url);
+        setStatus("Saved from Chrome Studio: " + item.title + " · " + folder);
+        saved = true;
+      } catch (e) {
+        error = e.message || "Unable to save URL";
+        setError(error);
+      }
+      window.postMessage({type:"VAULT_STUDIO_AUTOSAVE_RESULT",requestId:message.requestId,ok:saved,error},window.location.origin);
+    };
+    window.addEventListener("message",onCompanionSave);
+    return () => window.removeEventListener("message",onCompanionSave);
+  },[userId,site,config.folder,config.name,folders,onSave,onCreateFolder]);
+
   const persistFiles = useCallback(async (incoming) => {
     const files = [...(incoming || [])].filter(Boolean);
     if (!files.length) return;
