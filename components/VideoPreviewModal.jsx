@@ -33,11 +33,12 @@ function VideoPlayer({ source, poster }) {
     return () => { canceled = true; instance?.destroy(); };
   }, [source?.url]);
   const isHls = /\.m3u8(?:$|[?#])/i.test(source?.url || "");
+  const nativeHls = typeof document !== "undefined" && !!document.createElement("video").canPlayType("application/vnd.apple.mpegurl");
   return <div>
     <video
       ref={ref}
       key={source?.url}
-      src={isHls ? undefined : playableUrl(source.url)}
+      src={isHls && !nativeHls ? undefined : playableUrl(source.url)}
       controls
       playsInline
       preload="metadata"
