@@ -31,3 +31,7 @@ HTTP bodies, cookies, authentication headers, or alter network traffic.
 ## Vault preview integration
 
 This Chrome companion outputs the `vault-media-capture-v1` JSON format consumed by Vault's Media Collector. The branch preview is used only for validation until its UI and stream handling have been verified.
+
+## Per-item verification
+
+In Vault's Media Collector, use **Copy URL** or **Open URL** on any detected asset before selecting it. The exact asset URL, along with the page of origin, is saved into the Vault library when you choose **Save to Vault**.
