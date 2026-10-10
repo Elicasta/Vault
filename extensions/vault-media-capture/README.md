@@ -67,3 +67,5 @@ Vault serves the media using its own authenticated `/api/media` or `/api/stream`
 If the file URL is missing or private/DRM-protected, Google's button cannot invent the media. On **desktop Chrome**, open the original signed-in site and use Google's official **Save to Google Drive** Chrome extension in the right-click menu for a visible image, HTML5 video, or screenshot: https://chromewebstore.google.com/detail/save-to-google-drive/gmbmikajjgmnabiglmofipeabaddhgne . Other browsers/iPhone cannot use that desktop extension. The two Google products are independent, and Vault cannot invoke the third-party Chrome extension automatically.
 
 The Google save button stores files in Drive; it does not automatically add the Drive file to Vault or select a Drive folder. The existing Vault folder picker applies to saving links **inside Vault**.
+
+Preview verification: Google Save to Drive uses a same-origin Vault media URL and requires an authenticated Vault session for that URL to respond. The actual Google widget's sign-in and Drive transfer occur in the user's browser, so full end-to-end verification requires an interactive browser session.
