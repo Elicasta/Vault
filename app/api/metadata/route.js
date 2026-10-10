@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { safeFetch, validatePublicUrl, readTextLimited } from "@/lib/server/safe-url";
+import { fetchWithRegionFallback } from "@/lib/server/region-fallback.js";
 import { guardProxyRequest, securityErrorResponse } from "@/lib/server/proxy-guard";
 
 export const runtime = "nodejs";
@@ -18,7 +19,7 @@ export async function GET(request) {
   if (!checked.ok) return NextResponse.json({ error: checked.error }, { status: checked.status });
 
   try {
-    const res = await safeFetch(checked.url.href, {
+    const res = await fetchWithRegionFallback(checked.url.href, {
       headers: {
         "User-Agent": UA,
         "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
