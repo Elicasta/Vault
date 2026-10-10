@@ -10,6 +10,8 @@ import MediaCard from "./MediaCard";
 import AddMediaSheet from "./AddMediaSheet";
 import DetailDrawer from "./DetailDrawer";
 import InAppBrowser from "@/components/InAppBrowser";
+import GeneratorWorkspace from "@/components/GeneratorWorkspace";
+import GoogleDriveBackup from "@/components/GoogleDriveBackup";
 import { isHiddenLibraryItem, withLibraryVisibility } from "@/lib/library-visibility.mjs";
 
 import {
@@ -29,6 +31,8 @@ const NAV = [
   ["inbox", "/inbox", "inbox", "Inbox"],
   ["collections", "/collections", "folder", "Collections"],
   ["search", "/search", "search", "Search"],
+  ["venice", "/studios/venice", "image", "Venice AI"],
+  ["perchance", "/studios/perchance", "image", "Perchance AI"],
   ["settings", "/settings", "settings", "Settings"],
 ];
 
@@ -38,11 +42,14 @@ const MOBILE_NAV = [
   ["add", "#add", "plus", "Add"],
   ["collections", "/collections", "folder", "Collections"],
   ["search", "/search", "search", "Search"],
+  ["venice", "/studios/venice", "image", "Venice"],
+  ["perchance", "/studios/perchance", "image", "Perchance"],
 ];
 
 const ROUTE_TITLES = {
   home: "Home", library: "Library", inbox: "Inbox",
   collections: "Collections", search: "Search", settings: "Settings",
+  venice: "Venice AI", perchance: "Perchance AI",
 };
 
 function folderFor(item, state) {
@@ -503,6 +510,9 @@ export default function VaultV2({ route = "home" }) {
       {filtersBar}
       {query.trim()?renderGrid(allFiltered,"No Vault results","Try web search for this phrase, or clear a filter."):<EmptyState icon="search" title="Search your Vault" text="Use the search field above, or search the web for something new to save." action={()=>setBrowserOpen(true)} actionLabel="Search the web"/>}
     </>;
+  } else if(route==="venice" || route==="perchance") {
+    page = <GeneratorWorkspace site={route} userId={user?.id} folders={folders} items={displayItems}
+      onSave={saveItem} onCreateFolder={createCollection} onBrowse={(url)=>{setQuery(url);setBrowserOpen(true);}} />;
   } else if(route==="collections") {
     page = selectedCollection ? <><div className="v2-hero"><button className="v2-linkbtn" onClick={()=>router.push("/collections")}>← All Collections</button><div className="v2-eyebrow">Collection</div><h1 className="v2-h1">{selectedCollection}</h1><p className="v2-lead">{collectionItems.length} item{collectionItems.length===1?"":"s"}</p></div>{renderGrid(collectionItems,"Collection is empty","Add media and choose this Collection as its destination.")}</> : <><div className="v2-hero"><div className="v2-eyebrow">Organize without clutter</div><h1 className="v2-h1">Collections</h1><p className="v2-lead">Folders and galleries share one simple product concept: Collections.</p></div><div style={{display:"flex",justifyContent:"flex-end",marginBottom:16}}><button className="v2-btn v2-btn-primary" onClick={()=>setNewCollectionOpen(true)}><Icon name="plus" size={15}/> New Collection</button></div>{folders.length?<div className="v2-collection-grid">{folders.map((f)=>{const count=displayItems.filter((i)=>folderFor(i,userData[i.key]||{})===f.name).length;return <button className="v2-collection" key={f.name} onClick={()=>router.push("/collections?folder="+encodeURIComponent(f.name))}><div className="v2-collection-icon"><Icon name="folder" size={20}/></div><div><div className="v2-collection-name">{f.name}</div><div className="v2-collection-count">{count} item{count===1?"":"s"}{f.parent_folder?" · in "+f.parent_folder:""}</div></div></button>})}</div>:<EmptyState icon="folder" title="No Collections yet" text="Create a Collection to organize related media." action={()=>setNewCollectionOpen(true)} actionLabel="New Collection"/>}</>;
   } else {
@@ -516,7 +526,7 @@ export default function VaultV2({ route = "home" }) {
             <button className="v2-btn" type="button" onClick={() => setItemVisibility(item, false).catch(() => {})}>Restore</button>
           </div>
         ))}
-      </div></div><div className="v2-settings-card"><h3>Cloud sync</h3><p>Supabase is the durable source of truth. Unsynced changes stay visibly marked until confirmed.</p><div style={{marginTop:12}}><span className="v2-state-pill" data-state={online?"ok":"warn"}>{online?"Online":"Offline"}</span></div></div><div className="v2-settings-card"><h3>Security</h3><p>Authenticated data access, RLS ownership checks, and protected media proxies are active in this preview.</p></div><div className="v2-settings-card"><h3>Account</h3><p>{user?.email || "Signed in"}</p><button type="button" className="v2-btn" style={{marginTop:14}} onClick={async()=>{await supabase.auth.signOut();window.location.reload();}}><Icon name="logout" size={15}/> Sign out</button></div></div></>;
+      </div><GoogleDriveBackup userId={user?.id} items={displayItems} /></div><div className="v2-settings-card"><h3>Cloud sync</h3><p>Supabase is the durable source of truth. Unsynced changes stay visibly marked until confirmed.</p><div style={{marginTop:12}}><span className="v2-state-pill" data-state={online?"ok":"warn"}>{online?"Online":"Offline"}</span></div></div><div className="v2-settings-card"><h3>Security</h3><p>Authenticated data access, RLS ownership checks, and protected media proxies are active in this preview.</p></div><div className="v2-settings-card"><h3>Account</h3><p>{user?.email || "Signed in"}</p><button type="button" className="v2-btn" style={{marginTop:14}} onClick={async()=>{await supabase.auth.signOut();window.location.reload();}}><Icon name="logout" size={15}/> Sign out</button></div></div></>;
   }
 
   return (
