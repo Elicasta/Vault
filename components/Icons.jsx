@@ -1,6 +1,7 @@
 "use client";
 
 const paths = {
+  eyeOff:      <><path d="M3 3l18 18"/><path d="M10.7 5.2A10.8 10.8 0 0 1 12 5c5.7 0 9 7 9 7a13 13 0 0 1-3 3.6"/><path d="M6.2 6.2C3.6 8.1 3 12 3 12s3.3 7 9 7c1.7 0 3.1-.4 4.3-1.1"/><path d="M10 10a3 3 0 0 0 4 4"/></>,
   vault:       <><rect x="4" y="5" width="16" height="14" rx="2"/><path d="M8 5V3h8v2M8 11h8"/></>,
   home:        <><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/><path d="M9 20v-6h6v6"/></>,
   star:        <path d="M12 3l2.8 5.7 6.2.9-4.5 4.4 1.1 6.2L12 17.2 6.4 20.2 7.5 14 3 9.6l6.2-.9L12 3z"/>,

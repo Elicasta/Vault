@@ -47,7 +47,7 @@ function loadTwitterWidgets(cb) {
 
 // ─── Main Player ────────────────────────────────────────────────────────────
 
-export default function Player({ item, items = [], currentIdx = 0, onNavigate, onClose, userId, resumeAt = 0, rating = 0, onRate, onAddMoment, oilCount = 0, onOil, variant = "legacy" }) {
+export default function Player({ item, items = [], currentIdx = 0, onNavigate, onClose, userId, resumeAt = 0, rating = 0, onRate, onAddMoment, oilCount = 0, onOil, onRemoveFromLibrary, variant = "legacy" }) {
   const integrated = variant === "integrated";
   const [muted, setMuted]   = useState(false);
   const [isPiP, setIsPiP]   = useState(false);
@@ -603,7 +603,7 @@ export default function Player({ item, items = [], currentIdx = 0, onNavigate, o
             style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: isFullscreen ? 0 : 8, display: "block", background: "#000", filter: enhanceFilter }}
           />
           {relayReason && <RelayBadge text={relayReason} active={useRelay} />}
-          {playbackIssue && <PlaybackIssue text={playbackIssue} onOpenOriginal={() => window.open(item.url, "_blank", "noopener,noreferrer")} />}
+          {playbackIssue && <PlaybackIssue text={playbackIssue} onOpenOriginal={() => window.open(item.url, "_blank", "noopener,noreferrer")} onRemoveFromLibrary={() => onRemoveFromLibrary?.(item)} />}
           {refreshing && <RefreshOverlay />}
         </div>
       );
@@ -649,7 +649,7 @@ export default function Player({ item, items = [], currentIdx = 0, onNavigate, o
             style={{ width: "100%", height: "100%", objectFit: "contain", borderRadius: isFullscreen ? 0 : 8, display: "block", background: "#000", filter: enhanceFilter }}
           />
           {relayReason && <RelayBadge text={relayReason} active={useRelay} />}
-          {playbackIssue && <PlaybackIssue text={playbackIssue} onOpenOriginal={() => window.open(item.url, "_blank", "noopener,noreferrer")} />}
+          {playbackIssue && <PlaybackIssue text={playbackIssue} onOpenOriginal={() => window.open(item.url, "_blank", "noopener,noreferrer")} onRemoveFromLibrary={() => onRemoveFromLibrary?.(item)} />}
           {refreshing && <RefreshOverlay />}
         </div>
       );
@@ -1297,7 +1297,7 @@ function RelayBadge({ text, active }) {
   );
 }
 
-function PlaybackIssue({ text, onOpenOriginal }) {
+function PlaybackIssue({ text, onOpenOriginal, onRemoveFromLibrary }) {
   return (
     <div style={{
       position: "absolute", left: 12, right: 12, bottom: 12, zIndex: 4,
@@ -1308,7 +1308,10 @@ function PlaybackIssue({ text, onOpenOriginal }) {
       boxShadow: "0 14px 40px rgba(0,0,0,0.35)",
     }} role="alert">
       <span style={{ fontSize: 11, lineHeight: 1.4 }}>{text}</span>
-      <button type="button" onClick={onOpenOriginal} style={{ ...miniBtn, width: "auto", minWidth: 44, padding: "0 11px", borderRadius: 10, color: "#fff" }}>Original</button>
+      <div style={{ display: "flex", gap: 6, flexShrink: 0, flexWrap: "wrap" }}>
+        <button type="button" onClick={onOpenOriginal} style={{ ...miniBtn, width: "auto", minWidth: 44, padding: "0 11px", borderRadius: 10, color: "#fff" }}>Original</button>
+        {onRemoveFromLibrary && <button type="button" onClick={onRemoveFromLibrary} style={{ ...miniBtn, width: "auto", padding: "0 11px", borderRadius: 10, color: "#fff" }}>Remove from Library</button>}
+      </div>
     </div>
   );
 }

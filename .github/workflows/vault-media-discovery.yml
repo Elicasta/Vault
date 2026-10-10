@@ -4,9 +4,11 @@ on:
   push:
     branches:
       - "feat/media-first-discovery-*"
+      - "fix/video-source-cover-preview-*"
   pull_request:
     branches:
       - "fix/relay-search-hardening-*"
+      - "feat/media-first-discovery-*"
 
 permissions:
   contents: read
