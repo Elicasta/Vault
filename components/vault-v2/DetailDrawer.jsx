@@ -63,6 +63,7 @@ export default function DetailDrawer({item,state={},folders=[],currentIndex=-1,t
           {item.tags?.length?<div className="v2-tag-row">{item.tags.map(t=><span className="v2-tag" key={t}>{t}</span>)}</div>:null}
           <div className="v2-clean-detail-actions">
             <button className="v2-btn v2-btn-primary" disabled={busy} type="button" onClick={()=>onPlay(item)}><Icon name="play" size={17}/> Open Media</button>
+            <a className="v2-btn" href={item.url} target="_blank" rel="noopener noreferrer" aria-label="Open original source"><Icon name="external" size={16}/> Original</a>
             <button className="v2-btn" disabled={busy} type="button" onClick={()=>run(()=>onFavorite(item.key,!!state.favorite))}><Icon name="star" size={17} filled={!!state.favorite}/>{state.favorite?"Favorited":"Favorite"}</button>
           </div>
           <div className="v2-clean-detail-fields">
