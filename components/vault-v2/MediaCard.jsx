@@ -33,7 +33,7 @@ export default function MediaCard({ item, state = {}, onOpen }) {
   const progress = pct(state);
 
   return (
-    <article className="v2-card">
+    <article className="v2-card" data-kind={isImage ? "image" : isLink ? "link" : "video"}>
       <button
         type="button"
         className="v2-card-button"
