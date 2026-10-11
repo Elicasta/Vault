@@ -46,7 +46,7 @@ test("search endpoint genuinely sends per-provider safe search controls and merg
 });
 test("Vault browser exposes clear safety controls and media scopes with regular default",()=>{
   const view=fs.readFileSync("components/InAppBrowser.jsx","utf8");
-  assert.match(view,/useState\("regular"\)/);
+  assert.match(view,/useState\(initialMode === "nsfw" \? "nsfw" : "regular"\)/);
   assert.match(view,/useState\("all"\)/);
   assert.match(view,/NSFW/);
   assert.match(view,/Unrestricted/);
