@@ -48,9 +48,9 @@ test("Search exposes the protected external browser flow", () => {
   const vault = read("components/vault-v2/VaultV2.jsx");
   const browser = read("components/InAppBrowser.jsx");
   const route = read("app/api/browser-search/route.js");
-  assert.match(vault, /Search outside Vault/);
+  assert.match(vault, /aria-label="Search the web"/);
   assert.match(vault, /<InAppBrowser/);
-  assert.match(vault, /initialQuery=\{query\}/);
+  assert.match(vault, /initialQuery=\{route === "nsfw" \? nsfwQuery : query\}/);
   assert.match(browser, /\/api\/browser-search\?q=/);
   assert.match(browser, /initialQuery = ""/);
   assert.match(route, /guardProxyRequest\(req,\s*"search"\)/);
@@ -84,6 +84,6 @@ test("mobile in-app browser collapses quick save while keyboard is open", () => 
   const source = read("components/InAppBrowser.jsx");
   assert.match(source, /visualViewport/);
   assert.match(source, /setKeyboardOpen/);
-  assert.match(source, /keyboardOpen && isMobile \? "none" : "block"/);
+  assert.match(source, /searchQuery \|\| \(keyboardOpen && isMobile\) \? "none" : "block"/);
   assert.match(source, /fontSize: 16/);
 });
