@@ -211,7 +211,9 @@ export default function Vault() {
         }
       } catch {}
     };
-    init();
+    init().catch((error) => {
+      setError(error?.message || "Could not load your Vault library. Retry or reload without clearing local data.");
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
