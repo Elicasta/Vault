@@ -62,5 +62,7 @@ test("Chrome extension targets the same stable V2 preview instead of a stale fea
   const docs = source("extensions/vault-media-capture/README.md");
   const origin = "https://vault-preview-temp-git-polish-vault-p-5026a8-elicastas-projects.vercel.app";
   for (const file of [service, popup, docs]) assert.ok(file.includes(origin));
-  assert.doesNotMatch(service + popup, /git-feat-extension-/);
+  assert.match(service, /isOldVaultPreview\(savedOrigin\)/);
+  assert.match(popup, /if \(isOldVaultPreview\(origin\)\)/);
+  assert.doesNotMatch(service + popup, /https:\/\/vault-preview-temp-git-feat-extension-/);
 });
