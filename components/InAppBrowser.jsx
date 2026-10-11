@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "./Icons";
+import SearchResultPreview from "./SearchResultPreview";
 import { T } from "@/lib/theme";
 import { itemKey, sourceIdOf } from "@/lib/utils";
 import { ensureProxySession, SECURITY_V2_ENABLED } from "@/lib/security-session";
@@ -36,7 +37,7 @@ function hostOf(url) {
   try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return ""; }
 }
 
-export default function InAppBrowser({ onClose, onSave, folders = [], existingItems = [], isMobile = false, onCreateFolder, initialQuery = "" }) {
+export default function InAppBrowser({ onClose, onSave, folders = [], existingItems = [], isMobile = false, onCreateFolder, initialQuery = "", initialMode = "regular" }) {
   const [address, setAddress] = useState("");
   const [currentUrl, setCurrentUrl] = useState("");
   const [history, setHistory] = useState([]);
@@ -56,7 +57,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
   const [searchResults, setSearchResults] = useState([]);
   const [savedSearch, setSavedSearch] = useState(null);
   const [resultHost, setResultHost] = useState("all");
-  const [searchMode, setSearchMode] = useState("regular");
+  const [searchMode, setSearchMode] = useState(initialMode === "nsfw" ? "nsfw" : "regular");
   const [searchScope, setSearchScope] = useState("all");
   const [searchPage, setSearchPage] = useState(0);
   const [searchInfo, setSearchInfo] = useState(null);
@@ -657,17 +658,13 @@ function SearchResults({ state, error, query, results, info, mode, page, hostFil
           <div className="vv-results-summary"><span>{visible.length} matching result{visible.length===1?"":"s"}</span><span>{info?.providers?.length?info.providers.join(" · "):"Web discovery"}</span></div>
           {visible.length ? <div className="vv-search-card-grid">
             {visible.map((r,index)=><article key={r.url+"-"+index} className="vv-search-result-card">
-              <button type="button" className="vv-result-cover" aria-label={"Explore "+r.title} onClick={()=>onPreview(r)}>
-                {r.kind==="image" && /\.(?:jpe?g|png|webp|gif|avif)(?:$|[?#])/i.test(r.url) ?
-                  <img loading="lazy" alt="" referrerPolicy="no-referrer" src={"/api/media?url="+encodeURIComponent(r.url)} onError={e=>{e.currentTarget.style.display="none"}} /> :
-                  <span className="vv-result-cover-placeholder"><Icon name={r.kind==="video"?"play":r.kind==="image"?"grid":"link"} size={24}/></span>}
-              </button>
+              <SearchResultPreview result={r} index={index} onPreview={onPreview}/>
               <div className="vv-result-copy">
                 <div className="vv-search-result-metadata"><span>{r.host||"Website"}</span><span>{r.kind==="media"?"Media":r.kind==="image"?"Image":r.kind==="video"?"Video":"Page / gallery"}</span></div>
                 <button className="vv-search-result-title" type="button" onClick={()=>onPreview(r)}>{r.title||r.url}</button>
                 {r.snippet&&<p>{r.snippet}</p>}
                 <div className="vv-search-result-actions">
-                  <button type="button" className="vv-search-explore" onClick={()=>onPreview(r)}>Explore gallery →</button>
+                  <button type="button" className="vv-search-explore" onClick={()=>onPreview(r)}>Explore source →</button>
                   <button type="button" onClick={()=>onSave(r)} disabled={saving}>{saving?"Saving…":savedUrl===r.url?"Saved ✓":"Save"}</button>
                   <button type="button" onClick={()=>onOpen(r.url)}>Original ↗</button>
                 </div>
