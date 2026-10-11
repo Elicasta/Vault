@@ -24,6 +24,7 @@ import { mergeRemoteItemsWithOutbox } from "@/lib/sync-outbox";
 import { ensureProxySession, SECURITY_V2_ENABLED } from "@/lib/security-session";
 import { getSourceMeta, SOURCE_OPTIONS } from "@/lib/sources";
 import { resolveMediaPreviews } from "@/lib/media-preview";
+import { proxiedMediaUrl } from "@/lib/utils";
 
 const NAV = [
   ["home", "/", "home", "Home"],
@@ -106,6 +107,30 @@ function MediaRow({ title, subtitle, items, userData, onOpen, onSeeAll }) {
   );
 }
 
+function CollectionCard({ folder, items, onOpen }) {
+  const covers = items.map((item) => item.display_thumbnail || item.thumbnail).filter(Boolean).slice(0, 3);
+  return (
+    <button type="button" className="v2-collection v2-collection-preview" onClick={onOpen}
+      aria-label={`Open collection ${folder.name}, ${items.length} saved items`}>
+      <div className="v2-collection-covers" data-count={covers.length} aria-hidden="true">
+        {covers.length ? covers.map((url, index) => (
+          <div className="v2-collection-cover" key={url + index}>
+            <img src={proxiedMediaUrl(url)} alt="" loading="lazy" decoding="async"
+              onError={(event) => { event.currentTarget.style.opacity = "0"; }} />
+          </div>
+        )) : <div className="v2-collection-empty-art"><Icon name="folder" size={26} /></div>}
+      </div>
+      <div className="v2-collection-footer">
+        <div className="v2-collection-labels">
+          <div className="v2-collection-name" title={folder.name}>{folder.name}</div>
+          <div className="v2-collection-count">{items.length} item{items.length === 1 ? "" : "s"}{folder.parent_folder ? ` · in ${folder.parent_folder}` : ""}</div>
+        </div>
+        <Icon name="chevronRight" size={17}/>
+      </div>
+    </button>
+  );
+}
+
 function FilterFields({ filters, setFilters, folders }) {
   return (
     <>
@@ -133,7 +158,7 @@ function FilterFields({ filters, setFilters, folders }) {
   );
 }
 
-function MobileControlSheet({ kind, filters, setFilters, sort, setSort, folders, onClose }) {
+function MobileControlSheet({ kind, filters, setFilters, sort, setSort, folders, onClose, onReset }) {
   const ref = useRef(null);
   useEffect(() => {
     if (!kind || !ref.current) return;
@@ -168,7 +193,10 @@ function MobileControlSheet({ kind, filters, setFilters, sort, setSort, folders,
             </select>
           ) : <FilterFields filters={filters} setFilters={setFilters} folders={folders}/>}
         </div>
-        <div className="v2-sheet-foot"><button type="button" className="v2-btn v2-btn-primary" onClick={onClose}>Done</button></div>
+        <div className="v2-sheet-foot">
+          {kind === "filters" ? <button type="button" className="v2-btn" onClick={() => { onReset?.(); onClose(); }}>Clear filters</button> : null}
+          <button type="button" className="v2-btn v2-btn-primary" onClick={onClose}>Done</button>
+        </div>
       </section>
     </>
   );
@@ -378,15 +406,16 @@ export default function VaultV2({ route = "home" }) {
     setUserData((prev)=>({...prev,[key]:{...(prev[key]||{}),item_key:key,favorite:!current}}));
   };
 
-  const assignFolder = async (item,folder) => {
-    const value=folder || null;
-    setItems((prev)=>prev.map((x)=>x.key===item.key?{...x,folder:value}:x));
-    setUserData((prev)=>({...prev,[item.key]:{...(prev[item.key]||{}),item_key:item.key,folder:value}}));
-    setDetailItem((cur)=>cur?.key===item.key?{...cur,folder:value}:cur);
-    if(user){
-      await upsertVaultItem(user.id,{...item,folder:value});
-      await setItemFolder(user.id,item.key,value);
-    }
+  const assignFolder = async (item, folder) => {
+    if (!user) throw new Error("Sign in before organizing media.");
+    const value = folder || null;
+    // Keep the selected collection consistent with the durable row. On a write
+    // failure the drawer stays open with the previous selection for retry.
+    await upsertVaultItem(user.id, { ...item, folder: value });
+    await setItemFolder(user.id, item.key, value);
+    setItems((prev) => prev.map((x) => x.key === item.key ? { ...x, folder: value } : x));
+    setUserData((prev) => ({ ...prev, [item.key]: { ...(prev[item.key] || {}), item_key: item.key, folder: value } }));
+    setDetailItem((cur) => cur?.key === item.key ? { ...cur, folder: value } : cur);
   };
 
   const rateItem = async (key,rating) => {
@@ -473,12 +502,16 @@ export default function VaultV2({ route = "home" }) {
     router.push(query.trim()?"/search?q="+encodeURIComponent(query.trim()):"/search");
   };
 
-  const resetFilters=()=>setFilters({type:"all",collection:"all",source:"all",favorite:"all",rating:"all",status:"all"});
+  const resetFilters=()=>{
+    setFilters({type:"all",collection:"all",source:"all",favorite:"all",rating:"all",status:"all"});
+    if (route === "library" && routeStatus === "continue") router.replace("/library");
+  };
+  const activeFilterCount = Object.values(filters).filter((value) => value !== "all").length;
 
-  const renderGrid=(list,emptyTitle="Nothing here yet",emptyText="Items matching this view will appear here.")=>{
+  const renderGrid=(list,emptyTitle="Nothing here yet",emptyText="Items matching this view will appear here.",emptyOptions={})=>{
     if(loading) return <LoadingGrid/>;
     if(loadError) return <div className="v2-error" role="status">Library data could not be loaded. Retry before adding or deleting media.</div>;
-    if(!list.length) return <EmptyState title={emptyTitle} text={emptyText} action={()=>setAddOpen(true)} actionLabel="Add media"/>;
+    if(!list.length) return <EmptyState title={emptyTitle} text={emptyText} action={emptyOptions.action || (()=>setAddOpen(true))} actionLabel={emptyOptions.label || "Add media"}/>;
     const visible = list.slice(0, visibleLimit);
     return <>
       <div className="v2-grid">{visible.map((item)=><MediaCard key={item.key} item={item} state={userData[item.key]||{}} onOpen={setDetailItem}/>)}</div>
@@ -497,7 +530,7 @@ export default function VaultV2({ route = "home" }) {
         <div className="v2-result-count">{allFiltered.length} item{allFiltered.length===1?"":"s"}</div>
       </div>
       <div className="v2-mobile-controls">
-        <button type="button" className="v2-btn" onClick={()=>setMobileControl("filters")}><Icon name="sort" size={15}/> Filters</button>
+        <button type="button" className="v2-btn" onClick={()=>setMobileControl("filters")}><Icon name="sort" size={15}/> Filters{activeFilterCount ? ` · ${activeFilterCount}` : ""}</button>
         <button type="button" className="v2-btn" onClick={()=>setMobileControl("sort")}><Icon name="list" size={15}/> Sort</button>
       </div>
     </>
@@ -511,13 +544,13 @@ export default function VaultV2({ route = "home" }) {
         <MediaRow title="Continue" subtitle="Unfinished media, ready to resume" items={continueItems} userData={userData} onOpen={setDetailItem} onSeeAll={()=>router.push("/library?status=continue")}/>
         <MediaRow title="Recently Saved" items={recentItems} userData={userData} onOpen={setDetailItem} onSeeAll={()=>router.push("/library")}/>
         {inboxItems.length ? <MediaRow title={"Inbox · "+inboxItems.length} subtitle="Saved but not organized yet" items={inboxItems.slice(0,8)} userData={userData} onOpen={setDetailItem} onSeeAll={()=>router.push("/inbox")}/> : null}
-        {recentFolders.length ? <section className="v2-section"><div className="v2-section-head"><div><h2 className="v2-section-title">Recent Collections</h2><div className="v2-section-sub">Your organized spaces</div></div><button className="v2-linkbtn" onClick={()=>router.push("/collections")}>See all</button></div><div className="v2-collection-grid">{recentFolders.map((f)=>{const count=displayItems.filter((i)=>folderFor(i,userData[i.key]||{})===f.name).length;return <button className="v2-collection" key={f.name} onClick={()=>router.push("/collections?folder="+encodeURIComponent(f.name))}><div className="v2-collection-icon"><Icon name="folder" size={20}/></div><div><div className="v2-collection-name">{f.name}</div><div className="v2-collection-count">{count} item{count===1?"":"s"}</div></div></button>})}</div></section> : null}
+        {recentFolders.length ? <section className="v2-section"><div className="v2-section-head"><div><h2 className="v2-section-title">Recent Collections</h2><div className="v2-section-sub">Your organized spaces</div></div><button className="v2-linkbtn" onClick={()=>router.push("/collections")}>See all</button></div><div className="v2-collection-grid">{recentFolders.map((f)=><CollectionCard key={f.name} folder={f} items={displayItems.filter((i)=>folderFor(i,userData[i.key]||{})===f.name)} onOpen={()=>router.push("/collections?folder="+encodeURIComponent(f.name))}/>)}</div></section> : null}
         <MediaRow title="Top Rated" items={topRated} userData={userData} onOpen={setDetailItem}/>
         {!loading && !loadError && !items.length ? <EmptyState icon="vault" title="Your Vault is ready" text="Save your first video, image, PDF, or reference link." action={()=>setAddOpen(true)} actionLabel="Add your first item"/> : null}
       </>
     );
   } else if(route==="library") {
-    page = <><div className="v2-hero"><div className="v2-eyebrow">Everything you saved</div><h1 className="v2-h1">Library</h1><p className="v2-lead">One clean view of your entire Vault.</p></div>{filtersBar}{renderGrid(allFiltered,"No matching media","Try clearing filters or add something new.")}</>;
+    page = <><div className="v2-hero"><div className="v2-eyebrow">Everything you saved</div><h1 className="v2-h1">Library</h1><p className="v2-lead">One clean view of your entire Vault.</p></div>{filtersBar}{renderGrid(allFiltered,"No matching media","Try clearing filters or add something new.", activeFilterCount ? {action:resetFilters,label:"Clear filters"} : {})}</>;
   } else if(route==="inbox") {
     page = <><div className="v2-hero"><div className="v2-eyebrow">{inboxItems.length} waiting</div><h1 className="v2-h1">Inbox</h1><p className="v2-lead">Anything saved without a Collection lands here. Assign a Collection from item detail when you are ready.</p></div>{renderGrid(inboxItems,"Inbox cleared","Every saved item is organized into a Collection.")}</>;
   } else if(route==="search") {
@@ -537,15 +570,15 @@ export default function VaultV2({ route = "home" }) {
         </button>
       </div>
       {filtersBar}
-      {query.trim()?renderGrid(allFiltered,"No Vault results","Try web search for this phrase, or clear a filter."):<EmptyState icon="search" title="Search your Vault" text="Use the search field above, or search the web for something new to save." action={()=>setBrowserOpen(true)} actionLabel="Search the web"/>}
+      {query.trim()?renderGrid(allFiltered,"No Vault results","Try web search for this phrase, or clear a filter.", {action:()=>setBrowserOpen(true),label:"Search the web"}):<EmptyState icon="search" title="Search your Vault" text="Use the search field above, or search the web for something new to save." action={()=>setBrowserOpen(true)} actionLabel="Search the web"/>}
     </>;
   } else if(route==="import") {
     page = <ImportMediaWorkspace userId={user?.id} folders={folders} items={displayItems}
       onSave={saveItem} onCreateFolder={createCollection} />;
   } else if(route==="collections") {
-    page = selectedCollection ? <><div className="v2-hero"><button className="v2-linkbtn" onClick={()=>router.push("/collections")}>← All Collections</button><div className="v2-eyebrow">Collection</div><h1 className="v2-h1">{selectedCollection}</h1><p className="v2-lead">{collectionItems.length} item{collectionItems.length===1?"":"s"}</p></div>{renderGrid(collectionItems,"Collection is empty","Add media and choose this Collection as its destination.")}</> : <><div className="v2-hero"><div className="v2-eyebrow">Organize without clutter</div><h1 className="v2-h1">Collections</h1><p className="v2-lead">Folders and galleries share one simple product concept: Collections.</p></div><div style={{display:"flex",justifyContent:"flex-end",marginBottom:16}}><button className="v2-btn v2-btn-primary" onClick={()=>setNewCollectionOpen(true)}><Icon name="plus" size={15}/> New Collection</button></div>{folders.length?<div className="v2-collection-grid">{folders.map((f)=>{const count=displayItems.filter((i)=>folderFor(i,userData[i.key]||{})===f.name).length;return <button className="v2-collection" key={f.name} onClick={()=>router.push("/collections?folder="+encodeURIComponent(f.name))}><div className="v2-collection-icon"><Icon name="folder" size={20}/></div><div><div className="v2-collection-name">{f.name}</div><div className="v2-collection-count">{count} item{count===1?"":"s"}{f.parent_folder?" · in "+f.parent_folder:""}</div></div></button>})}</div>:<EmptyState icon="folder" title="No Collections yet" text="Create a Collection to organize related media." action={()=>setNewCollectionOpen(true)} actionLabel="New Collection"/>}</>;
+    page = selectedCollection ? <><div className="v2-hero"><button className="v2-linkbtn" onClick={()=>router.push("/collections")}>← All Collections</button><div className="v2-eyebrow">Collection</div><h1 className="v2-h1">{selectedCollection}</h1><p className="v2-lead">{collectionItems.length} item{collectionItems.length===1?"":"s"}</p></div>{renderGrid(collectionItems,"Collection is empty","Add media and choose this Collection as its destination.")}</> : <><div className="v2-hero"><div className="v2-eyebrow">Organize without clutter</div><h1 className="v2-h1">Collections</h1><p className="v2-lead">Folders and galleries share one simple product concept: Collections.</p></div><div style={{display:"flex",justifyContent:"flex-end",marginBottom:16}}><button className="v2-btn v2-btn-primary" onClick={()=>setNewCollectionOpen(true)}><Icon name="plus" size={15}/> New Collection</button></div>{folders.length?<div className="v2-collection-grid">{folders.map((f)=><CollectionCard key={f.name} folder={f} items={displayItems.filter((i)=>folderFor(i,userData[i.key]||{})===f.name)} onOpen={()=>router.push("/collections?folder="+encodeURIComponent(f.name))}/>)}</div>:<EmptyState icon="folder" title="No Collections yet" text="Create a Collection to organize related media." action={()=>setNewCollectionOpen(true)} actionLabel="New Collection"/>}</>;
   } else {
-    page = <><div className="v2-hero"><div className="v2-eyebrow">Vault preferences</div><h1 className="v2-h1">Settings</h1><p className="v2-lead">Account, data, sync, and security status in one quiet place.</p></div><div className="v2-settings-grid"><div className="v2-settings-card"><h3>Library</h3><p>{displayItems.length} visible items · {hiddenItems.length} hidden links · {folders.length} Collections · {inboxItems.length} in Inbox.</p>
+    page = <><div className="v2-hero"><div className="v2-eyebrow">Vault preferences</div><h1 className="v2-h1">Settings</h1><p className="v2-lead">Account, data, sync, and security status in one quiet place.</p></div><div className="v2-settings-grid"><div className="v2-settings-card"><h3>Library</h3><p>{displayItems.length} visible items · {hiddenItems.length} hidden items · {folders.length} Collections · {inboxItems.length} in Inbox.</p>
       <div style={{ marginTop: 12 }}>
         <h4 style={{ fontSize: 13, marginBottom: 8 }}>Hidden links</h4>
         <p style={{ fontSize: 12 }}>Removed from the visible library without deleting the URL, cover, or collection.</p>
@@ -579,7 +612,7 @@ export default function VaultV2({ route = "home" }) {
             <form className="v2-searchbox" role="search" onSubmit={globalSearchSubmit}>
               <Icon name="search" size={16}/>
               <input ref={searchRef} value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Search Vault" aria-label="Search Vault"/>
-              <span className="v2-hint" aria-hidden="true">⌘K</span>
+              <span className="v2-hint v2-keyboard-hint" aria-hidden="true">⌘K</span>
             </form>
             <button type="button" className="v2-btn v2-btn-primary v2-desktop-add" onClick={()=>setAddOpen(true)}><Icon name="plus" size={15}/> Add</button>
             <button type="button" className="v2-iconbtn" onClick={()=>router.push("/settings")} aria-label="Settings"><Icon name="settings" size={17}/></button>
@@ -599,7 +632,7 @@ export default function VaultV2({ route = "home" }) {
       </nav>
 
       {visibilityError ? <div role="alert" className="v2-error">{visibilityError}<button className="v2-btn" onClick={() => setVisibilityError("")}>Dismiss</button></div> : null}
-      <AddMediaSheet open={addOpen||!!editItem} initialItem={editItem} userId={user?.id} onClose={()=>{setAddOpen(false);setEditItem(null)}} onSave={saveItem} folders={folders} onCreateCollection={createCollection}/>
+      <AddMediaSheet open={addOpen||!!editItem} initialItem={editItem} initialFolder={route === "collections" ? selectedCollection : ""} userId={user?.id} onClose={()=>{setAddOpen(false);setEditItem(null)}} onSave={saveItem} folders={folders} onCreateCollection={createCollection}/>
       <DetailDrawer
         key={detailItem?.key || "closed"}
         item={detailItem}
@@ -620,7 +653,7 @@ export default function VaultV2({ route = "home" }) {
         onRemoveFromLibrary={(item) => setItemVisibility(item, true)}
       />
 
-      <MobileControlSheet kind={mobileControl} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} folders={folders} onClose={()=>setMobileControl(null)}/>
+      <MobileControlSheet kind={mobileControl} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} folders={folders} onReset={resetFilters} onClose={()=>setMobileControl(null)}/>
 
       {browserOpen ? (
         <InAppBrowser
