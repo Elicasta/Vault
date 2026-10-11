@@ -107,7 +107,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // Chrome-only capture handoff into Elicasta/Vault. Saving happens inside
 // the existing signed-in Vault application, never in this service worker.
-const VAULT_DEFAULT_URL = "https://vault-preview-temp-92jlcgdgn-elicastas-projects.vercel.app";
+const VAULT_DEFAULT_URL = "https://vault-preview-temp-git-feat-extension-7e2809-elicastas-projects.vercel.app";
 const PENDING_PREFIX = "vault_folder_job_";
 const activeJobs = new Set();
 const MAX_BATCH = 300;
