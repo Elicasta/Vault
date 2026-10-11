@@ -204,8 +204,9 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
     const q = String(initialQuery || "").trim();
     if (!q) return;
     setAddress(q);
-    runSearch(q);
-    // Initial search should run once when this browser instance opens.
+    if (isLikelyUrl(q)) openUrl(q);
+    else runSearch(q);
+    // Initial query can be a real URL; open it rather than searching for its literal text.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -284,7 +285,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
   const go = (value = address) => {
     const raw = String(value || "").trim();
     if (!raw) return;
-    if (isLikelyUrl(raw)) openUrl(raw);
+    if (isLikelyUrl(raw)) { setSavedSearch(null); openUrl(raw); }
     else runSearch(raw);
   };
 
@@ -407,8 +408,9 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
         <div className="vv-browser-topbar" style={{ display: "flex", alignItems: "center", gap: 8, padding: isMobile ? "10px" : "12px 14px", borderBottom: `1px solid ${T.borderSub}`, background: "rgba(255,255,255,0.03)", flexShrink: 0, minWidth: 0 }}>
           <button onClick={onClose} style={toolBtn} title="Close"><Icon name="x" size={16} /></button>
           <form onSubmit={(e) => { e.preventDefault(); go(); }} style={{ flex: 1, minWidth: 0, display: "flex", gap: 8 }}>
-            <input ref={inputRef} value={address} onChange={(e) => setAddress(e.target.value)} onFocus={() => setShowHistory(false)} placeholder="Search or paste a link..." style={inputStyle} />
-            <button type="submit" style={{ ...toolBtn, width: 42 }} title="Search"><Icon name="search" size={15} /></button>
+            <input ref={inputRef} type="search" value={address} onChange={(e) => setAddress(e.target.value)} onFocus={() => setShowHistory(false)} placeholder="Search videos, galleries, or paste a link…" aria-label="Search web or open a URL" enterKeyHint="search" autoComplete="off" style={inputStyle} />
+            {address ? <button type="button" className="vv-browser-clear" onClick={()=>{setAddress("");inputRef.current?.focus()}} aria-label="Clear search"><Icon name="x" size={14}/></button> : null}
+            <button type="submit" className="vv-browser-search-submit" style={{ ...toolBtn, width: "auto" }} title="Search the web"><Icon name="search" size={15}/><span>Search</span></button>
           </form>
           {!isMobile && <button onClick={() => openExternal()} disabled={!currentUrl} style={toolBtn} title="Open original"><Icon name="external" size={15} /></button>}
           <button onClick={() => setShowHistory((v) => !v)} style={toolBtn} title="History"><Icon name="clock" size={15} /></button>
