@@ -9,6 +9,12 @@ const vaultUrlInput = document.querySelector("#vault-url");
 const vaultHostLabel = document.querySelector("#vault-host-label");
 const vaultUrlResult = document.querySelector("#vault-url-result");
 const DEFAULT_VAULT = "https://vault-preview-temp-git-polish-vault-p-5026a8-elicastas-projects.vercel.app";
+function isOldVaultPreview(origin) {
+  try {
+    const host = new URL(origin).hostname;
+    return host.startsWith("vault-preview-temp-git-feat-extension-") && host.endsWith("-elicastas-projects.vercel.app");
+  } catch { return false; }
+}
 const selectedEl = document.querySelector("#selected");
 const selected = new Set();
 const saved = new Map();
@@ -168,13 +174,18 @@ function safeVaultOrigin(raw) {
 }
 async function loadVaultDestination(){
   const config=await chrome.storage.local.get("vault_import_origin").catch(()=>({}));
-  const origin=safeVaultOrigin(config.vault_import_origin)||DEFAULT_VAULT;
+  let origin=safeVaultOrigin(config.vault_import_origin)||DEFAULT_VAULT;
+  if (isOldVaultPreview(origin)) {
+    origin=DEFAULT_VAULT;
+    await chrome.storage.local.set({vault_import_origin:origin}).catch(()=>{});
+  }
   vaultUrlInput.value=origin;
   vaultHostLabel.textContent=new URL(origin).hostname;
   return origin;
 }
 document.querySelector("#save-vault-url").addEventListener("click",async()=>{
-  const origin=safeVaultOrigin(vaultUrlInput.value);
+  let origin=safeVaultOrigin(vaultUrlInput.value);
+  if (isOldVaultPreview(origin)) origin=DEFAULT_VAULT;
   if(!origin){vaultUrlResult.textContent="Enter an HTTPS Vault address without a username or password.";return;}
   try{
     await chrome.storage.local.set({vault_import_origin:origin});
