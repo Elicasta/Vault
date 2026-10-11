@@ -9,7 +9,10 @@ test("collection cards present visual covers and accessible destination labels",
  assert.match(v,/function CollectionCard/);
  assert.match(v,/v2-collection-covers/);
  assert.match(v,/Open collection/);
- assert.match(v,/covers\.length \? covers\.map/);
+ assert.match(v,/const firstItem = items\[0\] \|\| null/);
+ assert.match(v,/firstItem\?\.display_thumbnail \|\| firstItem\?\.thumbnail/);
+ assert.match(v,/v2-collection-caption/);
+ assert.doesNotMatch(v,/covers\.length \? covers\.map/);
  assert.match(css,/\.v2-collection-preview/);
 });
 
