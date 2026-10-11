@@ -51,17 +51,15 @@ test("Google backup flow downloads private authenticated storage bytes and never
   assert.doesNotMatch(component,/localStorage\.setItem|sessionStorage\.setItem/);
 });
 
-test("universal Import Media preserves real private files and Google Drive backup",()=>{
-  const source=fs.readFileSync("components/ImportMediaWorkspace.jsx","utf8");
-  const vault=fs.readFileSync("components/vault-v2/VaultV2.jsx","utf8");
-  assert.match(source,/uploadVaultMedia\(userId,file\)/);
-  assert.match(source,/deleteVaultMedia\(userId,upload\.locator\)/);
-  assert.match(source,/clipboardData/);
-  assert.match(source,/Save URL to Vault/);
-  assert.match(source,/ImportGallerySection/);
-  assert.match(vault,/GoogleDriveBackup/);
-  assert.match(vault,/ImportMediaWorkspace/);
-  assert.doesNotMatch(vault,/GeneratorWorkspace|Venice AI|Perchance AI/);
+test("the simplified Vault uses a single cover-backed plus form while the optional Drive backup remains in Settings",()=>{
+ const importer=fs.readFileSync("components/ImportMediaWorkspace.jsx","utf8");
+ const vault=fs.readFileSync("components/vault-v2/VaultV2.jsx","utf8");
+ const form=fs.readFileSync("components/vault-v2/AddMediaSheet.jsx","utf8");
+ assert.match(importer,/uploadVaultMedia\(userId,file\)/);
+ assert.match(vault,/<AddMediaSheet/);
+ assert.match(vault,/GoogleDriveBackup/);
+ assert.doesNotMatch(vault,/ImportMediaWorkspace|InAppBrowser/);
+ assert.match(form,/coverReady && !coverFailed/);
 });
 
 test("Chrome companion smart screenshot crops media, not whole page, requiring user click",()=>{
