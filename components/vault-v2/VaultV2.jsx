@@ -233,6 +233,10 @@ export default function VaultV2({ route = "home" }) {
   const [mobileBrowser, setMobileBrowser] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState("");
   const [collectionBusy, setCollectionBusy] = useState(false);
+  const [collectionError, setCollectionError] = useState("");
+  const collectionBusyRef = useRef(false);
+  useEffect(() => { collectionBusyRef.current = collectionBusy; }, [collectionBusy]);
+  useEffect(() => { if (newCollectionOpen) setCollectionError(""); }, [newCollectionOpen]);
   const [visibleLimit, setVisibleLimit] = useState(60);
   const [visibilityError, setVisibilityError] = useState("");
 
@@ -344,7 +348,7 @@ export default function VaultV2({ route = "home" }) {
     const before = document.activeElement;
     root.querySelector("input,button")?.focus();
     const handler = (event) => {
-      if (event.key === "Escape") { event.preventDefault(); setNewCollectionOpen(false); return; }
+      if (event.key === "Escape") { event.preventDefault(); if (!collectionBusyRef.current) setNewCollectionOpen(false); return; }
       if (event.key !== "Tab") return;
       const nodes = [...root.querySelectorAll('button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[href]')];
       if (!nodes.length) return;
@@ -396,7 +400,8 @@ export default function VaultV2({ route = "home" }) {
     if(!clean) return null;
     const existing=folders.find((f)=>f.name.toLowerCase()===clean.toLowerCase());
     if(existing) return existing.name;
-    if(user) await createFolder(user.id,clean,{kind:"folder",display_mode:"grid"});
+    if(!user) throw new Error("Sign in before creating a collection.");
+    await createFolder(user.id,clean,{kind:"folder",display_mode:"grid"});
     setFolders((prev)=>prev.some((f)=>f.name.toLowerCase()===clean.toLowerCase())?prev:[...prev,{name:clean,kind:"folder",display_mode:"grid",parent_folder:null}].sort((a,b)=>a.name.localeCompare(b.name)));
     return clean;
   };
@@ -599,7 +604,7 @@ export default function VaultV2({ route = "home" }) {
         <aside className="v2-sidebar" aria-label="Primary navigation">
           <div className="v2-brand"><span className="v2-brandmark"><Icon name="vault" size={17}/></span><span>Vault</span></div>
           <nav className="v2-nav">
-            {NAV.map(([id,href,icon,label])=><Link key={id} href={href} className="v2-nav-link" aria-current={route===id?"page":undefined}><Icon name={icon} size={17}/><span>{label}</span></Link>)}
+            {NAV.map(([id,href,icon,label])=><Link key={id} href={href} title={label} className="v2-nav-link" aria-current={route===id?"page":undefined}><Icon name={icon} size={17}/><span>{label}</span></Link>)}
             <div className="v2-nav-spacer"/>
             <button type="button" className="v2-btn v2-btn-primary" onClick={()=>setAddOpen(true)}><Icon name="plus" size={15}/> Add media</button>
           </nav>
@@ -668,11 +673,11 @@ export default function VaultV2({ route = "home" }) {
       ) : null}
 
       {newCollectionOpen ? <>
-        <div className="v2-backdrop" onMouseDown={()=>setNewCollectionOpen(false)} aria-hidden="true"/>
+        <div className="v2-backdrop" onMouseDown={()=>{if(!collectionBusy)setNewCollectionOpen(false)}} aria-hidden="true"/>
         <section ref={newCollectionRef} className="v2-sheet" role="dialog" aria-modal="true" aria-labelledby="v2-new-collection-title" style={{maxWidth:460}}>
-          <div className="v2-sheet-head"><div className="v2-modal-title" id="v2-new-collection-title">New Collection</div><button className="v2-iconbtn" onClick={()=>setNewCollectionOpen(false)} aria-label="Close"><Icon name="x" size={18}/></button></div>
-          <div className="v2-sheet-body"><div className="v2-field"><label htmlFor="v2-collection-name">Name</label><input id="v2-collection-name" autoFocus className="v2-input" value={newCollectionName} onChange={(e)=>setNewCollectionName(e.target.value)} onKeyDown={(e)=>{if(e.key==="Enter")document.getElementById("v2-create-collection")?.click()}} placeholder="Ideas, Lighting, Family…"/></div></div>
-          <div className="v2-sheet-foot"><button className="v2-btn" onClick={()=>setNewCollectionOpen(false)}>Cancel</button><button id="v2-create-collection" className="v2-btn v2-btn-primary" disabled={!newCollectionName.trim()||collectionBusy} onClick={async()=>{setCollectionBusy(true);try{await createCollection(newCollectionName);setNewCollectionName("");setNewCollectionOpen(false)}catch(error){setVisibilityError(error?.message || "Could not create collection. Try again.")}finally{setCollectionBusy(false)}}}>{collectionBusy?"Creating…":"Create"}</button></div>
+          <div className="v2-sheet-head"><div className="v2-modal-title" id="v2-new-collection-title">New Collection</div><button type="button" disabled={collectionBusy} className="v2-iconbtn" onClick={()=>setNewCollectionOpen(false)} aria-label="Close"><Icon name="x" size={18}/></button></div>
+          <div className="v2-sheet-body">{collectionError ? <div className="v2-error" role="alert">{collectionError}</div> : null}<div className="v2-field"><label htmlFor="v2-collection-name">Name</label><input id="v2-collection-name" autoFocus className="v2-input" value={newCollectionName} onChange={(e)=>setNewCollectionName(e.target.value)} onKeyDown={(e)=>{if(e.key==="Enter")document.getElementById("v2-create-collection")?.click()}} placeholder="Ideas, Lighting, Family…"/></div></div>
+          <div className="v2-sheet-foot"><button type="button" className="v2-btn" disabled={collectionBusy} onClick={()=>setNewCollectionOpen(false)}>Cancel</button><button id="v2-create-collection" className="v2-btn v2-btn-primary" disabled={!newCollectionName.trim()||collectionBusy} onClick={async()=>{setCollectionBusy(true);setCollectionError("");try{await createCollection(newCollectionName);setNewCollectionName("");setNewCollectionOpen(false)}catch(error){setCollectionError(error?.message || "Could not create collection. Try again.")}finally{setCollectionBusy(false)}}}>{collectionBusy?"Creating…":"Create"}</button></div>
         </section>
       </> : null}
 
