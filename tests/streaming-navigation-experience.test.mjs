@@ -47,7 +47,7 @@ test("search can return to original results and preserves scroll after navigatin
   assert.match(browser, /← Results/);
   assert.match(browser, /className="vv-results-facets"/);
   assert.match(browser, /vv-results-pagination/);
-  assert.match(browser, /Explore gallery →/);
+  assert.match(browser, /Explore source →/);
   assert.match(browser, /<details className="vv-search-preferences">/);
 });
 
