@@ -52,7 +52,7 @@ test("player-created Moment Marks trigger detail refresh", () => {
   const detail = read("components/vault-v2/DetailDrawer.jsx");
   assert.match(vault, /setActivityRevision\(\(n\)=>n\+1\)/);
   assert.match(vault, /activityRevision=\{activityRevision\}/);
-  assert.match(detail, /\[item, userId, activityRevision\]/);
+  assert.match(detail, /\[item\?\.key, userId, activityRevision\]/);
   assert.doesNotMatch(detail, /Add mark<\/button>/);
 });
 
