@@ -522,3 +522,63 @@
  .v2-nsfw-gate{margin:20px auto;min-height:350px}
  .v2-nsfw-gate-actions .v2-btn{min-height:44px}
 }
+
+
+/* Vault Essentials — the + form owns importing, and the library is cover-first. */
+.v2-mobile-nav{grid-template-columns:repeat(4,minmax(0,1fr))!important}
+.v2-simple-add{width:min(860px,calc(100vw - 24px));max-width:860px;max-height:min(91dvh,950px);overflow-y:auto;scrollbar-width:thin}
+.v2-simple-add .v2-sheet-head{position:sticky;top:0;z-index:2;background:#111216;border-bottom:1px solid rgba(255,255,255,.08)}
+.v2-simple-add .v2-sheet-head .v2-eyebrow{font-size:9px;margin-bottom:4px}
+.v2-simple-add-form{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(230px,.75fr);column-gap:30px;row-gap:20px;padding:24px 28px 0;min-width:0}
+.v2-simple-add-fields{display:flex;flex-direction:column;gap:15px;min-width:0}
+.v2-simple-add-fields .v2-field{display:flex;flex-direction:column;gap:8px;min-width:0;font-size:12px;color:#e6e7eb;font-weight:650}
+.v2-simple-add-fields .v2-field>span{line-height:1.3}
+.v2-simple-add-fields .v2-input,.v2-simple-add-fields .v2-select{width:100%;height:46px;border-radius:10px;padding:10px 13px;color:#fff;background:#202126;border:1px solid rgba(255,255,255,.13);font-size:14px;font-weight:450}
+.v2-simple-add-fields .v2-input:focus,.v2-simple-add-fields .v2-select:focus{outline:2px solid rgba(255,255,255,.5);outline-offset:1px}
+.v2-simple-add-fields .v2-description{min-height:90px;height:auto;resize:vertical;line-height:1.5}
+.v2-simple-add-fields .v2-cover-switch{display:flex;gap:5px;padding:4px;background:#202126;border:1px solid rgba(255,255,255,.11);border-radius:10px}
+.v2-simple-add-fields .v2-cover-switch button{border:0;border-radius:7px;padding:10px 13px;flex:1;cursor:pointer;background:transparent;color:#b6b7be;font-size:12px;font-weight:670}
+.v2-simple-add-fields .v2-cover-switch button[aria-pressed="true"]{color:#141517;background:#f4f4f6}
+.v2-cover-help{color:#aaabb4;margin:0;line-height:1.45}
+.v2-simple-add-preview{min-width:0;padding:14px;border:1px solid rgba(255,255,255,.09);background:linear-gradient(130deg,#17191e,#0d0f13);border-radius:12px;align-self:start;position:sticky;top:90px}
+.v2-simple-cover-art{position:relative;width:100%;aspect-ratio:4/5;border-radius:8px;overflow:hidden;border:1px solid rgba(255,255,255,.08);background:linear-gradient(145deg,#252a31,#15191d);margin-top:12px}
+.v2-simple-cover-art img{width:100%;height:100%;display:block;object-fit:cover}
+.v2-simple-cover-empty{display:flex;flex-direction:column;gap:14px;align-items:center;justify-content:center;width:100%;height:100%;padding:25px;text-align:center;color:#9da0a8;font-size:12px}
+.v2-simple-add-preview>.v2-hint{line-height:1.45;margin-top:12px;font-size:11px}
+.v2-simple-add-actions{grid-column:1/-1;display:flex;justify-content:flex-end;gap:10px;position:sticky;bottom:0;background:#111216;border-top:1px solid rgba(255,255,255,.08);padding:16px 28px;margin:0 -28px}
+.v2-simple-add-actions .v2-btn{min-height:45px}
+.v2-simple-add-actions .v2-btn-primary{min-width:142px}
+.v2-simple-add-form>.v2-error{grid-column:1/-1}
+.v2-clean-detail{width:min(920px,calc(100vw - 24px));max-width:920px;max-height:92dvh;overflow-y:auto}
+.v2-clean-detail-body{display:grid;grid-template-columns:minmax(210px,.83fr) minmax(0,1.17fr);gap:28px;padding:24px;align-items:start}
+.v2-clean-detail-poster{aspect-ratio:4/5;max-height:520px;overflow:hidden;border-radius:12px;background:#16191d;border:1px solid rgba(255,255,255,.08)}
+.v2-clean-detail-poster img{display:block;width:100%;height:100%;object-fit:contain}
+.v2-clean-detail-copy{min-width:0}
+.v2-clean-detail-copy h2{font-size:clamp(23px,2.5vw,36px);letter-spacing:-.035em;line-height:1.14;margin:12px 0;overflow-wrap:anywhere}
+.v2-clean-description{color:#bfc0c9;line-height:1.6;font-size:13px;margin:14px 0}
+.v2-tag-row{display:flex;flex-wrap:wrap;gap:7px;margin:15px 0}
+.v2-tag{border-radius:6px;padding:6px 9px;background:#24262d;border:1px solid rgba(255,255,255,.1);color:#c8c9d0;font-size:11px}
+.v2-clean-detail-actions{display:flex;flex-wrap:wrap;gap:9px;margin:23px 0}
+.v2-clean-detail-fields{display:grid;grid-template-columns:1fr 1fr;gap:13px;padding-top:16px;border-top:1px solid rgba(255,255,255,.08)}
+.v2-clean-detail-fields .v2-field{min-width:0;display:flex;flex-direction:column;gap:9px;font-size:12px;color:#c9cad1}
+.v2-clean-detail-fields .v2-select{width:100%;min-height:44px;padding:10px;color:#f5f5f5;background:#222329;border:1px solid rgba(255,255,255,.14);border-radius:9px}
+.v2-clean-detail-footer{display:flex;align-items:center;flex-wrap:wrap;gap:8px;margin-top:24px}
+.v2-clean-delete-confirm{display:flex;align-items:center;gap:7px;flex-wrap:wrap;width:100%;font-size:12px;color:#ffa0a0}
+.v2-clean-delete-confirm>span{flex:1 1 100%}
+.v2-clean-detail .v2-detail-pager{display:flex;gap:6px;align-items:center}
+.v2-clean-detail .v2-detail-pager .v2-hint{min-width:52px;text-align:center}
+@media(max-width:700px){
+ .v2-simple-add-form{grid-template-columns:minmax(0,1fr);padding:18px 16px 0;row-gap:18px}
+ .v2-simple-add-preview{position:static;grid-row:2;padding:12px}
+ .v2-simple-cover-art{aspect-ratio:16/9;max-height:245px}
+ .v2-simple-add-actions{margin:0 -16px;padding:14px 16px}
+ .v2-clean-detail-body{grid-template-columns:minmax(0,1fr);padding:16px;gap:17px}
+ .v2-clean-detail-poster{aspect-ratio:16/9;max-height:300px}
+ .v2-clean-detail-fields{grid-template-columns:1fr 1fr}
+}
+@media(max-width:440px){
+ .v2-simple-add{width:100vw;max-height:100dvh;border-radius:0}
+ .v2-simple-add-fields :is(input,textarea,select){font-size:16px!important}
+ .v2-clean-detail-fields{grid-template-columns:1fr}
+ .v2-clean-detail{width:100vw;max-height:100dvh;border-radius:0}
+}
