@@ -108,6 +108,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 // Chrome-only capture handoff into Elicasta/Vault. Saving happens inside
 // the existing signed-in Vault application, never in this service worker.
 const VAULT_DEFAULT_URL = "https://vault-preview-temp-git-polish-vault-p-5026a8-elicastas-projects.vercel.app";
+function isOldVaultPreview(origin) {
+  try {
+    const host = new URL(origin).hostname;
+    return host.startsWith("vault-preview-temp-git-feat-extension-") && host.endsWith("-elicastas-projects.vercel.app");
+  } catch { return false; }
+}
 const PENDING_PREFIX = "vault_folder_job_";
 const activeJobs = new Set();
 const MAX_BATCH = 300;
@@ -121,9 +127,14 @@ function safeVaultOrigin(raw) {
   } catch { return ""; }
 }
 async function getVaultOrigin(requested) {
-  if (safeVaultOrigin(requested)) return safeVaultOrigin(requested);
   const stored = await chrome.storage.local.get("vault_import_origin").catch(() => ({}));
-  return safeVaultOrigin(stored.vault_import_origin) || VAULT_DEFAULT_URL;
+  const requestedOrigin = safeVaultOrigin(requested);
+  const savedOrigin = safeVaultOrigin(stored.vault_import_origin);
+  if (isOldVaultPreview(requestedOrigin) || isOldVaultPreview(savedOrigin)) {
+    await chrome.storage.local.set({vault_import_origin: VAULT_DEFAULT_URL}).catch(() => {});
+    return VAULT_DEFAULT_URL;
+  }
+  return requestedOrigin || savedOrigin || VAULT_DEFAULT_URL;
 }
 function cleanSelection(incoming) {
   const saved = [], seen = new Set();
