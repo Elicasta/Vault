@@ -18,14 +18,25 @@ test("home leads with real media and a one-click watch action", () => {
   assert.match(css, /\.v2-desktop-nav/);
 });
 
-test("collection covers are designed even when the folder has no thumbnail", () => {
-  const view = read("components/vault-v2/VaultV2.jsx");
-  const css = read("app/vault-v2.css");
-  assert.match(view, /v2-collection-artwork/);
-  assert.match(view, /v2-tone-\$\{tone\}/);
-  assert.match(view, /VAULT COLLECTION/);
-  assert.match(view, /covers\.length \? covers\.map/);
-  for (let i=0;i<5;i++) assert.ok(css.includes(".v2-tone-"+i));
+test("collection cards take the first media thumbnail and use a compact overlay",()=>{
+  const view=read("components/vault-v2/VaultV2.jsx");
+  const css=read("app/vault-v2.css");
+  assert.match(view,/const firstItem = items\[0\] \|\| null/);
+  assert.match(view,/const cover = firstItem\?\.display_thumbnail \|\| firstItem\?\.thumbnail \|\| ""/);
+  assert.match(view,/v2-collection-caption/);
+  assert.match(view,/coverAttempt === 0 \? proxiedMediaUrl\(cover\) : cover/);
+  assert.doesNotMatch(view,/covers\.length \? covers\.map/);
+  assert.match(css,/\.v2-collection-preview \.v2-collection-name\{/);
+  assert.match(css,/font-size:12\.5px/);
+});
+
+test("media title overlays remain small and don't crowd cover imagery",()=>{
+  const card=read("components/vault-v2/MediaCard.jsx");
+  const css=read("app/vault-v2.css");
+  assert.match(card,/v2-art-shade/);
+  assert.match(card,/v2-card-title/);
+  assert.match(css,/\.v2-card \.v2-card-title\{/);
+  assert.match(css,/font-size:12px/);
 });
 
 test("library media browse uses curated types with advanced filters optionally available", () => {
