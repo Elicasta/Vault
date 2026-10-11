@@ -18,7 +18,7 @@ import {
   supabase, getVaultItems, getUserData, getFolders, getCoverLibrary,
   upsertVaultItem, removeVaultItem, deleteVaultMedia,
   toggleFavorite, setItemFolder, setItemRating,
-  createFolder, recordItemView, addMomentMark,
+  createFolder, recordItemView, recordItemOil, addMomentMark,
 } from "@/lib/supabase";
 import { mergeRemoteItemsWithOutbox } from "@/lib/sync-outbox";
 import { ensureProxySession, SECURITY_V2_ENABLED } from "@/lib/security-session";
@@ -179,6 +179,7 @@ export default function VaultV2({ route = "home" }) {
   const searchParams = useSearchParams();
   const searchRef = useRef(null);
   const newCollectionRef = useRef(null);
+  const reactingKeys = useRef(new Set());
 
   const [user, setUser] = useState(null);
   const [items, setItems] = useState([]);
@@ -191,7 +192,8 @@ export default function VaultV2({ route = "home" }) {
   const [online, setOnline] = useState(true);
   const [query, setQuery] = useState(searchParams.get("q") || "");
   const [debouncedQuery, setDebouncedQuery] = useState(searchParams.get("q") || "");
-  const [filters, setFilters] = useState({ type:"all", collection:"all", source:"all", favorite:"all", rating:"all", status:"all" });
+  const routeStatus = searchParams.get("status") === "continue" ? "continue" : "all";
+  const [filters, setFilters] = useState({ type:"all", collection:"all", source:"all", favorite:"all", rating:"all", status:routeStatus });
   const [sort, setSort] = useState("added");
   const [detailItem, setDetailItem] = useState(null);
   const [playerItem, setPlayerItem] = useState(null);
@@ -207,6 +209,9 @@ export default function VaultV2({ route = "home" }) {
   const [visibilityError, setVisibilityError] = useState("");
 
   const selectedCollection = searchParams.get("folder") || "";
+  useEffect(() => {
+    setFilters((previous) => previous.status === routeStatus ? previous : { ...previous, status: routeStatus });
+  }, [routeStatus]);
 
   const dialogOpen = !!(detailItem || playerItem || addOpen || editItem || mobileControl || newCollectionOpen || browserOpen);
   useEffect(() => {
@@ -324,12 +329,14 @@ export default function VaultV2({ route = "home" }) {
   }, [newCollectionOpen]);
 
   const saveItem = async (item) => {
-    setItems((prev)=>[item,...prev.filter((x)=>x.key!==item.key && x.key!==item.previousKey)]);
-    if (!user) return;
-    await upsertVaultItem(user.id,item);
-    if (item.previousKey && item.previousKey !== item.key) await removeVaultItem(user.id,item.previousKey);
-    fetch("/api/sheets-sync",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"upsert",...item})}).catch(()=>{});
-    setDetailItem((current)=>current?.key===item.previousKey || current?.key===item.key ? item : current);
+    if (!user) throw new Error("Sign in before saving media.");
+    // Do not show a successful save until Supabase (or the sync outbox) accepts it.
+    // On failure, the caller keeps its draft open for retry.
+    await upsertVaultItem(user.id, item);
+    if (item.previousKey && item.previousKey !== item.key) await removeVaultItem(user.id, item.previousKey);
+    setItems((prev) => [item, ...prev.filter((x) => x.key !== item.key && x.key !== item.previousKey)]);
+    fetch("/api/sheets-sync", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"upsert",...item})}).catch(()=>{});
+    setDetailItem((current) => current?.key === item.previousKey || current?.key === item.key ? item : current);
   };
 
   const setItemVisibility = async (item, hidden) => {
@@ -385,6 +392,20 @@ export default function VaultV2({ route = "home" }) {
   const rateItem = async (key,rating) => {
     if(user) await setItemRating(user.id,key,rating||null);
     setUserData((prev)=>({...prev,[key]:{...(prev[key]||{}),item_key:key,rating:rating||null,rated_at:rating?new Date().toISOString():null}}));
+  };
+
+  const reactToItem = async (item) => {
+    if (!user || !item?.key || reactingKeys.current.has(item.key)) return;
+    reactingKeys.current.add(item.key);
+    try {
+      const result = await recordItemOil(user.id, item.key);
+      if (result) setUserData((prev) => ({ ...prev, [item.key]: {
+        ...(prev[item.key] || {}), item_key: item.key,
+        oil_count: result.oil_count, last_oiled_at: result.last_oiled_at,
+      } }));
+    } finally {
+      reactingKeys.current.delete(item.key);
+    }
   };
 
   const play = async (item) => {
@@ -456,6 +477,7 @@ export default function VaultV2({ route = "home" }) {
 
   const renderGrid=(list,emptyTitle="Nothing here yet",emptyText="Items matching this view will appear here.")=>{
     if(loading) return <LoadingGrid/>;
+    if(loadError) return <div className="v2-error" role="status">Library data could not be loaded. Retry before adding or deleting media.</div>;
     if(!list.length) return <EmptyState title={emptyTitle} text={emptyText} action={()=>setAddOpen(true)} actionLabel="Add media"/>;
     const visible = list.slice(0, visibleLimit);
     return <>
@@ -486,12 +508,12 @@ export default function VaultV2({ route = "home" }) {
     page = (
       <>
         <div className="v2-hero"><div className="v2-eyebrow">Your private media library</div><h1 className="v2-h1">Pick up where you left off.</h1><p className="v2-lead">Resume, save, find, and organize the references worth keeping.</p></div>
-        <MediaRow title="Continue" subtitle="Unfinished media, ready to resume" items={continueItems} userData={userData} onOpen={setDetailItem} onSeeAll={()=>router.push("/library")}/>
+        <MediaRow title="Continue" subtitle="Unfinished media, ready to resume" items={continueItems} userData={userData} onOpen={setDetailItem} onSeeAll={()=>router.push("/library?status=continue")}/>
         <MediaRow title="Recently Saved" items={recentItems} userData={userData} onOpen={setDetailItem} onSeeAll={()=>router.push("/library")}/>
         {inboxItems.length ? <MediaRow title={"Inbox · "+inboxItems.length} subtitle="Saved but not organized yet" items={inboxItems.slice(0,8)} userData={userData} onOpen={setDetailItem} onSeeAll={()=>router.push("/inbox")}/> : null}
         {recentFolders.length ? <section className="v2-section"><div className="v2-section-head"><div><h2 className="v2-section-title">Recent Collections</h2><div className="v2-section-sub">Your organized spaces</div></div><button className="v2-linkbtn" onClick={()=>router.push("/collections")}>See all</button></div><div className="v2-collection-grid">{recentFolders.map((f)=>{const count=displayItems.filter((i)=>folderFor(i,userData[i.key]||{})===f.name).length;return <button className="v2-collection" key={f.name} onClick={()=>router.push("/collections?folder="+encodeURIComponent(f.name))}><div className="v2-collection-icon"><Icon name="folder" size={20}/></div><div><div className="v2-collection-name">{f.name}</div><div className="v2-collection-count">{count} item{count===1?"":"s"}</div></div></button>})}</div></section> : null}
         <MediaRow title="Top Rated" items={topRated} userData={userData} onOpen={setDetailItem}/>
-        {!loading && !items.length ? <EmptyState icon="vault" title="Your Vault is ready" text="Save your first video, image, PDF, or reference link." action={()=>setAddOpen(true)} actionLabel="Add your first item"/> : null}
+        {!loading && !loadError && !items.length ? <EmptyState icon="vault" title="Your Vault is ready" text="Save your first video, image, PDF, or reference link." action={()=>setAddOpen(true)} actionLabel="Add your first item"/> : null}
       </>
     );
   } else if(route==="library") {
@@ -563,7 +585,7 @@ export default function VaultV2({ route = "home" }) {
             <button type="button" className="v2-iconbtn" onClick={()=>router.push("/settings")} aria-label="Settings"><Icon name="settings" size={17}/></button>
           </header>
           <div className="v2-content">
-            {loadError ? <div className="v2-error" role="alert"><span>{loadError}</span><button className="v2-btn" onClick={()=>refresh(user?.id)}>Retry</button></div> : null}
+            {loadError ? <div className="v2-error" role="alert"><span>{loadError}</span><button type="button" className="v2-btn" onClick={()=>refresh(user?.id).then(()=>setLoadError("")).catch((error)=>setLoadError(error?.message || "Could not reload the library."))}>Retry</button></div> : null}
             {page}
           </div>
         </main>
@@ -640,7 +662,7 @@ export default function VaultV2({ route = "home" }) {
         }}
         variant="integrated"
         oilCount={Number(userData[playerItem.key]?.oil_count||0)}
-        onOil={()=>{}}
+        onOil={()=>reactToItem(playerItem)}
       /> : null}
     </div>
   );
