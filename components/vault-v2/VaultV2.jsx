@@ -38,11 +38,10 @@ const NAV = [
 
 const MOBILE_NAV = [
   ["home", "/", "home", "Home"],
-  ["library", "/library", "grid", "Library"],
-  ["add", "#add", "plus", "Add"],
+  ["library", "/library", "grid", "Browse"],
+  ["search", "/search", "search", "Discover"],
   ["collections", "/collections", "folder", "Collections"],
-  ["search", "/search", "search", "Search"],
-  ["import", "/import", "download", "Import"],
+  ["add", "#add", "plus", "Add"],
 ];
 
 const ROUTE_TITLES = {
@@ -107,18 +106,44 @@ function MediaRow({ title, subtitle, items, userData, onOpen, onSeeAll }) {
   );
 }
 
+function FeaturedStage({ item, state, onWatch, onDetails, onBrowse }) {
+  if (!item) return null;
+  const cover = item.display_thumbnail || item.thumbnail || (mediaType(item) === "image" ? item.url : "");
+  const type = mediaType(item);
+  const progress = Number(state?.progress || 0);
+  const duration = Number(state?.duration || 0);
+  const inProgress = duration > 0 && progress > 5 && progress / duration < .95;
+  return <section className="v2-featured" aria-label="Featured from your Vault">
+    <div className="v2-featured-art" aria-hidden="true">
+      {cover ? <img src={proxiedMediaUrl(cover)} alt="" decoding="async" onError={e=>{e.currentTarget.style.opacity="0"}}/> : null}
+    </div>
+    <div className="v2-featured-copy">
+      <div className="v2-featured-kicker"><span className="v2-live-dot"/> {inProgress?"CONTINUE WATCHING":"FROM YOUR VAULT"}</div>
+      <h1>{item.title || "Ready when you are"}</h1>
+      <p>{[getSourceMeta(item.url || "").name, type==="video"?"Video":type==="image"?"Image":type==="audio"?"Audio":"Saved media",item.folder].filter(Boolean).join(" · ")}</p>
+      <div className="v2-featured-actions">
+        <button type="button" className="v2-btn v2-btn-primary" onClick={()=>onWatch(item)}><Icon name={type==="image"?"zoomIn":"play"} size={18}/> {inProgress?"Resume":type==="image"?"View image":"Watch now"}</button>
+        <button type="button" className="v2-btn v2-btn-secondary" onClick={()=>onDetails(item)}><Icon name="info" size={17}/> Details</button>
+      </div>
+    </div>
+    <button type="button" className="v2-featured-browse" onClick={onBrowse}>Browse your library <Icon name="chevronRight" size={16}/></button>
+  </section>;
+}
+
 function CollectionCard({ folder, items, onOpen }) {
   const covers = items.map((item) => item.display_thumbnail || item.thumbnail).filter(Boolean).slice(0, 3);
+  const tone = [...folder.name].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 5;
   return (
     <button type="button" className="v2-collection v2-collection-preview" onClick={onOpen}
       aria-label={`Open collection ${folder.name}, ${items.length} saved items`}>
-      <div className="v2-collection-covers" data-count={covers.length} aria-hidden="true">
+      <div className={`v2-collection-covers v2-tone-${tone}`} data-count={covers.length} aria-hidden="true">
+        <div className="v2-collection-artwork"><span className="v2-collection-artwork-overline">VAULT COLLECTION</span><strong>{folder.name}</strong><span className="v2-collection-artwork-symbol"><Icon name="folder" size={28}/></span></div>
         {covers.length ? covers.map((url, index) => (
           <div className="v2-collection-cover" key={url + index}>
             <img src={proxiedMediaUrl(url)} alt="" loading="lazy" decoding="async"
               onError={(event) => { event.currentTarget.style.opacity = "0"; }} />
           </div>
-        )) : <div className="v2-collection-empty-art"><Icon name="folder" size={26} /></div>}
+        )) : null}
       </div>
       <div className="v2-collection-footer">
         <div className="v2-collection-labels">
@@ -221,8 +246,11 @@ export default function VaultV2({ route = "home" }) {
   const [query, setQuery] = useState(searchParams.get("q") || "");
   const [debouncedQuery, setDebouncedQuery] = useState(searchParams.get("q") || "");
   const routeStatus = searchParams.get("status") === "continue" ? "continue" : "all";
-  const [filters, setFilters] = useState({ type:"all", collection:"all", source:"all", favorite:"all", rating:"all", status:routeStatus });
+  const routeType = ["video","image","audio","pdf","link"].includes(searchParams.get("type")) ? searchParams.get("type") : "all";
+  const routeFavorite = searchParams.get("favorite")==="yes" ? "yes" : "all";
+  const [filters, setFilters] = useState({ type:routeType, collection:"all", source:"all", favorite:routeFavorite, rating:"all", status:routeStatus });
   const [sort, setSort] = useState("added");
+  const [advancedFiltersOpen, setAdvancedFiltersOpen] = useState(false);
   const [detailItem, setDetailItem] = useState(null);
   const [playerItem, setPlayerItem] = useState(null);
   const [addOpen, setAddOpen] = useState(false);
@@ -242,8 +270,9 @@ export default function VaultV2({ route = "home" }) {
 
   const selectedCollection = searchParams.get("folder") || "";
   useEffect(() => {
-    setFilters((previous) => previous.status === routeStatus ? previous : { ...previous, status: routeStatus });
-  }, [routeStatus]);
+    setFilters((previous) => previous.status === routeStatus && previous.type === routeType && previous.favorite === routeFavorite
+      ? previous : { ...previous, status:routeStatus, type:routeType, favorite:routeFavorite });
+  }, [routeStatus,routeType,routeFavorite]);
 
   const dialogOpen = !!(detailItem || playerItem || addOpen || editItem || mobileControl || newCollectionOpen || browserOpen);
   useEffect(() => {
@@ -487,7 +516,11 @@ export default function VaultV2({ route = "home" }) {
 
   const inboxItems = useMemo(()=>displayItems.filter((i)=>!folderFor(i,userData[i.key]||{})),[displayItems,userData]);
   const continueItems = useMemo(()=>displayItems.filter((i)=>{const d=userData[i.key]||{};return d.progress>5&&d.duration>0&&d.progress/d.duration<.95}).sort((a,b)=>new Date(userData[b.key]?.updated_at||0)-new Date(userData[a.key]?.updated_at||0)).slice(0,8),[displayItems,userData]);
-  const recentItems = useMemo(()=>[...displayItems].sort((a,b)=>new Date(b.addedAt||0)-new Date(a.addedAt||0)).slice(0,8),[displayItems]);
+  const recentItems = useMemo(()=>[...displayItems].sort((a,b)=>new Date(b.addedAt||0)-new Date(a.addedAt||0)).slice(0,12),[displayItems]);
+  const videoItems = useMemo(()=>[...displayItems].filter((i)=>mediaType(i)==="video").sort((a,b)=>new Date(b.addedAt||0)-new Date(a.addedAt||0)).slice(0,12),[displayItems]);
+  const imageItems = useMemo(()=>[...displayItems].filter((i)=>mediaType(i)==="image").sort((a,b)=>new Date(b.addedAt||0)-new Date(a.addedAt||0)).slice(0,12),[displayItems]);
+  const favoriteItems = useMemo(()=>[...displayItems].filter((i)=>userData[i.key]?.favorite).sort((a,b)=>new Date(b.addedAt||0)-new Date(a.addedAt||0)).slice(0,12),[displayItems,userData]);
+  const featuredItem = continueItems[0] || videoItems[0] || recentItems[0] || null;
   const topRated = useMemo(()=>displayItems.filter((i)=>userData[i.key]?.rating).sort((a,b)=>Number(userData[b.key]?.rating||0)-Number(userData[a.key]?.rating||0)).slice(0,8),[displayItems,userData]);
   const recentFolders = useMemo(()=>[...folders].sort((a,b)=>new Date(b.last_viewed_at||b.updated_at||0)-new Date(a.last_viewed_at||a.updated_at||0)).slice(0,6),[folders]);
 
@@ -509,7 +542,7 @@ export default function VaultV2({ route = "home" }) {
 
   const resetFilters=()=>{
     setFilters({type:"all",collection:"all",source:"all",favorite:"all",rating:"all",status:"all"});
-    if (route === "library" && routeStatus === "continue") router.replace("/library");
+    if (route === "library" && (routeStatus !== "all" || routeType !== "all" || routeFavorite !== "all")) router.replace("/library");
   };
   const activeFilterCount = Object.values(filters).filter((value) => value !== "all").length;
 
@@ -526,14 +559,20 @@ export default function VaultV2({ route = "home" }) {
 
   const filtersBar=(
     <>
-      <div className="v2-toolbar v2-toolbar-desktop">
-        <FilterFields filters={filters} setFilters={setFilters} folders={folders}/>
-        <select className="v2-filter" aria-label="Sort library" value={sort} onChange={(e)=>setSort(e.target.value)}>
-          <option value="added">Recently added</option><option value="viewed">Recently viewed</option><option value="alpha">A–Z</option><option value="rating">Rating</option>
-        </select>
-        <button type="button" className="v2-linkbtn" onClick={resetFilters}>Reset</button>
-        <div className="v2-result-count">{allFiltered.length} item{allFiltered.length===1?"":"s"}</div>
+      <div className="v2-toolbar v2-toolbar-desktop v2-browse-toolbar">
+        <div className="v2-browse-types" role="group" aria-label="Media type">
+          {[["all","All"],["video","Videos"],["image","Images"],["audio","Audio"],["link","Links"]].map(([type,label]) =>
+            <button type="button" key={type} aria-pressed={filters.type===type} onClick={()=>setFilters(previous=>({...previous,type}))}>{label}</button>)}
+        </div>
+        <div className="v2-browse-utility">
+          <span className="v2-result-count">{allFiltered.length} title{allFiltered.length===1?"":"s"}</span>
+          <select className="v2-filter" aria-label="Sort library" value={sort} onChange={(e)=>setSort(e.target.value)}>
+            <option value="added">Recently added</option><option value="viewed">Recently viewed</option><option value="alpha">A–Z</option><option value="rating">Rating</option>
+          </select>
+          <button type="button" className="v2-btn v2-advanced-toggle" aria-expanded={advancedFiltersOpen} onClick={()=>setAdvancedFiltersOpen(v=>!v)}><Icon name="sort" size={16}/> Filters{activeFilterCount ? ` · ${activeFilterCount}` : ""}</button>
+        </div>
       </div>
+      {advancedFiltersOpen && <div className="v2-advanced-filters" aria-label="Advanced library filters"><FilterFields filters={filters} setFilters={setFilters} folders={folders}/><button type="button" className="v2-btn" onClick={resetFilters}>Clear all</button></div>}
       <div className="v2-mobile-controls">
         <button type="button" className="v2-btn" onClick={()=>setMobileControl("filters")}><Icon name="sort" size={15}/> Filters{activeFilterCount ? ` · ${activeFilterCount}` : ""}</button>
         <button type="button" className="v2-btn" onClick={()=>setMobileControl("sort")}><Icon name="list" size={15}/> Sort</button>
@@ -544,15 +583,17 @@ export default function VaultV2({ route = "home" }) {
   let page;
   if(route==="home") {
     page = (
-      <>
-        <div className="v2-hero"><div className="v2-eyebrow">Your private media library</div><h1 className="v2-h1">Pick up where you left off.</h1><p className="v2-lead">Resume, save, find, and organize the references worth keeping.</p></div>
-        <MediaRow title="Continue" subtitle="Unfinished media, ready to resume" items={continueItems} userData={userData} onOpen={setDetailItem} onSeeAll={()=>router.push("/library?status=continue")}/>
-        <MediaRow title="Recently Saved" items={recentItems} userData={userData} onOpen={setDetailItem} onSeeAll={()=>router.push("/library")}/>
-        {inboxItems.length ? <MediaRow title={"Inbox · "+inboxItems.length} subtitle="Saved but not organized yet" items={inboxItems.slice(0,8)} userData={userData} onOpen={setDetailItem} onSeeAll={()=>router.push("/inbox")}/> : null}
-        {recentFolders.length ? <section className="v2-section"><div className="v2-section-head"><div><h2 className="v2-section-title">Recent Collections</h2><div className="v2-section-sub">Your organized spaces</div></div><button className="v2-linkbtn" onClick={()=>router.push("/collections")}>See all</button></div><div className="v2-collection-grid">{recentFolders.map((f)=><CollectionCard key={f.name} folder={f} items={displayItems.filter((i)=>folderFor(i,userData[i.key]||{})===f.name)} onOpen={()=>router.push("/collections?folder="+encodeURIComponent(f.name))}/>)}</div></section> : null}
-        <MediaRow title="Top Rated" items={topRated} userData={userData} onOpen={setDetailItem}/>
-        {!loading && !loadError && !items.length ? <EmptyState icon="vault" title="Your Vault is ready" text="Save your first video, image, PDF, or reference link." action={()=>setAddOpen(true)} actionLabel="Add your first item"/> : null}
-      </>
+      <div className="v2-watch-home">
+        {!loading && !loadError && featuredItem ? <FeaturedStage item={featuredItem} state={userData[featuredItem.key]||{}} onWatch={play} onDetails={setDetailItem} onBrowse={()=>router.push("/library")}/> : null}
+        {loading ? <LoadingGrid/> : null}
+        {!loading && !loadError && !displayItems.length ? <section className="v2-newcomer"><span className="v2-eyebrow">WELCOME TO VAULT</span><h1>Your own private streaming library.</h1><p>Save a video, photo, or gallery. Your home screen will fill with the things you want to return to.</p><button type="button" className="v2-btn v2-btn-primary" onClick={()=>setAddOpen(true)}>Add your first title</button></section> : null}
+        <MediaRow title="Continue Watching" subtitle="Start right where you left off" items={continueItems} userData={userData} onOpen={setDetailItem} onSeeAll={()=>router.push("/library?status=continue")}/>
+        <MediaRow title="Recently Added" subtitle="The latest in your library" items={recentItems} userData={userData} onOpen={setDetailItem} onSeeAll={()=>router.push("/library")}/>
+        <MediaRow title="Your Videos" subtitle="Ready to play" items={videoItems} userData={userData} onOpen={setDetailItem} onSeeAll={()=>router.push("/library?type=video")}/>
+        {recentFolders.length ? <section className="v2-section v2-home-collections"><div className="v2-section-head"><div><h2 className="v2-section-title">Your Collections</h2><div className="v2-section-sub">Pick a collection and keep exploring</div></div><button className="v2-linkbtn" onClick={()=>router.push("/collections")}>See all</button></div><div className="v2-collection-grid">{recentFolders.map((f)=><CollectionCard key={f.name} folder={f} items={displayItems.filter((i)=>folderFor(i,userData[i.key]||{})===f.name)} onOpen={()=>router.push("/collections?folder="+encodeURIComponent(f.name))}/>)}</div></section> : null}
+        <MediaRow title="Your Favorites" items={favoriteItems} userData={userData} onOpen={setDetailItem} onSeeAll={()=>router.push("/library?favorite=yes")}/>
+        <MediaRow title="Photos & Artwork" items={imageItems} userData={userData} onOpen={setDetailItem} onSeeAll={()=>router.push("/library?type=image")}/>
+      </div>
     );
   } else if(route==="library") {
     page = <><div className="v2-hero"><div className="v2-eyebrow">Everything you saved</div><h1 className="v2-h1">Library</h1><p className="v2-lead">One clean view of your entire Vault.</p></div>{filtersBar}{renderGrid(allFiltered,"No matching media","Try clearing filters or add something new.", activeFilterCount ? {action:resetFilters,label:"Clear filters"} : {})}</>;
@@ -593,7 +634,7 @@ export default function VaultV2({ route = "home" }) {
             <button className="v2-btn" type="button" onClick={() => setItemVisibility(item, false).catch(() => {})}>Restore</button>
           </div>
         ))}
-      </div><GoogleDriveBackup userId={user?.id} items={displayItems} /></div><div className="v2-settings-card"><h3>Cloud sync</h3><p>Supabase is the durable source of truth. Unsynced changes stay visibly marked until confirmed.</p><div style={{marginTop:12}}><span className="v2-state-pill" data-state={online?"ok":"warn"}>{online?"Online":"Offline"}</span></div></div><div className="v2-settings-card"><h3>Security</h3><p>Authenticated data access, RLS ownership checks, and protected media proxies are active in this preview.</p></div><div className="v2-settings-card"><h3>Account</h3><p>{user?.email || "Signed in"}</p><button type="button" className="v2-btn" style={{marginTop:14}} onClick={async()=>{await supabase.auth.signOut();window.location.reload();}}><Icon name="logout" size={15}/> Sign out</button></div></div></>;
+      </div><GoogleDriveBackup userId={user?.id} items={displayItems} /></div><div className="v2-settings-card"><h3>Cloud sync</h3><p>Supabase is the durable source of truth. Unsynced changes stay visibly marked until confirmed.</p><div style={{marginTop:12}}><span className="v2-state-pill" data-state={online?"ok":"warn"}>{online?"Online":"Offline"}</span></div></div><div className="v2-settings-card"><h3>Security</h3><p>Authenticated data access, RLS ownership checks, and protected media proxies are active in this preview.</p></div><div className="v2-settings-card"><h3>Import & tools</h3><p>Bring media into your Vault from files, links, Google Sheets, or your browser.</p><button className="v2-btn" type="button" onClick={()=>router.push("/import")} style={{marginTop:14}}><Icon name="download" size={15}/> Open Import Media</button></div><div className="v2-settings-card"><h3>Account</h3><p>{user?.email || "Signed in"}</p><button type="button" className="v2-btn" style={{marginTop:14}} onClick={async()=>{await supabase.auth.signOut();window.location.reload();}}><Icon name="logout" size={15}/> Sign out</button></div></div></>;
   }
 
   return (
@@ -613,12 +654,17 @@ export default function VaultV2({ route = "home" }) {
 
         <main className="v2-main">
           <header className="v2-topbar">
+            <Link href="/" className="v2-desktop-brand"><span className="v2-brandmark"><Icon name="vault" size={17}/></span><strong>VAULT</strong></Link>
+            <nav className="v2-desktop-nav" aria-label="Browse Vault">
+              {[["home","/","Home"],["library","/library","Browse"],["search","/search","Discover"],["collections","/collections","Collections"]].map(([id,href,label])=><Link key={id} href={href} aria-current={route===id?"page":undefined}>{label}</Link>)}
+            </nav>
             <div className="v2-mobile-title">{ROUTE_TITLES[route]}</div>
             <form className="v2-searchbox" role="search" onSubmit={globalSearchSubmit}>
               <Icon name="search" size={16}/>
               <input ref={searchRef} value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Search Vault" aria-label="Search Vault"/>
               <span className="v2-hint v2-keyboard-hint" aria-hidden="true">⌘K</span>
             </form>
+            <button type="button" className="v2-btn v2-desktop-add v2-desktop-import" onClick={()=>router.push("/import")}><Icon name="download" size={15}/> Import</button>
             <button type="button" className="v2-btn v2-btn-primary v2-desktop-add" onClick={()=>setAddOpen(true)}><Icon name="plus" size={15}/> Add</button>
             <button type="button" className="v2-iconbtn" onClick={()=>router.push("/settings")} aria-label="Settings"><Icon name="settings" size={17}/></button>
           </header>
