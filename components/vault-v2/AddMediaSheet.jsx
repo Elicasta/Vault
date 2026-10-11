@@ -22,6 +22,8 @@ export default function AddMediaSheet({
 }) {
   const dialog = useRef(null);
   const lock = useRef(false);
+  const closeRef = useRef(onClose);
+  useEffect(() => {closeRef.current = onClose;}, [onClose]);
   const [url, setUrl] = useState("");
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
@@ -87,7 +89,8 @@ export default function AddMediaSheet({
     const fromSite = safeMetadata?.thumbnail;
     if (validHttp(fromSite)) return fromSite;
     const provider = getThumbCandidates(target).find(validHttp);
-    return provider || (IMAGE_URL.test(target) ? target : "");
+    const originalCover = initialItem && (initialItem.canonical_url || initialItem.url) === target && validHttp(initialItem.thumbnail) ? initialItem.thumbnail : "";
+    return provider || (IMAGE_URL.test(target) ? target : "") || originalCover;
   }, [url, safeMetadata]);
   const resolvedCover = coverMode === "manual" ? coverUrl.trim() : automaticCover;
   const coverCandidate = validHttp(resolvedCover) ? resolvedCover : "";
@@ -106,7 +109,7 @@ export default function AddMediaSheet({
     const onKey = event => {
       if (event.key === "Escape") {
         event.preventDefault();
-        if (!lock.current) onClose?.();
+        if (!lock.current) closeRef.current?.();
       }
       if (event.key !== "Tab" || !root) return;
       const nodes = [...root.querySelectorAll("button:not([disabled]),input:not([disabled]),textarea:not([disabled]),select:not([disabled])")];
@@ -117,11 +120,11 @@ export default function AddMediaSheet({
     };
     document.addEventListener("keydown", onKey);
     return () => {document.removeEventListener("keydown", onKey);previous?.focus?.();};
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
   const valid = validHttp(url) && name.trim() && coverCandidate && coverReady && !coverFailed && !metadataLoading;
-  const close = () => {if (!lock.current) onClose?.();};
+  const close = () => {if (!lock.current) closeRef.current?.();};
   const submit = async event => {
     event.preventDefault();
     if (!valid || lock.current) return;
@@ -216,7 +219,7 @@ export default function AddMediaSheet({
           <span className="v2-eyebrow">COVER PREVIEW</span>
           <div className="v2-simple-cover-art">
             {coverCandidate && !coverFailed ? <img src={previewSrc} alt="Cover preview" onLoad={()=>setCoverReady(true)}
-              onError={()=>{setCoverReady(false);if(previewMode===0)setPreviewMode(1);else setCoverFailed(true);}}/> : <div className="v2-simple-cover-empty"><Icon name="image" size={28}/><span>{coverFailed?"Cover image cannot be displayed":"Your cover appears here"}</span></div>}
+              onError={()=>{setCoverReady(false);if(previewMode===0)setPreviewMode(1);else setCoverFailed(true);}}/> : <div className="v2-simple-cover-empty"><Icon name="grid" size={28}/><span>{coverFailed?"Cover image cannot be displayed":"Your cover appears here"}</span></div>}
           </div>
           <p className="v2-hint">{coverReady?"Cover ready to save.":coverFailed?"Choose another Cover URL.": "A working cover is required to keep your library clean."}</p>
         </div>
