@@ -52,66 +52,101 @@ test("Google Sheets URLs resolve only trusted docs.google.com spreadsheet export
   "javascript:alert(1)"])assert.equal(p.sheetCsvExportUrl(url),"");
 });
 
-test("popup includes right-click handoff, sheet CSV controls and existing capture UI",()=>{
- const manifest=JSON.parse(source("manifest.json"));
- const popup=source("popup.js"),html=source("popup.html");
- assert.equal(manifest.manifest_version,3);
+test("extension popup retains gallery scanner, Google Sheets and folder-picker action", () => {
+ const manifest = JSON.parse(source("manifest.json"));
+ const popup = source("popup.js");
+ const html = source("popup.html");
+ assert.equal(manifest.manifest_version, 3);
+ assert.equal(manifest.version, "2.0.0");
  assert.ok(manifest.permissions.includes("contextMenus"));
- assert.match(popup,/VAULT_OPEN_IMPORT/);
- assert.match(popup,/Review captured media|Copied .* links/);
- assert.match(popup,/VaultBatchParser/);
- assert.match(popup,/sheetCsvExportUrl/);
- assert.match(popup,/allFrames: true/);
- assert.match(popup,/browser-original-candidate/);
- assert.match(html,/id="sheet-file"/);
- assert.match(html,/id="sheet-text"/);
- assert.match(html,/id="sheet-load"/);
- assert.match(html,/id="vault-url"/);
- assert.match(html,/id="send"/);
- assert.match(html,/id="smart-crop"/);
- assert.match(html,/src="batch-parser.js"/);
- assert.ok(html.indexOf('src="batch-parser.js"')<html.indexOf('src="popup.js"'));
+ assert.ok(manifest.permissions.includes("alarms"));
+ assert.match(popup, /VAULT_OPEN_PICKER/);
+ assert.match(popup, /selectedItems/);
+ assert.match(popup, /\.slice\(0,300\)/);
+ assert.match(popup, /VaultBatchParser/);
+ assert.match(popup, /sheetCsvExportUrl/);
+ assert.match(popup, /allFrames: true/);
+ assert.match(popup, /browser-original-candidate/);
+ assert.match(html, /id="sheet-file"/);
+ assert.match(html, /id="sheet-text"/);
+ assert.match(html, /id="sheet-load"/);
+ assert.match(html, /id="vault-url"/);
+ assert.match(html, /id="send"/);
+ assert.match(html, /id="smart-crop"/);
+ assert.match(html, /Choose folder/);
+ assert.ok(html.indexOf('src="batch-parser.js"') < html.indexOf('src="popup.js"'));
 });
 
-test("background extension only sends into user-configured HTTPS Vault import after action",async()=>{
- const background=source("background.js");
- const listeners={install:[],context:[],updated:[],message:[],removed:[]};
- const created=[],menus=[],injections=[];
- const storageData={};
- const chrome={
-  webRequest:{onBeforeRequest:{addListener(){}},onHeadersReceived:{addListener(){}}},
-  tabs:{onRemoved:{addListener:x=>listeners.removed.push(x)},onUpdated:{addListener:x=>listeners.updated.push(x)},
-   create:async opts=>{created.push(opts);return {id:101,status:"loading",url:opts.url};}},
-  storage:{session:{set:async()=>{},get:async()=>({}),remove:async()=>{}},
-    local:{get:async()=>storageData,set:async data=>Object.assign(storageData,data)}},
-  contextMenus:{create:x=>menus.push(x),onClicked:{addListener:x=>listeners.context.push(x)}},
-  runtime:{onInstalled:{addListener:x=>listeners.install.push(x)},
-   onMessage:{addListener:x=>listeners.message.push(x)},lastError:undefined},
-  scripting:{executeScript:async opts=>{injections.push(opts);return [{result:true}];}},
+test("right-click opens Vault folder picker and delivers only selected image URLs", async () => {
+ const background = source("background.js");
+ const listeners = { installed: [], clicked: [], updated: [], removed: [], message: [], alarm: [], startup: [] };
+ const opened = [], menus = [], injected = [];
+ const session = new Map(), local = {};
+ const origin = "https://vault-preview-temp-git-feat-extension-7e2809-elicastas-projects.vercel.app";
+ const chrome = {
+  webRequest: {onBeforeRequest:{addListener(){}},onHeadersReceived:{addListener(){}}},
+  tabs: {
+   onRemoved:{addListener:f=>listeners.removed.push(f)},
+   onUpdated:{addListener:f=>listeners.updated.push(f)},
+   get:async id=>({id,url:origin+"/capture"}),
+  },
+  windows:{create:async options=>{opened.push(options);return {tabs:[{id:101}]};}},
+  storage: {
+   session:{
+    set:async entries=>Object.entries(entries).forEach(([key,value])=>session.set(key,value)),
+    get:async key=>key===null?Object.fromEntries(session):{[key]:session.get(key)},
+    remove:async key=>session.delete(key),
+   },
+   local:{get:async()=>local,set:async next=>Object.assign(local,next)},
+  },
+  alarms:{
+   create(){},onAlarm:{addListener:f=>listeners.alarm.push(f)},
+  },
+  contextMenus:{create:x=>menus.push(x),onClicked:{addListener:f=>listeners.clicked.push(f)}},
+  runtime:{
+   onInstalled:{addListener:f=>listeners.installed.push(f)},
+   onStartup:{addListener:f=>listeners.startup.push(f)},
+   onMessage:{addListener:f=>listeners.message.push(f)},
+   lastError:undefined,
+  },
+  scripting:{executeScript:async opts=>{injected.push(opts);return [{result:true}];}},
  };
- vm.runInNewContext(background,{chrome,URL,Date,Math,Promise,setTimeout(){return 0;},setInterval(){return 0;},clearInterval(){},console});
- for(const fn of listeners.install)fn();
- assert.deepEqual(Array.from(menus.map(x=>x.id)),["vault_save_image","vault_queue_image"]);
- assert.ok(listeners.context.length>0);
- for(const fn of listeners.context)fn({menuItemId:"vault_save_image",srcUrl:"https://images.example/photo.webp"},{
-   id:22,url:"https://gallery.example/album/1",
- });
+ vm.runInNewContext(background,{chrome,URL,Date,Math,Promise,Map,Set,
+  setTimeout:(fn)=>{fn();return 1;},clearTimeout(){},console});
+ for(const fn of listeners.installed)fn();
+ assert.deepEqual(menus.map(item=>item.id), ["vault_save_image","vault_queue_image"]);
+ listeners.clicked[0]({menuItemId:"vault_save_image",srcUrl:"https://images.example/photo.webp",
+  linkUrl:"https://images.example/full.jpg"},{id:22,url:"https://gallery.example/album/1"});
  await new Promise(resolve=>setImmediate(resolve));
- assert.equal(created.length,1);
- assert.equal(created[0].url,"https://vault-preview-temp-9tnwnrk1f-elicastas-projects.vercel.app/import");
- for(const fn of listeners.updated)fn(101,{status:"complete"},{url:created[0].url});
  await new Promise(resolve=>setImmediate(resolve));
- assert.equal(injections.length,1);
- assert.equal(injections[0].world,"MAIN");
- assert.equal(injections[0].args[0].includes("https://images.example/photo.webp"),true);
+ assert.equal(opened.length, 1);
+ assert.equal(opened[0].type, "popup");
+ assert.equal(opened[0].url, origin + "/capture");
+ assert.equal(opened[0].focused, true);
+ assert.equal(injected.length, 1);
+ assert.equal(injected[0].world,"MAIN");
+ assert.equal(injected[0].args[0].format,"vault-extension-capture-v2");
+ assert.equal(injected[0].args[0].items[0].url,"https://images.example/full.jpg");
+ assert.equal(injected[0].args[0].items[0].thumbnail,"https://images.example/photo.webp");
  assert.doesNotMatch(background,/document\.cookie|chrome\.cookies\.get|Authorization:\s*Bearer/);
- assert.match(background,/HTMLTextAreaElement\.prototype/);
- assert.match(background,/Review captured media/);
 });
 
-test("feature branch does not modify Vault import page or its saved-media database",()=>{
- const popup=source("popup.js"),bg=source("background.js");
- assert.match(popup,/chrome\.storage\.local\.set/);
- assert.match(bg,/chrome\.tabs\.create/);
- assert.doesNotMatch(bg,/supabase|api\/save|api\/media-discovery/);
+test("picker saves via Elicasta Supabase auth and handles batches and folder choice", () => {
+ const page=fs.readFileSync("app/capture/page.jsx","utf8");
+ const picker=fs.readFileSync("components/ExtensionSavePicker.jsx","utf8");
+ const background=source("background.js");
+ assert.match(page,/AuthGate/);
+ assert.match(page,/ExtensionSavePicker/);
+ assert.match(picker,/supabase\.auth\.getUser/);
+ assert.match(picker,/getFolders/);
+ assert.match(picker,/createFolder/);
+ assert.match(picker,/upsertVaultItem/);
+ assert.match(picker,/Promise\.allSettled/);
+ assert.match(picker,/MAX_PARALLEL_WRITES = 8/);
+ assert.match(picker,/buildVaultMediaItem/);
+ assert.match(picker,/sessionStorage\.removeItem/);
+ assert.match(background,/MAX_BATCH = 300/);
+ assert.match(background,/PENDING_PREFIX/);
+ assert.match(background,/safeVaultOrigin/);
+ assert.doesNotMatch(background,/supabase\.from\(/);
 });

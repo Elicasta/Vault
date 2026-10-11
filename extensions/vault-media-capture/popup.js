@@ -8,7 +8,7 @@ const unknownAsImage = document.querySelector("#unknown-as-image");
 const vaultUrlInput = document.querySelector("#vault-url");
 const vaultHostLabel = document.querySelector("#vault-host-label");
 const vaultUrlResult = document.querySelector("#vault-url-result");
-const DEFAULT_VAULT = "https://vault-preview-temp-9tnwnrk1f-elicastas-projects.vercel.app";
+const DEFAULT_VAULT = "https://vault-preview-temp-git-feat-extension-7e2809-elicastas-projects.vercel.app";
 const selectedEl = document.querySelector("#selected");
 const selected = new Set();
 const saved = new Map();
@@ -39,7 +39,7 @@ function render() {
     checkbox.type = "checkbox"; checkbox.checked = selected.has(item.url);
     checkbox.addEventListener("change", () => { if (checkbox.checked) selected.add(item.url); else selected.delete(item.url); updateStatus(); });
     const details = document.createElement("div");
-    if (item.type === "image" && item.thumbnail && entries.length < 65) {
+    if (item.type === "image" && item.thumbnail) {
       const thumb = document.createElement("img");
       thumb.className = "item-thumb";
       thumb.alt = "";
@@ -57,7 +57,7 @@ function render() {
   updateStatus();
 }
 function updateStatus() {
-  selectedEl.textContent = selected.size + " selected";
+  selectedEl.textContent = selected.size + " selected" + (selected.size > 300 ? " · first 300 per batch" : "");
   copyBtn.disabled = selected.size === 0;
   sendBtn.disabled = selected.size === 0;
 }
@@ -148,7 +148,7 @@ document.querySelectorAll("[data-filter]").forEach((button) => button.addEventLi
   render();
 }));
 function selectedItems() {
-  return [...saved.values()].filter(item=>selected.has(item.url));
+  return [...saved.values()].filter(item=>selected.has(item.url)).slice(0,300);
 }
 function makePayload(items) {
   return JSON.stringify({format:"vault-media-capture-v1",sourcePage:currentTab?.url||"",items},null,2);
@@ -191,11 +191,11 @@ sendBtn.addEventListener("click",async()=>{
     // existing Vault form can be populated by the extension.
     await navigator.clipboard.writeText(makePayload(items)).catch(()=>{});
     const response=await chrome.runtime.sendMessage({
-      type:"VAULT_OPEN_IMPORT",
+      type:"VAULT_OPEN_PICKER",
       items,origin:safeVaultOrigin(vaultUrlInput.value)||DEFAULT_VAULT,
     });
-    if(!response?.ok)throw new Error(response?.error||"Could not open the Vault importer.");
-    statusEl.textContent="Opening Vault with "+response.count+" items. Review them, then press Save selected in Vault. If you need to sign in, paste the copied list afterward.";
+    if(!response?.ok)throw new Error(response?.error||"Could not open the Vault picker.");
+    statusEl.textContent="Vault folder picker opened for "+response.count+" items. Choose your collection and save.";
   }catch(error){statusEl.textContent="Send failed: "+(error?.message||"Unknown error")+". Use Copy selected instead.";}
   finally{updateStatus();}
 });
