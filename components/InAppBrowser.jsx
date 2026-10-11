@@ -54,6 +54,8 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
   const [searchQuery, setSearchQuery] = useState("");
   const [searchState, setSearchState] = useState("idle");
   const [searchResults, setSearchResults] = useState([]);
+  const [savedSearch, setSavedSearch] = useState(null);
+  const [resultHost, setResultHost] = useState("all");
   const [searchMode, setSearchMode] = useState("regular");
   const [searchScope, setSearchScope] = useState("all");
   const [searchPage, setSearchPage] = useState(0);
@@ -163,7 +165,9 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
     setMetadata(null);
     setMetaState("idle");
     setSearchState("loading");
-    setSearchResults([]);
+    // Keep the existing page visible during pagination; don't blank the viewport.
+    if (page === 0) { setSearchResults([]); setResultHost("all"); }
+    setSavedSearch(null);
     setSearchError("");
     setShowHistory(false);
     try {
@@ -343,7 +347,35 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
     if (url) window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  const previewResult = (result) => openUrl(result.url);
+  const previewResult = (result) => {
+    // A drill-down must always have an in-app path back to the exact results.
+    setSavedSearch({ query:searchQuery, results:searchResults, info:searchInfo,
+      page:searchPage, mode:searchMode, scope:searchScope, host:resultHost });
+    openUrl(result.url);
+  };
+
+  const backToResults = () => {
+    if (!savedSearch) return;
+    searchAbort.current?.abort();
+    ++searchSequence.current;
+    setCurrentUrl("");
+    setVideoTrail([]);
+    setForwardTrail([]);
+    setFocusedVideo(null);
+    setCurrentPageTitle("");
+    setLoadingFrame(false);
+    setSearchQuery(savedSearch.query);
+    setSearchResults(savedSearch.results);
+    setSearchInfo(savedSearch.info);
+    setSearchPage(savedSearch.page);
+    setSearchMode(savedSearch.mode);
+    setSearchScope(savedSearch.scope);
+    setResultHost(savedSearch.host);
+    setSearchState("done");
+    setSearchError("");
+    setViewMode("results");
+    setAddress(savedSearch.query);
+  };
 
   const currentDirectType = /\.(?:jpe?g|png|webp|gif|avif|bmp)(?:$|[?#])/i.test(currentUrl)
     ? "image" : /\.(?:mp4|m4v|mov|webm|ogv)(?:$|[?#])/i.test(currentUrl) ? "video" : "";
@@ -400,6 +432,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
           </div>
         </div>}
         <div className="vv-browser-modebar" role="toolbar" aria-label="Browser views">
+          {savedSearch && currentUrl && <button type="button" className="vv-browser-back" onClick={backToResults}>← Results</button>}
           {videoTrail.length > 0 && <button type="button" className="vv-browser-back" onClick={backVideoPage} title="Back to previous page">← Back</button>}
           {forwardTrail.length > 0 && <button type="button" className="vv-browser-back" onClick={forwardVideoPage} title="Forward to next page">Forward →</button>}
           {videoTrail.length > 0 && <nav aria-label="Gallery page path" className="vv-browser-page-path">
@@ -444,7 +477,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
               <EmptySearch />
             ) : searchQuery ? (
               <SearchResults state={searchState} error={searchError} query={searchQuery} results={searchResults}
-                info={searchInfo} mode={searchMode} page={searchPage}
+                info={searchInfo} mode={searchMode} page={searchPage} hostFilter={resultHost} onHostFilter={setResultHost}
                 onPreview={previewResult} onSave={saveResult} onOpen={openExternal}
                 onRetry={() => runSearch(searchQuery,{mode:searchMode,scope:searchScope,page:searchPage})}
                 onPage={(next) => runSearch(searchQuery,{mode:searchMode,scope:searchScope,page:next})}
@@ -550,68 +583,95 @@ function EmptySearch() {
   </div>;
 }
 
-function SearchResults({ state, error, query, results, info, mode, page, onPreview, onSave, onOpen, onRetry, onPage, saving }) {
-  const [hostFilter, setHostFilter] = useState("all");
-  useEffect(() => setHostFilter("all"), [query,mode,page,results]);
-  const hosts = useMemo(()=>[...new Set(results.map(x=>x.host).filter(Boolean))].sort(),[results]);
-  const visible = hostFilter==="all" ? results : results.filter(x=>x.host===hostFilter);
-  return <div className="vv-search-results">
-    <div className="vv-search-results-heading">
-      <div><h3>Search results</h3><p>Choose a result to explore images, videos and its individual media pages.</p></div>
-      {state==="done"&&<span>{results.length} results</span>}
-    </div>
-    {state==="loading"&&<div style={panel} role="status">Searching websites across multiple sources…</div>}
-    {state==="fail"&&<div style={panel} role="alert">{error||"Search failed"}
+function SearchResults({ state, error, query, results, info, mode, page, hostFilter, onHostFilter, onPreview, onSave, onOpen, onRetry, onPage, saving }) {
+  const [refine, setRefine] = useState("");
+  const [kind, setKind] = useState("all");
+  useEffect(() => { setRefine(""); setKind("all"); }, [query,mode]);
+  const hosts = useMemo(() => {
+    const counts = new Map();
+    for (const r of results) if (r.host) counts.set(r.host, (counts.get(r.host)||0)+1);
+    return [...counts.entries()].sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0]));
+  }, [results]);
+  const byKind = (r) => r.kind === "image" ? "images" : ["video","media"].includes(r.kind) ? "videos" : "sites";
+  const visible = useMemo(() => results.filter((r) =>
+    (hostFilter === "all" || r.host === hostFilter) &&
+    (kind === "all" || byKind(r) === kind) &&
+    (!refine.trim() || [r.title,r.snippet,r.host].filter(Boolean).join(" ").toLowerCase().includes(refine.trim().toLowerCase()))
+  ), [results,hostFilter,kind,refine]);
+  const nextPage = (next) => { setRefine(""); setKind("all"); onHostFilter("all"); onPage(next); };
+  const pageButtons = <nav className="vv-results-pagination" aria-label="Search result pages">
+    <button type="button" disabled={page<=0 || state==="loading"} onClick={()=>nextPage(Math.max(0,page-1))}>← Previous</button>
+    <span>Page {page+1} of up to 4</span>
+    <button type="button" disabled={page>=3 || state==="loading" || (state==="done" && !results.length)} onClick={()=>nextPage(Math.min(3,page+1))}>Next page →</button>
+  </nav>;
+  return <section className="vv-search-results" aria-label="Web search results">
+    <header className="vv-search-results-heading">
+      <div>
+        <span className="vv-result-eyebrow">DISCOVER / WEB</span>
+        <h3>Results for “{query}”</h3>
+        <p>Explore the source, drill into its galleries, or save it to your Vault.</p>
+      </div>
+      <span className="vv-results-count">{state==="loading"?"Searching…":results.length+" on this page"}</span>
+    </header>
+    {state==="fail" && <div className="vv-search-message" role="alert">
+      {error||"Search failed"}
       <div className="vv-search-result-actions">
-        <button style={smallAction} onClick={onRetry}>Retry search</button>
-        <button style={smallAction} onClick={()=>onOpen("https://www.google.com/search?q="+encodeURIComponent(query))}>Search in browser</button>
+        <button onClick={onRetry}>Retry</button>
+        <button onClick={()=>onOpen("https://www.google.com/search?q="+encodeURIComponent(query))}>Search in browser</button>
       </div>
     </div>}
-    {state==="done"&&<>
-      <div className="vv-search-providers">
-        <span>{info?.providers?.length ? "Sources: "+info.providers.join(", ") : "No indexed providers responded"}</span>
-        {info?.partial&&<span>Some providers unavailable</span>}
+    {state==="loading" && <div className="vv-search-loading" role="status">Searching sources…</div>}
+    {state==="done" && info?.warning && <p className="vv-search-warning" role="status">{info.warning}</p>}
+    {state==="done" && mode!=="regular" && <p className="vv-search-warning">SafeSearch is disabled where supported. Source restrictions still apply.</p>}
+    {(results.length>0 || state==="done") && <>
+      <div className="vv-results-workspace">
+        <aside className="vv-results-facets" aria-label="Refine web results">
+          <h4>Browse results</h4>
+          <label className="vv-results-refine-label" htmlFor="vv-result-refine">Filter this page</label>
+          <input id="vv-result-refine" value={refine} onChange={e=>setRefine(e.target.value)} placeholder="Title or website…" autoComplete="off"/>
+          <div className="vv-results-kind" role="group" aria-label="Result category">
+            {[["all","All"],["videos","Videos"],["images","Images"],["sites","Pages"]].map(([v,label])=>
+              <button key={v} type="button" aria-pressed={kind===v} onClick={()=>setKind(v)}>
+                {label}<span>{v==="all"?results.length:results.filter(r=>byKind(r)===v).length}</span>
+              </button>)}
+          </div>
+          {hosts.length>0 && <div className="vv-results-sites">
+            <div className="vv-results-sites-label">Websites</div>
+            <button type="button" aria-pressed={hostFilter==="all"} onClick={()=>onHostFilter("all")}>All websites <span>{results.length}</span></button>
+            {hosts.slice(0,24).map(([host,count])=><button key={host} type="button" title={host} aria-pressed={hostFilter===host} onClick={()=>onHostFilter(host)}>{host}<span>{count}</span></button>)}
+          </div>}
+          {(kind!=="all" || hostFilter!=="all" || refine) && <button type="button" className="vv-results-clear" onClick={()=>{setRefine("");setKind("all");onHostFilter("all")}}>Clear refinements</button>}
+        </aside>
+        <div className="vv-results-main">
+          <div className="vv-results-summary"><span>{visible.length} matching result{visible.length===1?"":"s"}</span><span>{info?.providers?.length?info.providers.join(" · "):"Web discovery"}</span></div>
+          {visible.length ? <div className="vv-search-card-grid">
+            {visible.map((r,index)=><article key={r.url+"-"+index} className="vv-search-result-card">
+              <button type="button" className="vv-result-cover" aria-label={"Explore "+r.title} onClick={()=>onPreview(r)}>
+                {r.kind==="image" && /\.(?:jpe?g|png|webp|gif|avif)(?:$|[?#])/i.test(r.url) ?
+                  <img loading="lazy" alt="" referrerPolicy="no-referrer" src={"/api/media?url="+encodeURIComponent(r.url)} onError={e=>{e.currentTarget.style.display="none"}} /> :
+                  <span className="vv-result-cover-placeholder"><Icon name={r.kind==="video"?"play":r.kind==="image"?"grid":"link"} size={24}/></span>}
+              </button>
+              <div className="vv-result-copy">
+                <div className="vv-search-result-metadata"><span>{r.host||"Website"}</span><span>{r.kind==="media"?"Media":r.kind==="image"?"Image":r.kind==="video"?"Video":"Page / gallery"}</span></div>
+                <button className="vv-search-result-title" type="button" onClick={()=>onPreview(r)}>{r.title||r.url}</button>
+                {r.snippet&&<p>{r.snippet}</p>}
+                <div className="vv-search-result-actions">
+                  <button type="button" className="vv-search-explore" onClick={()=>onPreview(r)}>Explore gallery →</button>
+                  <button type="button" onClick={()=>onSave(r)} disabled={saving}>{saving?"Saving…":"Save"}</button>
+                  <button type="button" onClick={()=>onOpen(r.url)}>Original ↗</button>
+                </div>
+              </div>
+            </article>)}
+          </div> : <div className="vv-search-message">No results match these refinements. <button type="button" onClick={()=>{setRefine("");setKind("all");onHostFilter("all")}}>Show all results</button></div>}
+          {state==="done" && results.length>0 && pageButtons}
+          {state==="done" && !results.length && <div className="vv-search-message">No indexed results on this page. Try the previous page or open the search in your browser.
+            {info?.externalUrl&&<button type="button" onClick={()=>onOpen(info.externalUrl)}>Open in browser ↗</button>}
+            {page>0 && pageButtons}
+          </div>}
+        </div>
       </div>
-      {hosts.length>1&&<label className="vv-search-host-filter">Filter by website
-        <select value={hostFilter} onChange={e=>setHostFilter(e.target.value)}>
-          <option value="all">All websites ({results.length})</option>
-          {hosts.map(host=><option key={host} value={host}>{host} ({results.filter(x=>x.host===host).length})</option>)}
-        </select>
-      </label>}
-      {info?.warning&&<p className="vv-search-warning" role="status">{info.warning}</p>}
-      {mode!=="regular"&&<p className="vv-search-warning">SafeSearch is disabled where supported. Some provider and website restrictions still apply.</p>}
-      {!results.length&&<div style={panel}>No indexed results found with these settings.
-        {info?.externalUrl&&<div className="vv-search-result-actions">
-          <button type="button" style={smallAction} onClick={()=>onOpen(info.externalUrl)}>Open search in browser</button>
-        </div>}
-      </div>}
     </>}
-    <div className="vv-search-card-grid">
-      {visible.map(r=><article key={r.url} className="vv-search-result-card">
-        {r.kind==="image" && /\.(?:jpe?g|png|webp|gif|avif)(?:$|[?#])/i.test(r.url) &&
-          <img className="vv-search-result-image" loading="lazy" alt={r.title}
-            src={"/api/media?url="+encodeURIComponent(r.url)}/>}
-
-        <button className="vv-search-result-title" type="button" onClick={()=>onPreview(r)}>{r.title}</button>
-        <div className="vv-search-result-metadata">
-          <span>{r.host}</span><span>{r.kind==="media"?"Media":r.kind==="image"?"Image":r.kind==="video"?"Video":"Page"}</span>
-        </div>
-        {r.snippet&&<p>{r.snippet}</p>}
-        <div className="vv-search-result-actions">
-          <button type="button" className="vv-search-save-primary" onClick={()=>onSave(r)} disabled={saving}>
-            {saving?"Saving…":"Save URL to Vault"}
-          </button>
-          <button type="button" onClick={()=>onPreview(r)}>Find media</button>
-          <button type="button" onClick={()=>onOpen(r.url)}>Open site</button>
-        </div>
-      </article>)}
-    </div>
-    {state==="done"&&results.length>0&&<div className="vv-search-pages">
-      <button type="button" disabled={page<=0} onClick={()=>{setHostFilter("all");onPage(Math.max(0,page-1));}}>Previous</button>
-      <span>Search page {page+1}</span>
-      <button type="button" disabled={page>=3} onClick={()=>{setHostFilter("all");onPage(Math.min(3,page+1));}}>More results</button>
-    </div>}
-  </div>;
+  </section>;
 }
 
 function BlockedPreview({ url, host, onOpen }) {
