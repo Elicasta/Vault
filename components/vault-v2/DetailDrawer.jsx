@@ -1,322 +1,95 @@
 "use client";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {useEffect,useRef,useState} from "react";
 import Icon from "@/components/Icons";
-import { getSourceMeta, getThumbCandidates } from "@/lib/sources";
-import { proxiedMediaUrl } from "@/lib/utils";
-import {
-  getItemComments, addItemComment, deleteItemComment,
-  getMomentMarks,
-} from "@/lib/supabase";
+import {getSourceMeta} from "@/lib/sources";
+import {proxiedMediaUrl} from "@/lib/utils";
 
-function formatTime(seconds) {
-  const total = Math.max(0, Math.floor(Number(seconds || 0)));
-  const h = Math.floor(total / 3600);
-  const m = Math.floor((total % 3600) / 60);
-  const s = total % 60;
-  return h ? `${h}:${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}` : `${m}:${String(s).padStart(2,"0")}`;
-}
-
-function DetailPreview({ item, isImage }) {
-  const [metaThumb, setMetaThumb] = useState("");
-  const [idx, setIdx] = useState(0);
-
-  const rawCandidates = useMemo(() => {
-    const provider = item?.type==="link" ? [] : getThumbCandidates(item?.url || "");
-    return [...new Set([
-      item?.display_thumbnail,
-      item?.thumbnail,
-      metaThumb,
-      ...provider,
-      isImage ? item?.url : "",
-    ].filter(Boolean))];
-  }, [item, isImage, metaThumb]);
-
-  const candidates = useMemo(() => rawCandidates.flatMap((url) => {
-    const proxied = proxiedMediaUrl(url);
-    return proxied && proxied !== url ? [proxied, url] : [url];
-  }), [rawCandidates]);
-
-  useEffect(() => {
-    setIdx(0);
-    setMetaThumb("");
-    if (!item?.url || item?.type==="link") return;
-    let active = true;
-    fetch(`/api/metadata?url=${encodeURIComponent(item.url)}`, { cache: "no-store" })
-      .then((r) => r.ok ? r.json() : null)
-      .then((meta) => {
-        if (!active || !meta?.thumbnail) return;
-        setMetaThumb(meta.thumbnail);
-      })
-      .catch(() => {});
-    return () => { active = false; };
-  }, [item?.key, item?.url]);
-
-  const src = candidates[idx] || "";
-  if (!src) return <div className="v2-detail-preview-fallback"><Icon name={item?.type==="link"?"link":isImage?"grid":"video"} size={30}/><span>{item?.type==="link"?"Saved gallery/page link":"Preview unavailable"}</span></div>;
-
-  return (
-    <img
-      key={src}
-      src={src}
-      alt={item?.title ? `${item.title} preview` : ""}
-      loading="lazy"
-      decoding="async"
-      referrerPolicy="no-referrer"
-      onError={() => setIdx((n) => n + 1)}
-      style={isImage ? { objectFit:"contain" } : undefined}
-    />
-  );
-}
-
-export default function DetailDrawer({
-  item, state = {}, folders = [], userId,
-  onClose, onPlay, onFavorite, onFolder, onRating, onEdit, onDelete, onRemoveFromLibrary,
-  onNavigate, currentIndex = -1, totalItems = 0,
-  activityRevision = 0,
-}) {
-  const ref = useRef(null);
-  const [tab, setTab] = useState("activity");
-  const [comments, setComments] = useState([]);
-  const [marks, setMarks] = useState([]);
-  const [activityLoading, setActivityLoading] = useState(false);
-  const [comment, setComment] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [actionError, setActionError] = useState("");
-  const actionLock = useRef(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const swipeStart = useRef(null);
-  const hasPrev = currentIndex > 0;
-  const hasNext = currentIndex >= 0 && currentIndex < totalItems - 1;
-  const keyboardState = useRef({ onClose, onNavigate, hasPrev, hasNext, currentIndex, busy });
-  useEffect(() => {
-    keyboardState.current = { onClose, onNavigate, hasPrev, hasNext, currentIndex, busy };
-  }, [onClose, onNavigate, hasPrev, hasNext, currentIndex, busy]);
-  const closeIfIdle = () => { if (!busy && !actionLock.current) onClose(); };
-
-  useEffect(() => {
-    setTab("activity");
-    setComments([]);
-    setMarks([]);
-    setComment("");
-    setActionError("");
-    setConfirmDelete(false);
-    ref.current?.querySelector(".v2-drawer-scroll")?.scrollTo({ top: 0 });
-  }, [item?.key]);
-
-  const source = useMemo(() => getSourceMeta(item?.url || ""), [item?.url]);
-  const isImage = source.id === "image" || String(item?.type || "").toLowerCase().includes("image");
-  const isLink = item?.type==="link" && /^https?:\/\//i.test(item?.url||"");
-  const duration = Number(state?.duration || 0);
-  const progress = Number(state?.progress || 0);
-  const progressPct = duration > 0 ? Math.max(0, Math.min(100, progress / duration * 100)) : 0;
-
-  useEffect(() => {
-    if (!item || !userId) return;
-    let active = true;
-    setActivityLoading(true);
-    Promise.all([getItemComments(userId, item.key), getMomentMarks(userId, item.key)]).then(([c, m]) => {
-      if (!active) return;
-      setComments(c || []);
-      setMarks(m || []);
-    }).catch((error) => { if (active) setActionError(error?.message || "Could not load activity."); })
-      .finally(() => { if (active) setActivityLoading(false); });
-    return () => { active = false; };
-  }, [item?.key, userId, activityRevision]);
-
-  useEffect(() => {
-    if (!item || !ref.current) return;
-    const root = ref.current;
-    const before = document.activeElement;
-    const close = root.querySelector("[data-close]");
-    close?.focus();
-    const handler = (event) => {
-      const nav = keyboardState.current;
-      if (event.key === "Escape") {
-        event.preventDefault();
-        if (!nav.busy && !actionLock.current) nav.onClose?.();
-        return;
-      }
-      const tag = String(document.activeElement?.tagName || "").toLowerCase();
-      const editing = tag === "input" || tag === "textarea" || tag === "select" || document.activeElement?.isContentEditable;
-      if (!editing && !nav.busy && event.key === "ArrowLeft" && nav.hasPrev) { event.preventDefault(); nav.onNavigate?.(nav.currentIndex - 1); return; }
-      if (!editing && !nav.busy && event.key === "ArrowRight" && nav.hasNext) { event.preventDefault(); nav.onNavigate?.(nav.currentIndex + 1); return; }
-      if (event.key !== "Tab") return;
-      const nodes = [...root.querySelectorAll('button:not([disabled]),[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')];
-      if (!nodes.length) return;
-      const first = nodes[0], last = nodes[nodes.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+export default function DetailDrawer({item,state={},folders=[],currentIndex=-1,totalItems=0,onNavigate,onClose,onPlay,onFavorite,onFolder,onRating,onEdit,onDelete}) {
+  const panel=useRef(null),locked=useRef(false),nav=useRef({});
+  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[confirm,setConfirm]=useState(false);
+  const [coverFallback,setCoverFallback]=useState(0);
+  const [folder,setFolder]=useState(""),[rating,setRating]=useState(0);
+  const close=()=>{if(!locked.current)onClose?.()};
+  const run=async(fn)=>{
+    if(locked.current)return;
+    locked.current=true;setBusy(true);setError("");
+    try {await fn();}catch(e){setError(e?.message||"Could not save. Try again.");}
+    finally {locked.current=false;setBusy(false);}
+  };
+  useEffect(()=>{
+    if(!item)return;
+    setFolder(item.folder||state.folder||"");
+    setRating(Number(state.rating)||0);
+    setConfirm(false);setError("");setCoverFallback(0);
+  },[item?.key,state.folder,state.rating]);
+  nav.current={onClose,onNavigate,currentIndex,totalItems};
+  useEffect(()=>{
+    if(!item)return;
+    const prior=document.activeElement;
+    panel.current?.querySelector("[data-close]")?.focus();
+    const onKey=e=>{
+      if(e.key==="Escape"){e.preventDefault();if(!locked.current)nav.current.onClose?.();}
+      if(["INPUT","SELECT","TEXTAREA"].includes(document.activeElement?.tagName))return;
+      if(e.key==="ArrowLeft"&&nav.current.currentIndex>0){e.preventDefault();nav.current.onNavigate?.(nav.current.currentIndex-1);}
+      if(e.key==="ArrowRight"&&nav.current.currentIndex<nav.current.totalItems-1){e.preventDefault();nav.current.onNavigate?.(nav.current.currentIndex+1);}
     };
-    document.addEventListener("keydown", handler);
-    return () => { document.removeEventListener("keydown", handler); before?.focus?.(); };
-  }, [item?.key]);
-
-  if (!item) return null;
-
-  const runAction = async (action) => {
-    if (actionLock.current) return;
-    actionLock.current = true;
-    setBusy(true);
-    setActionError("");
-    try { await action(); }
-    catch (error) { setActionError(error?.message || "That change could not be saved. Try again."); }
-    finally { actionLock.current = false; setBusy(false); }
-  };
-
-  const addComment = async () => {
-    const body = comment.trim();
-    if (!body || !userId || busy) return;
-    setBusy(true);
-    try {
-      const row = await addItemComment(userId, item.key, body);
-      if (row) setComments((x) => [...x, row]);
-      setComment("");
-    } catch (error) { setActionError(error?.message || "Could not add comment. Try again."); } finally { setBusy(false); }
-  };
-
-  const removeComment = async (id) => {
-    if (!userId) return;
-    await deleteItemComment(userId, id);
-    setComments((x) => x.filter((c) => c.id !== id));
-  };
-
-  return (
-    <>
-      <div className="v2-backdrop" onMouseDown={closeIfIdle} aria-hidden="true" />
-      <aside
-        ref={ref}
-        className="v2-drawer"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="v2-detail-title"
-      >
-        <div className="v2-drawer-head">
-          <div className="v2-detail-pager">
-            <button type="button" className="v2-iconbtn" onClick={() => onNavigate?.(currentIndex - 1)} disabled={!hasPrev || busy} aria-label="Previous media"><Icon name="chevronLeft" size={18}/></button>
-            <span className="v2-hint">{currentIndex >= 0 && totalItems ? `${currentIndex + 1} of ${totalItems}` : "Item detail"}</span>
-            <button type="button" className="v2-iconbtn" onClick={() => onNavigate?.(currentIndex + 1)} disabled={!hasNext || busy} aria-label="Next media"><Icon name="chevronRight" size={18}/></button>
-          </div>
-          <div className="v2-detail-head-actions">
-            <button type="button" className="v2-iconbtn v2-iconbtn-danger" disabled={busy} onClick={() => setConfirmDelete(true)} aria-label="Delete media"><Icon name="trash" size={17}/></button>
-            <button data-close type="button" className="v2-iconbtn" disabled={busy} onClick={closeIfIdle} aria-label="Close item detail"><Icon name="x" size={18}/></button>
-          </div>
+    document.addEventListener("keydown",onKey);
+    return()=>{document.removeEventListener("keydown",onKey);prior?.focus?.();};
+  },[item?.key]);
+  if(!item)return null;
+  const cover=item.display_thumbnail||item.thumbnail||"";
+  const coverSrc=coverFallback===0?proxiedMediaUrl(cover):cover;
+  const source=getSourceMeta(item.url||"").name;
+  return <>
+    <div className="v2-backdrop" aria-hidden="true" onMouseDown={close}/>
+    <section ref={panel} className="v2-sheet v2-clean-detail" role="dialog" aria-modal="true" aria-labelledby="v2-detail-title">
+      <div className="v2-sheet-head">
+        <div className="v2-detail-pager">
+          <button type="button" className="v2-iconbtn" disabled={busy||currentIndex<=0} onClick={()=>onNavigate?.(currentIndex-1)} aria-label="Previous item"><Icon name="chevronLeft" size={18}/></button>
+          <span className="v2-hint">{currentIndex>=0?String(currentIndex+1)+" of "+totalItems:"Item"}</span>
+          <button type="button" className="v2-iconbtn" disabled={busy||currentIndex>=totalItems-1} onClick={()=>onNavigate?.(currentIndex+1)} aria-label="Next item"><Icon name="chevronRight" size={18}/></button>
         </div>
-        <div className="v2-drawer-scroll" aria-busy={busy}>
-          {actionError ? <div className="v2-error" role="alert">{actionError}</div> : null}
-          <div className="v2-detail-art" style={isImage ? { aspectRatio:"4 / 5", maxHeight:520, marginInline:"auto", background:"#080809" } : undefined}
-            onTouchStart={(e) => { const t = e.touches?.[0]; if (t) swipeStart.current = { x:t.clientX, y:t.clientY }; }}
-            onTouchEnd={(e) => {
-              const start = swipeStart.current, t = e.changedTouches?.[0];
-              swipeStart.current = null;
-              if (!start || !t || busy) return;
-              const dx = t.clientX - start.x, dy = t.clientY - start.y;
-              if (Math.abs(dx) < 72 || Math.abs(dy) > 64) return;
-              if (dx < 0 && hasNext) onNavigate?.(currentIndex + 1);
-              if (dx > 0 && hasPrev) onNavigate?.(currentIndex - 1);
-            }}>
-            <DetailPreview item={item} isImage={isImage} />
-          </div>
-          <h2 className="v2-detail-title" id="v2-detail-title">{item.title || item.url}</h2>
-          <div className="v2-detail-source">{source.name}{item.folder || state.folder ? ` · ${item.folder || state.folder}` : " · Inbox"}</div>
-
-          <div className="v2-action-row">
-            {isLink ?
-              <a className="v2-btn v2-btn-primary" href={item.url} target="_blank" rel="noopener noreferrer">
-                <Icon name="link" size={15}/> Open original gallery
-              </a> :
-              <button type="button" className="v2-btn v2-btn-primary" onClick={() => onPlay(item)}><Icon name={isImage ? "zoomIn" : "play"} size={15} filled={!isImage}/> {isImage ? "Open image" : "Open / Play"}</button>}
-            <button type="button" className="v2-btn" disabled={busy} onClick={() => runAction(() => onRemoveFromLibrary?.(item))} title="Hide without deleting the URL"><Icon name="eyeOff" size={15}/> Remove from Library</button>
-            <button type="button" className="v2-btn" disabled={busy} aria-pressed={!!state.favorite} onClick={() => runAction(() => onFavorite(item.key, !!state.favorite))}>
-              <Icon name="star" size={15} filled={!!state.favorite}/>{state.favorite ? "Favorited" : "Favorite"}
-            </button>
-          </div>
-          {confirmDelete ? (
-            <div className="v2-delete-confirm" role="alert">
-              <span>Delete “{item.title || "this item"}” permanently? This cannot be undone.</span>
-              <div>
-                <button type="button" className="v2-btn v2-btn-danger" disabled={busy} onClick={() => runAction(() => onDelete(item))}>Delete</button>
-                <button type="button" className="v2-btn" onClick={() => setConfirmDelete(false)}>Cancel</button>
-              </div>
-            </div>
-          ) : null}
-
-          <div className="v2-detail-block">
-            <div className="v2-detail-label">Collection</div>
-            <select className="v2-select" value={item.folder || state.folder || ""} aria-label="Collection" disabled={busy} onChange={(e) => { const value = e.target.value || null; runAction(() => onFolder(item, value)); }}>
-              <option value="">Inbox</option>
-              {folders.map((f) => <option key={f.name} value={f.name}>{f.name}</option>)}
-            </select>
-          </div>
-
-          <div className="v2-detail-block">
-            <div className="v2-detail-label">Progress</div>
-            <div style={{ display:"flex", justifyContent:"space-between", gap:12, color:"var(--v2-muted)", fontSize:12 }}>
-              <span>{duration > 0 ? `${formatTime(progress)} of ${formatTime(duration)}` : "Not started"}</span>
-              <span>{Math.round(progressPct)}%</span>
-            </div>
-            <div className="v2-progress" style={{ height:5, marginTop:10 }}><span style={{ width:`${progressPct}%` }}/></div>
-          </div>
-
-          <div className="v2-detail-block">
-            <div className="v2-detail-label">Rating</div>
-            <div className="v2-rating" role="group" aria-label="Rate item">
-              {[1,2,3,4,5].map((n) => (
-                <button type="button" key={n} className="v2-star" data-active={Number(state.rating || 0) >= n} disabled={busy} aria-pressed={Number(state.rating) === n} onClick={() => runAction(() => onRating(item.key, n === Number(state.rating) ? null : n))} aria-label={`Rate ${n} out of 5`}>
-                  <Icon name="star" size={20} filled={Number(state.rating || 0) >= n}/>
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="v2-segmented" role="tablist" aria-label="Item information">
-            <button type="button" role="tab" aria-selected={tab==="activity"} onClick={() => setTab("activity")}>Activity</button>
-            <button type="button" role="tab" aria-selected={tab==="details"} onClick={() => setTab("details")}>Details</button>
-          </div>
-
-          {tab === "activity" ? (
-            <div>
-              <div className="v2-detail-label">Comments</div>
-              {activityLoading ? <p className="v2-hint" role="status">Loading activity…</p> : comments.length ? comments.map((c) => (
-                <div className="v2-comment" key={c.id}>
-                  <div>{c.body}</div>
-                  <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
-                    <div className="v2-comment-time">{c.created_at ? new Date(c.created_at).toLocaleString() : ""}</div>
-                    <button type="button" className="v2-linkbtn" disabled={busy} onClick={() => runAction(() => removeComment(c.id))} aria-label="Delete comment">Delete</button>
-                  </div>
-                </div>
-              )) : <p className="v2-hint">No comments yet.</p>}
-              <div className="v2-field">
-                <label htmlFor="v2-comment">Add comment</label>
-                <textarea id="v2-comment" className="v2-textarea" value={comment} onChange={(e)=>setComment(e.target.value)} placeholder="Add context, a thought, or follow-up…" />
-              </div>
-              <button type="button" className="v2-btn" onClick={addComment} disabled={!comment.trim() || busy}>Add comment</button>
-
-              <div className="v2-detail-block" style={{ marginTop:18 }}>
-                <div className="v2-detail-label">Moment marks</div>
-                {activityLoading ? <p className="v2-hint">Loading moments…</p> : marks.length ? marks.map((m) => (
-                  <div className="v2-comment" key={m.id}>
-                    <strong>{formatTime(m.seconds)}</strong>{m.rating ? <span style={{ color:"var(--v2-muted)" }}> · ★ {m.rating}</span> : null}{m.note ? <span style={{ color:"var(--v2-muted)" }}> · {m.note}</span> : null}
-                  </div>
-                )) : <p className="v2-hint">No moments marked yet.</p>}
-                {!isImage ? <p className="v2-hint" style={{ marginTop:10 }}>Add Moment Marks while the media is playing. They appear here automatically.</p> : null}
-              </div>
-            </div>
-          ) : (
-            <div>
-              <div className="v2-detail-kv"><span>Notes</span><span>{item.note || "—"}</span></div>
-              <div className="v2-detail-kv"><span>Tags</span><span>{item.tags?.length ? item.tags.join(", ") : "—"}</span></div>
-              <div className="v2-detail-kv"><span>Source</span><span>{source.name}</span></div>
-              <div className="v2-detail-kv"><span>URL</span><span>{item.url}</span></div>
-              <div className="v2-detail-kv"><span>Added</span><span>{item.addedAt ? new Date(item.addedAt).toLocaleDateString() : "—"}</span></div>
-              <div className="v2-detail-kv"><span>Cover</span><span>{item.cover_mode || "automatic"}</span></div>
-              <button type="button" className="v2-btn" style={{ marginTop:14 }} onClick={() => onEdit(item)}>Edit details</button>
-              <div className="v2-detail-block" style={{ marginTop:18 }}>
-                <button type="button" className="v2-btn v2-btn-danger" disabled={busy} onClick={() => setConfirmDelete(true)}>Delete from Vault</button>
-              </div>
-            </div>
-          )}
+        <button data-close type="button" className="v2-iconbtn" disabled={busy} onClick={close} aria-label="Close"><Icon name="x" size={18}/></button>
+      </div>
+      <div className="v2-clean-detail-body">
+        <div className="v2-clean-detail-poster">
+          {cover&&coverFallback<2?<img src={coverSrc} alt={item.title||"Media cover"} onError={()=>setCoverFallback(n=>n+1)}/>:
+            <div className="v2-simple-cover-empty"><Icon name="grid" size={25}/><span>Cover unavailable</span></div>}
         </div>
-      </aside>
-    </>
-  );
+        <div className="v2-clean-detail-copy">
+          <div className="v2-eyebrow">{source} · {item.folder||"Library"}</div>
+          <h2 id="v2-detail-title">{item.title||"Untitled media"}</h2>
+          {item.note?<p className="v2-clean-description">{item.note}</p>:null}
+          {item.tags?.length?<div className="v2-tag-row">{item.tags.map(t=><span className="v2-tag" key={t}>{t}</span>)}</div>:null}
+          <div className="v2-clean-detail-actions">
+            <button className="v2-btn v2-btn-primary" disabled={busy} type="button" onClick={()=>onPlay(item)}><Icon name="play" size={17}/> Open Media</button>
+            <button className="v2-btn" disabled={busy} type="button" onClick={()=>run(()=>onFavorite(item.key,!!state.favorite))}><Icon name="star" size={17} filled={!!state.favorite}/>{state.favorite?"Favorited":"Favorite"}</button>
+          </div>
+          <div className="v2-clean-detail-fields">
+            <label className="v2-field"><span>Collection</span>
+              <select className="v2-select" disabled={busy} value={folder} onChange={e=>{const value=e.target.value;setFolder(value);run(()=>onFolder(item,value));}}>
+                <option value="">No Collection</option>
+                {folders.map(f=><option key={f.name} value={f.name}>{f.name}</option>)}
+              </select>
+            </label>
+            <label className="v2-field"><span>Rating</span>
+              <select className="v2-select" disabled={busy} value={rating} onChange={e=>{const value=Number(e.target.value);setRating(value);run(()=>onRating(item.key,value));}}>
+                <option value={0}>Not rated</option>
+                {[5,4,3,2,1].map(n=><option value={n} key={n}>{n} stars</option>)}
+              </select>
+            </label>
+          </div>
+          <div className="v2-clean-detail-footer">
+            <button className="v2-btn" disabled={busy} type="button" onClick={()=>onEdit(item)}>Edit Media</button>
+            {confirm?<div className="v2-clean-delete-confirm">
+              <span>Delete this title from Vault?</span>
+              <button className="v2-btn v2-btn-danger" type="button" disabled={busy} onClick={()=>run(()=>onDelete(item))}>{busy?"Deleting…":"Confirm delete"}</button>
+              <button className="v2-btn" type="button" disabled={busy} onClick={()=>setConfirm(false)}>Cancel</button>
+            </div>:<button className="v2-btn v2-btn-danger" type="button" disabled={busy} onClick={()=>setConfirm(true)}><Icon name="trash" size={16}/> Delete</button>}
+          </div>
+          {error?<div className="v2-error" role="alert">{error}</div>:null}
+        </div>
+      </div>
+    </section>
+  </>;
 }
