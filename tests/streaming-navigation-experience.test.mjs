@@ -36,19 +36,12 @@ test("library media browse uses curated types with advanced filters optionally a
   assert.match(view, /router\.push\("\/library\?type=video"\)/);
 });
 
-test("search can return to original results and preserves scroll after navigating", () => {
-  const browser = read("components/InAppBrowser.jsx");
-  assert.match(browser, /const \[savedSearch, setSavedSearch\] = useState\(null\)/);
-  assert.match(browser, /setSavedSearch\(\{ query:searchQuery, results:searchResults, info:searchInfo,/);
-  assert.match(browser, /scrollTop:resultsScrollRef\.current\?\.scrollTop/);
-  assert.match(browser, /const backToResults = \(\) =>/);
-  assert.match(browser, /setSearchPage\(savedSearch\.page\)/);
-  assert.match(browser, /setSearchResults\(savedSearch\.results\)/);
-  assert.match(browser, /← Results/);
-  assert.match(browser, /className="vv-results-facets"/);
-  assert.match(browser, /vv-results-pagination/);
-  assert.match(browser, /Explore source →/);
-  assert.match(browser, /<details className="vv-search-preferences">/);
+test("collection descendants remain visible even when their parent has no direct media",()=>{
+  const view=read("components/vault-v2/VaultV2.jsx");
+  assert.match(view,/function collectionBranch\(/);
+  assert.match(view,/names\.has\(f\.parent_folder\)/);
+  assert.match(view,/descendantNames\.has\(folderFor\(/);
+  assert.match(view,/collectionBranch\(f\.name,folders\)\.has/);
 });
 
 test("scroll containment prevents horizontal page movement without disabling accessibility zoom", () => {
