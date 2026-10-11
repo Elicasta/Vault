@@ -80,6 +80,8 @@ export default function DetailDrawer({
   const [marks, setMarks] = useState([]);
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState("");
+  const actionLock = useRef(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const swipeStart = useRef(null);
   const hasPrev = currentIndex > 0;
@@ -99,7 +101,7 @@ export default function DetailDrawer({
       if (!active) return;
       setComments(c || []);
       setMarks(m || []);
-    });
+    }).catch((error) => { if (active) setActionError(error?.message || "Could not load activity."); });
     return () => { active = false; };
   }, [item, userId, activityRevision]);
 
@@ -128,6 +130,16 @@ export default function DetailDrawer({
 
   if (!item) return null;
 
+  const runAction = async (action) => {
+    if (actionLock.current) return;
+    actionLock.current = true;
+    setBusy(true);
+    setActionError("");
+    try { await action(); }
+    catch (error) { setActionError(error?.message || "That change could not be saved. Try again."); }
+    finally { actionLock.current = false; setBusy(false); }
+  };
+
   const addComment = async () => {
     const body = comment.trim();
     if (!body || !userId || busy) return;
@@ -136,7 +148,7 @@ export default function DetailDrawer({
       const row = await addItemComment(userId, item.key, body);
       if (row) setComments((x) => [...x, row]);
       setComment("");
-    } finally { setBusy(false); }
+    } catch (error) { setActionError(error?.message || "Could not add comment. Try again."); } finally { setBusy(false); }
   };
 
   const removeComment = async (id) => {
@@ -181,7 +193,8 @@ export default function DetailDrawer({
             <button data-close type="button" className="v2-iconbtn" onClick={onClose} aria-label="Close item detail"><Icon name="x" size={18}/></button>
           </div>
         </div>
-        <div className="v2-drawer-scroll">
+        <div className="v2-drawer-scroll" aria-busy={busy}>
+          {actionError ? <div className="v2-error" role="alert">{actionError}</div> : null}
           <div className="v2-detail-art" style={isImage ? { aspectRatio:"4 / 5", maxHeight:520, marginInline:"auto", background:"#080809" } : undefined}>
             <DetailPreview item={item} isImage={isImage} />
           </div>
@@ -194,8 +207,8 @@ export default function DetailDrawer({
                 <Icon name="link" size={15}/> Open original gallery
               </a> :
               <button type="button" className="v2-btn v2-btn-primary" onClick={() => onPlay(item)}><Icon name={isImage ? "zoomIn" : "play"} size={15} filled={!isImage}/> {isImage ? "Open image" : "Open / Play"}</button>}
-            <button type="button" className="v2-btn" onClick={() => onRemoveFromLibrary?.(item)} title="Hide without deleting the URL"><Icon name="eyeOff" size={15}/> Remove from Library</button>
-            <button type="button" className="v2-btn" onClick={() => onFavorite(item.key, !!state.favorite)}>
+            <button type="button" className="v2-btn" disabled={busy} onClick={() => runAction(() => onRemoveFromLibrary?.(item))} title="Hide without deleting the URL"><Icon name="eyeOff" size={15}/> Remove from Library</button>
+            <button type="button" className="v2-btn" disabled={busy} aria-pressed={!!state.favorite} onClick={() => runAction(() => onFavorite(item.key, !!state.favorite))}>
               <Icon name="star" size={15} filled={!!state.favorite}/>{state.favorite ? "Favorited" : "Favorite"}
             </button>
           </div>
@@ -203,7 +216,7 @@ export default function DetailDrawer({
             <div className="v2-delete-confirm" role="alert">
               <span>Delete “{item.title || "this item"}” from Vault?</span>
               <div>
-                <button type="button" className="v2-btn v2-btn-danger" onClick={() => onDelete(item)}>Delete</button>
+                <button type="button" className="v2-btn v2-btn-danger" disabled={busy} onClick={() => runAction(() => onDelete(item))}>Delete</button>
                 <button type="button" className="v2-btn" onClick={() => setConfirmDelete(false)}>Cancel</button>
               </div>
             </div>
@@ -211,7 +224,7 @@ export default function DetailDrawer({
 
           <div className="v2-detail-block">
             <div className="v2-detail-label">Collection</div>
-            <select className="v2-select" value={item.folder || state.folder || ""} onChange={(e) => onFolder(item, e.target.value || null)}>
+            <select className="v2-select" value={item.folder || state.folder || ""} aria-label="Collection" disabled={busy} onChange={(e) => { const value = e.target.value || null; runAction(() => onFolder(item, value)); }}>
               <option value="">Inbox</option>
               {folders.map((f) => <option key={f.name} value={f.name}>{f.name}</option>)}
             </select>
@@ -230,7 +243,7 @@ export default function DetailDrawer({
             <div className="v2-detail-label">Rating</div>
             <div className="v2-rating" role="group" aria-label="Rate item">
               {[1,2,3,4,5].map((n) => (
-                <button type="button" key={n} className="v2-star" data-active={Number(state.rating || 0) >= n} onClick={() => onRating(item.key, n === Number(state.rating) ? null : n)} aria-label={`Rate ${n} out of 5`}>
+                <button type="button" key={n} className="v2-star" data-active={Number(state.rating || 0) >= n} disabled={busy} aria-pressed={Number(state.rating) === n} onClick={() => runAction(() => onRating(item.key, n === Number(state.rating) ? null : n))} aria-label={`Rate ${n} out of 5`}>
                   <Icon name="star" size={20} filled={Number(state.rating || 0) >= n}/>
                 </button>
               ))}
@@ -250,7 +263,7 @@ export default function DetailDrawer({
                   <div>{c.body}</div>
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
                     <div className="v2-comment-time">{c.created_at ? new Date(c.created_at).toLocaleString() : ""}</div>
-                    <button type="button" className="v2-linkbtn" onClick={() => removeComment(c.id)} aria-label="Delete comment">Delete</button>
+                    <button type="button" className="v2-linkbtn" disabled={busy} onClick={() => runAction(() => removeComment(c.id))} aria-label="Delete comment">Delete</button>
                   </div>
                 </div>
               )) : <p className="v2-hint">No comments yet.</p>}
@@ -284,7 +297,7 @@ export default function DetailDrawer({
   <div style={{ display:"grid", gap:8 }}>
     <div className="v2-hint">This removes the item from Vault. This action cannot be undone.</div>
     <div style={{ display:"flex", gap:8 }}>
-      <button type="button" className="v2-btn v2-btn-danger" onClick={() => onDelete(item)}>Confirm delete</button>
+      <button type="button" className="v2-btn v2-btn-danger" disabled={busy} onClick={() => runAction(() => onDelete(item))}>Confirm delete</button>
       <button type="button" className="v2-btn" onClick={() => setConfirmDelete(false)}>Cancel</button>
     </div>
   </div>

@@ -25,9 +25,11 @@ export default function BottomNav({ activeTab, onTab }) {
         return (
           <button
             key={t.id}
+            type="button"
+            aria-current={active ? "page" : undefined}
             onClick={() => onTab(t.id)}
             style={{
-              flex: 1, padding: "9px 0 11px",
+              minHeight: 48, flex: 1, padding: "9px 0 11px",
               background: "transparent", border: "none",
               display: "flex", flexDirection: "column", alignItems: "center", gap: 3,
               color: active ? T.text1 : T.text4,
@@ -35,7 +37,7 @@ export default function BottomNav({ activeTab, onTab }) {
             }}
           >
             <Icon name={t.icon} size={19} filled={active && t.icon === "star"} />
-            <span style={{ fontSize: 9.5, fontWeight: active ? 600 : 500, letterSpacing: 0.1 }}>{t.label}</span>
+            <span style={{ fontSize: 11, fontWeight: active ? 600 : 500, letterSpacing: 0.1 }}>{t.label}</span>
           </button>
         );
       })}
