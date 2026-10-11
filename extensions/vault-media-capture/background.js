@@ -230,7 +230,7 @@ chrome.contextMenus.onClicked.addListener((info,tab)=>{
   const image=normalize(info.srcUrl || "");
   if (!image) return;
   const link=normalize(info.linkUrl || "");
-  const full=/\\.(?:jpe?g|png|webp|avif|gif|bmp)(?:$|[?#])/i.test(link) ? link : image;
+  const full=/\.(?:jpe?g|png|webp|avif|gif|bmp)(?:$|[?#])/i.test(link) ? link : image;
   const item={url:full,type:"image",title:"Captured image",thumbnail:image,
     sourcePage:normalize(tab.url || "") || full,sourceKind:"browser-linked-full-image"};
   const map=state.get(tab.id) || new Map();
