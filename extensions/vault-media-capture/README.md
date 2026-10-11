@@ -5,11 +5,11 @@
 
 ## Install (desktop Chrome)
 
-1. Download the [Elicasta extension feature branch](https://github.com/Elicasta/Vault/tree/feat/extension-folder-picker-bulk-20261010) as a ZIP and unzip it.
+1. Download the [latest polished Vault branch](https://github.com/Elicasta/Vault/tree/polish/vault-premium-pass) as a ZIP and unzip it.
 2. In Chrome, open `chrome://extensions` and enable **Developer mode**.
 3. Choose **Load unpacked** and select `extensions/vault-media-capture` from the extracted repository.
 4. Pin Vault to your Chrome toolbar.
-5. In **Vault destination**, use `https://vault-preview-temp-git-feat-extension-7e2809-elicastas-projects.vercel.app` for this preview branch. After the final release, change to the permanent Elicasta Vault URL.
+5. In **Vault destination**, use `https://vault-preview-temp-git-polish-vault-p-5026a8-elicastas-projects.vercel.app` as the stable polish-branch preview. After the final release, change to the permanent Elicasta Vault URL.
 
 ## Save a single image
 
