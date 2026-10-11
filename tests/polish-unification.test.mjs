@@ -28,7 +28,7 @@ test("library network failures are visible and cannot impersonate an empty Vault
   assert.match(data, /throw new Error\("Could not load your Vault library:/);
   assert.doesNotMatch(data, /\[vault_items\]"[^\n]*\n\s*return \[\]/);
   assert.match(modern, /if\(loadError\) return <div className="v2-error"/);
-  assert.match(modern, /!loadError && !items\.length/);
+  assert.match(modern, /!loadError && !displayItems\.length/);
   assert.match(modern, /refresh\(user\?\.id\)\.then\(\(\)=>setLoadError\(""\)\)/);
 });
 
