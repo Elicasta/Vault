@@ -33,7 +33,8 @@ test("Home implements the locked priority shelves", () => {
 
 test("library performance guard uses cover-first filtering and 60 item batches", () => {
   const source = read("components/vault-v2/VaultV2.jsx");
-  assert.match(source, /setTimeout\(\(\) => setDebouncedQuery\(query\), 200\)/);
+  assert.match(source, /const allFiltered = useMemo/);
+  assert.doesNotMatch(source, /debouncedQuery|globalSearchSubmit/);
   assert.match(source, /useState\(60\)/);
   assert.match(source, /slice\(0, visibleLimit\)/);
   assert.match(source, /setVisibleLimit\(\(n\)=>n\+60\)/);
