@@ -12,7 +12,7 @@ test("the simplified plus form is the only main UI media entry",()=>{
  assert.match(form,/Media URL/);
  assert.match(form,/Cover image URL/);
  assert.match(form,/coverReady && !coverFailed/);
- assert.match(retired,/redirect\\\("\\\/library"\\\)/);
+ assert.equal(retired.includes('redirect("/library")'), true);
 });
 
 test("Gallery import uses detected original and linked photo pages with chosen collection",()=>{
