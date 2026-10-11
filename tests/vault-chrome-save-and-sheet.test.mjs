@@ -81,7 +81,9 @@ test("right-click opens Vault folder picker and delivers only selected image URL
  const background = source("background.js");
  const listeners = { installed: [], clicked: [], updated: [], removed: [], message: [], alarm: [], startup: [] };
  const opened = [], menus = [], injected = [];
- const session = new Map(), local = {};
+ const session = new Map(), local = {
+  vault_import_origin: "https://vault-preview-temp-git-feat-extension-deprecated-elicastas-projects.vercel.app",
+ };
  const origin = background.match(/const VAULT_DEFAULT_URL = "([^"]+)"/)?.[1];
  assert.ok(origin?.startsWith("https://"), "Chrome capture needs a valid configured HTTPS Vault preview");
  assert.match(origin, /git-polish-vault/);
@@ -125,6 +127,7 @@ test("right-click opens Vault folder picker and delivers only selected image URL
  assert.equal(opened.length, 1);
  assert.equal(opened[0].type, "popup");
  assert.equal(opened[0].url, origin + "/capture");
+ assert.equal(local.vault_import_origin, origin, "saved legacy preview is migrated to active Vault");
  assert.equal(opened[0].focused, true);
  assert.equal(injected.length, 1);
  assert.equal(injected[0].world,"MAIN");
