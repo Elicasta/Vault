@@ -1,89 +1,59 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
+const read=path=>fs.readFileSync(path,"utf8");
 
-const read = (path) => fs.readFileSync(path, "utf8");
-
-test("detail view supports previous/next navigation, swipe, keyboard arrows and visible delete", () => {
-  const source = read("components/vault-v2/DetailDrawer.jsx");
-  assert.match(source, /currentIndex = -1, totalItems = 0/);
-  assert.match(source, /Previous media/);
-  assert.match(source, /Next media/);
-  assert.match(source, /event\.key === "ArrowLeft"/);
-  assert.match(source, /event\.key === "ArrowRight"/);
-  assert.match(source, /Math\.abs\(dx\) < 72/);
-  assert.match(source, /aria-label="Delete media"/);
-  assert.match(source, /Delete “\{item\.title/);
+test("clean detail supports previous and next item, keyboard dismissal and deletion confirmation",()=>{
+ const src=read("components/vault-v2/DetailDrawer.jsx");
+ assert.match(src,/currentIndex=-1,totalItems=0/);
+ assert.match(src,/Previous item/);
+ assert.match(src,/Next item/);
+ assert.match(src,/e\.key==="ArrowLeft"/);
+ assert.match(src,/e\.key==="ArrowRight"/);
+ assert.match(src,/if\(e\.key==="Escape"\)/);
+ assert.match(src,/Confirm delete/);
+ assert.match(src,/activeAction|locked\.current/);
 });
 
-test("detail preview has metadata, proxy and direct-image fallback paths", () => {
-  const source = read("components/vault-v2/DetailDrawer.jsx");
-  assert.match(source, /\/api\/metadata\?url=/);
-  assert.match(source, /proxiedMediaUrl\(url\)/);
-  assert.match(source, /referrerPolicy="no-referrer"/);
-  assert.match(source, /onError=\{\(\) => setIdx/);
-  assert.match(source, /Preview unavailable/);
+test("detail focuses on cover, description, tags, favorite and collection",()=>{
+ const src=read("components/vault-v2/DetailDrawer.jsx");
+ assert.match(src,/v2-clean-detail-poster/);
+ assert.match(src,/proxiedMediaUrl\(cover\)/);
+ assert.match(src,/v2-clean-description/);
+ assert.match(src,/v2-tag-row/);
+ assert.match(src,/onFavorite\(item.key/);
+ assert.match(src,/onFolder\(item,value\)/);
+ assert.match(src,/onEdit\(item\)/);
+ assert.doesNotMatch(src,/Comments|Moment marks|tablist/);
 });
 
-test("Vault passes a route-aware browsing context into detail", () => {
-  const source = read("components/vault-v2/VaultV2.jsx");
-  assert.match(source, /const detailContextItems = useMemo/);
-  assert.match(source, /if \(route === "inbox"\) return inboxItems/);
-  assert.match(source, /route === "collections" && selectedCollection/);
-  assert.match(source, /currentIndex=\{detailIndex\}/);
-  assert.match(source, /totalItems=\{detailContextItems\.length\}/);
-  assert.match(source, /onNavigate=\{\(idx\)=>/);
+test("route-aware item navigation works from library and nested collections",()=>{
+ const src=read("components/vault-v2/VaultV2.jsx");
+ assert.match(src,/const detailContextItems = useMemo/);
+ assert.match(src,/route === "collections" && selectedCollection/);
+ assert.match(src,/currentIndex=\{detailIndex\}/);
+ assert.match(src,/totalItems=\{detailContextItems\.length\}/);
+ assert.match(src,/onNavigate=\{\(idx\)=>/);
+ assert.match(src,/collectionBranch\(selectedCollection, folders\)/);
 });
 
-test("player adapts direct media and Shorts to portrait layouts", () => {
-  const source = read("components/Player.jsx");
-  assert.match(source, /const \[mediaOrientation, setMediaOrientation\] = useState\("wide"\)/);
-  assert.match(source, /ratio < 0\.86 \? "portrait"/);
-  assert.ok(source.includes('youtube\\.com\\/shorts\\//i.test'));
-  assert.match(source, /mediaShell\(isFullscreen, mediaOrientation\)/);
-  assert.match(source, /orientation === "portrait"/);
+test("player still supports portrait video and direct media",()=>{
+ const src=read("components/Player.jsx");
+ assert.match(src,/const \[mediaOrientation, setMediaOrientation\] = useState\("wide"\)/);
+ assert.match(src,/ratio < 0\.86 \? "portrait"/);
+ assert.match(src,/mediaShell\(isFullscreen, mediaOrientation\)/);
+ assert.match(src,/orientation === "portrait"/);
 });
 
-test("Search exposes the protected external browser flow", () => {
-  const vault = read("components/vault-v2/VaultV2.jsx");
-  const browser = read("components/InAppBrowser.jsx");
-  const route = read("app/api/browser-search/route.js");
-  assert.match(vault, /aria-label="Search the web"/);
-  assert.match(vault, /<InAppBrowser/);
-  assert.match(vault, /initialQuery=\{route === "nsfw" \? nsfwQuery : query\}/);
-  assert.match(browser, /\/api\/browser-search\?q=/);
-  assert.match(browser, /initialQuery = ""/);
-  assert.match(route, /guardProxyRequest\(req,\s*"search"\)/);
-  assert.match(route, /searchProvider\(provider\.url,query,provider\.parser,provider\.params\|\|\{\},safety,page\)/);
-  assert.match(route, /duckduckgo-html/);
-  assert.match(route, /duckduckgo-lite/);
-  assert.match(route, /bing-html/);
-  assert.match(route, /parseBingResults/);
-  assert.match(route, /method:\s*"GET"/);
-  assert.doesNotMatch(route, /method:\s*"POST"/);
-  assert.doesNotMatch(route, /fetch\(DDG_HTML/);
+test("old browser search endpoints and destination links are gone",()=>{
+ const src=read("components/vault-v2/VaultV2.jsx");
+ assert.doesNotMatch(src,/InAppBrowser|setBrowserOpen|\/search|\/nsfw/);
+ assert.equal(fs.existsSync("app/api/browser-search/route.js"),false);
 });
 
-
-test("mobile form controls stay at 16px to prevent iOS focus zoom", () => {
-  const css = read("app/vault-v2.css");
-  assert.match(css, /@media \(max-width:899px\)\{[\s\S]*input,select,textarea\{font-size:16px!important\}/);
-});
-
-
-test("web search always has machine-readable and graceful fallbacks", () => {
-  const route = read("app/api/browser-search/route.js");
-  assert.match(route, /bing-rss/);
-  assert.match(route, /provider:"wikipedia"/);
-  assert.match(route, /externalUrl/);
-  assert.match(route, /Search providers could not return results/);
-  assert.doesNotMatch(route, /return NextResponse\.json\([\s\S]*Search provider temporarily unavailable/);
-});
-
-test("mobile in-app browser collapses quick save while keyboard is open", () => {
-  const source = read("components/InAppBrowser.jsx");
-  assert.match(source, /visualViewport/);
-  assert.match(source, /setKeyboardOpen/);
-  assert.match(source, /searchQuery \|\| \(keyboardOpen && isMobile\) \? "none" : "block"/);
-  assert.match(source, /fontSize: 16/);
+test("mobile form inputs avoid iOS focus zoom",()=>{
+ const css=read("app/vault-v2.css");
+ assert.match(css,/\.v2-simple-add-fields :is\(input,textarea,select\)\{font-size:16px!important\}/);
+ const layout=read("app/layout.jsx");
+ assert.doesNotMatch(layout,/maximumScale\s*:\s*1/);
 });
