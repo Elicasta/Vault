@@ -106,8 +106,8 @@ test("UI exposes mobile sheet recovery, media switch, bulk selection", () => {
   const server = fs.readFileSync("app/api/media-discovery/route.js", "utf8");
   assert.match(browser, /<MediaDiscoveryPanel/);
   assert.match(browser, /viewMode === "media"/);
-  assert.match(fs.readFileSync("components/vault-v2/VaultV2.jsx", "utf8"), /existingItems=\{displayItems\}/);
-  assert.match(browser, /keyboardOpen && isMobile \? "none" : "block"/);
+  assert.match(fs.readFileSync("components/vault-v2/VaultV2.jsx", "utf8"), /existingItems=\{route === "nsfw" \? nsfwItems : displayItems\}/);
+  assert.match(browser, /searchQuery \|\| \(keyboardOpen && isMobile\) \? "none" : "block"/);
   assert.match(browser, /showQuickSave/);
   assert.match(css, /max-height:\s*min\(55dvh,440px\)/);
   assert.match(media, /Save " \+ selectedCount \+ " to Vault"/);
