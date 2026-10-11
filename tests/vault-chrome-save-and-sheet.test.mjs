@@ -82,7 +82,10 @@ test("right-click opens Vault folder picker and delivers only selected image URL
  const listeners = { installed: [], clicked: [], updated: [], removed: [], message: [], alarm: [], startup: [] };
  const opened = [], menus = [], injected = [];
  const session = new Map(), local = {};
- const origin = "https://vault-preview-temp-git-feat-extension-7e2809-elicastas-projects.vercel.app";
+ const origin = background.match(/const VAULT_DEFAULT_URL = "([^"]+)"/)?.[1];
+ assert.ok(origin?.startsWith("https://"), "Chrome capture needs a valid configured HTTPS Vault preview");
+ assert.match(origin, /git-polish-vault/);
+ assert.doesNotMatch(origin, /feat-extension/);
  const chrome = {
   webRequest: {onBeforeRequest:{addListener(){}},onHeadersReceived:{addListener(){}}},
   tabs: {
