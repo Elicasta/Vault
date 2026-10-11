@@ -31,7 +31,7 @@ test("Home implements the locked priority shelves", () => {
   for (let i = 1; i < order.length; i++) assert.ok(order[i] > order[i - 1], "Home shelves should preserve viewing-first order");
 });
 
-test("library performance guard uses 200ms search debounce and 60 item batches", () => {
+test("library performance guard uses cover-first filtering and 60 item batches", () => {
   const source = read("components/vault-v2/VaultV2.jsx");
   assert.match(source, /setTimeout\(\(\) => setDebouncedQuery\(query\), 200\)/);
   assert.match(source, /useState\(60\)/);
