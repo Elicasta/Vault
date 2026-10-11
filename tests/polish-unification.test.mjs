@@ -19,7 +19,7 @@ test("continue watching navigates to an actual filtered library", () => {
   assert.match(modern, /router\.push\("\/library\?status=continue"\)/);
   assert.match(modern, /searchParams\.get\("status"\) === "continue"/);
   assert.match(modern, /status:routeStatus/);
-  assert.match(modern, /filters\.status==="continue"/);
+  assert.match(modern, /filters\.status === "continue"/);
 });
 
 test("library network failures are visible and cannot impersonate an empty Vault", () => {
