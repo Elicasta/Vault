@@ -46,7 +46,12 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
   const [frameBlocked, setFrameBlocked] = useState(false);
   const [saving, setSaving] = useState(false);
   const [discreetLabels, setDiscreetLabels] = useState(true);
-  const saveToVault = item => onSave?.(withDiscreetMediaLabels(item, discreetLabels));
+  const saveToVault = item => {
+    const tagged = initialMode === "nsfw"
+      ? { ...item, tags: [...new Set([...(Array.isArray(item.tags) ? item.tags : []), "nsfw"])] }
+      : item;
+    return onSave?.(withDiscreetMediaLabels(tagged, discreetLabels));
+  };
   const [metadata, setMetadata] = useState(null);
   const [metaState, setMetaState] = useState("idle");
   const [folder, setFolder] = useState("");
@@ -81,7 +86,8 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
   const searchSequence = useRef(0);
 
   useEffect(() => {
-    try { setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]")); } catch { setHistory([]); }
+    if (initialMode === "nsfw") setHistory([]);
+    else try { setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]")); } catch { setHistory([]); }
     // Do not focus a mobile address bar on mount: iOS otherwise opens its
     // keyboard, reduces the visual viewport and makes the sheet appear huge.
     if (!isMobile) inputRef.current?.focus();
@@ -92,7 +98,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
     };
     window.addEventListener("keydown", h);
     return () => { window.removeEventListener("keydown", h); searchAbort.current?.abort(); ++searchSequence.current; };
-  }, [isMobile]);
+  }, [isMobile, initialMode]);
 
   useEffect(() => {
     if (!isMobile || typeof window === "undefined" || !window.visualViewport) return;
@@ -145,7 +151,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
     const row = { url, title: meta?.title || hostOf(url) || url, visitedAt: new Date().toISOString() };
     const next = [row, ...history.filter((h) => h.url !== url)].slice(0, 80);
     setHistory(next);
-    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(next)); } catch {}
+    if (initialMode !== "nsfw") try { localStorage.setItem(HISTORY_KEY, JSON.stringify(next)); } catch {}
   };
 
   const runSearch = async (query, filters = {}) => {
@@ -293,12 +299,12 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
   const removeHistoryItem = (url) => {
     const next = history.filter((h) => h.url !== url);
     setHistory(next);
-    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(next)); } catch {}
+    if (initialMode !== "nsfw") try { localStorage.setItem(HISTORY_KEY, JSON.stringify(next)); } catch {}
   };
 
   const clearHistory = () => {
     setHistory([]);
-    try { localStorage.removeItem(HISTORY_KEY); } catch {}
+    if (initialMode !== "nsfw") try { localStorage.removeItem(HISTORY_KEY); } catch {}
   };
 
   const handleCreateFolder = async () => {
@@ -424,12 +430,12 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
                 onClick={() => {setSearchScope(value);runSearch(searchQuery,{mode:searchMode,scope:value,page:0});}}>{label}</button>
             )}
           </div>
-          <details className="vv-search-preferences">
+          {initialMode === "nsfw" ? <details className="vv-search-preferences">
             <summary>Search preferences <span>{searchMode==="regular"?"SafeSearch on":searchMode==="nsfw"?"NSFW":"Unrestricted"}</span></summary>
             <div className="vv-search-mode-row">
               <span>Search mode</span>
               <div className="vv-search-modes" role="group" aria-label="SafeSearch">
-                {[["regular","Regular"],["nsfw","NSFW"],["unrestricted","Unrestricted"]].map(([value,label]) =>
+                {[["nsfw","NSFW"],["unrestricted","Unrestricted"]].map(([value,label]) =>
                   <button key={value} type="button" aria-pressed={searchMode===value} className={"vv-search-mode-"+value}
                     onClick={() => {setSearchMode(value);runSearch(searchQuery,{mode:value,scope:searchScope,page:0});}}>{label}</button>
                 )}
@@ -439,7 +445,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
                 <span> Website restrictions may still apply.</span>
               </div>
             </div>
-          </details>
+          </details> : <div className="vv-search-safe-indicator">SafeSearch on · <a href="/nsfw">18+ space</a></div>}
         </div>}
         <div className="vv-browser-modebar" role="toolbar" aria-label="Browser views">
           {savedSearch && currentUrl && <button type="button" className="vv-browser-back" onClick={backToResults}>← Results</button>}
