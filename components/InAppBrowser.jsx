@@ -73,6 +73,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
   const showQuickSaveRef = useRef(showQuickSave);
   showQuickSaveRef.current = showQuickSave;
   const inputRef = useRef(null);
+  const resultsScrollRef = useRef(null);
   const searchAbort = useRef(null);
   const searchSequence = useRef(0);
 
@@ -186,6 +187,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
       if (!response.ok) throw new Error(data.error || `Web search failed (HTTP ${response.status})`);
       if (sequence !== searchSequence.current || controller.signal.aborted) return;
       setSearchResults(Array.isArray(data.results) ? data.results : []);
+      resultsScrollRef.current?.scrollTo(0, 0);
       setSearchInfo({ providers:data.providers||[],warning:data.warning||"",partial:!!data.partial,disclaimer:data.disclaimer||"",externalUrl:data.externalUrl||"" });
       setSearchState("done");
     } catch (error) {
@@ -350,7 +352,8 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
   const previewResult = (result) => {
     // A drill-down must always have an in-app path back to the exact results.
     setSavedSearch({ query:searchQuery, results:searchResults, info:searchInfo,
-      page:searchPage, mode:searchMode, scope:searchScope, host:resultHost });
+      page:searchPage, mode:searchMode, scope:searchScope, host:resultHost,
+      scrollTop:resultsScrollRef.current?.scrollTop || 0 });
     openUrl(result.url);
   };
 
@@ -375,6 +378,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
     setSearchError("");
     setViewMode("results");
     setAddress(savedSearch.query);
+    requestAnimationFrame(()=>resultsScrollRef.current?.scrollTo(0, savedSearch.scrollTop || 0));
   };
 
   const currentDirectType = /\.(?:jpe?g|png|webp|gif|avif|bmp)(?:$|[?#])/i.test(currentUrl)
@@ -403,33 +407,28 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
         </div>
 
         {(!currentUrl || searchQuery) && <div className="vv-search-filters" role="group" aria-label="Search settings">
-          <div className="vv-search-mode-row">
-            <span>Search mode</span>
-            <div className="vv-search-modes" role="group" aria-label="SafeSearch">
-              {[
-                ["regular","Regular"],["nsfw","NSFW"],["unrestricted","Unrestricted"]
-              ].map(([value,label]) => <button key={value} type="button"
-                aria-pressed={searchMode===value} className={"vv-search-mode-"+value}
-                onClick={() => {setSearchMode(value);runSearch(searchQuery,{mode:value,scope:searchScope,page:0});}}>
-                {label}
-              </button>)}
-            </div>
-          </div>
           <div className="vv-search-scopes" role="group" aria-label="Result type">
-            {[
-              ["all","All results"],["images","Images"],["videos","Videos"],["sites","Sites / galleries"]
-            ].map(([value,label]) => <button key={value} type="button"
-              aria-pressed={searchScope===value}
-              onClick={() => {setSearchScope(value);runSearch(searchQuery,{mode:searchMode,scope:value,page:0});}}>
-              {label}
-            </button>)}
+            {[["all","All results"],["images","Images"],["videos","Videos"],["sites","Sites & galleries"]].map(([value,label]) =>
+              <button key={value} type="button" aria-pressed={searchScope===value}
+                onClick={() => {setSearchScope(value);runSearch(searchQuery,{mode:searchMode,scope:value,page:0});}}>{label}</button>
+            )}
           </div>
-          <div className="vv-search-filter-description">
-            {searchMode==="regular" ? "Strict SafeSearch requested; designed to reduce explicit results." :
-             searchMode==="nsfw" ? "Adult results allowed. NSFW-related matches receive higher relevance." :
-             "SafeSearch off wherever supported. Results are not limited to NSFW content."}
-            <span> Provider restrictions may still apply.</span>
-          </div>
+          <details className="vv-search-preferences">
+            <summary>Search preferences <span>{searchMode==="regular"?"SafeSearch on":searchMode==="nsfw"?"NSFW":"Unrestricted"}</span></summary>
+            <div className="vv-search-mode-row">
+              <span>Search mode</span>
+              <div className="vv-search-modes" role="group" aria-label="SafeSearch">
+                {[["regular","Regular"],["nsfw","NSFW"],["unrestricted","Unrestricted"]].map(([value,label]) =>
+                  <button key={value} type="button" aria-pressed={searchMode===value} className={"vv-search-mode-"+value}
+                    onClick={() => {setSearchMode(value);runSearch(searchQuery,{mode:value,scope:searchScope,page:0});}}>{label}</button>
+                )}
+              </div>
+              <div className="vv-search-filter-description">{searchMode==="regular"
+                ? "Strict SafeSearch requested." : searchMode==="nsfw" ? "Adult results allowed." : "SafeSearch disabled where supported."}
+                <span> Website restrictions may still apply.</span>
+              </div>
+            </div>
+          </details>
         </div>}
         <div className="vv-browser-modebar" role="toolbar" aria-label="Browser views">
           {savedSearch && currentUrl && <button type="button" className="vv-browser-back" onClick={backToResults}>← Results</button>}
@@ -472,7 +471,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
         )}
 
         <div className="vv-browser-content" style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: isMobile ? "minmax(0,1fr)" : "minmax(0,1fr) minmax(280px,340px)", gridTemplateRows: "minmax(0,1fr)", position: "relative", overflow: "hidden" }}>
-          <div className="vv-browser-main" style={{ minHeight: 0, minWidth: 0, background: "#050505", position: "relative", overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
+          <div ref={resultsScrollRef} className="vv-browser-main" style={{ minHeight: 0, minWidth: 0, background: "#050505", position: "relative", overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
             {!currentUrl && !searchQuery ? (
               <EmptySearch />
             ) : searchQuery ? (
