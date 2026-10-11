@@ -6,7 +6,8 @@ import AuthGate from "@/components/AuthGate";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
 export default function VaultExperience({ route = "home" }) {
-  const enabled = process.env.NEXT_PUBLIC_VAULT_UI_V2 === "true";
+  // V2 is the integrated Vault experience; explicit "false" is a rollback switch.
+  const enabled = process.env.NEXT_PUBLIC_VAULT_UI_V2 !== "false";
   if (!enabled && route !== "home") redirect("/");
 
   return (
