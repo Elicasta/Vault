@@ -78,6 +78,7 @@ export default function DetailDrawer({
   const [tab, setTab] = useState("activity");
   const [comments, setComments] = useState([]);
   const [marks, setMarks] = useState([]);
+  const [activityLoading, setActivityLoading] = useState(false);
   const [comment, setComment] = useState("");
   const [busy, setBusy] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -86,6 +87,21 @@ export default function DetailDrawer({
   const swipeStart = useRef(null);
   const hasPrev = currentIndex > 0;
   const hasNext = currentIndex >= 0 && currentIndex < totalItems - 1;
+  const keyboardState = useRef({ onClose, onNavigate, hasPrev, hasNext, currentIndex, busy });
+  useEffect(() => {
+    keyboardState.current = { onClose, onNavigate, hasPrev, hasNext, currentIndex, busy };
+  }, [onClose, onNavigate, hasPrev, hasNext, currentIndex, busy]);
+  const closeIfIdle = () => { if (!busy && !actionLock.current) onClose(); };
+
+  useEffect(() => {
+    setTab("activity");
+    setComments([]);
+    setMarks([]);
+    setComment("");
+    setActionError("");
+    setConfirmDelete(false);
+    ref.current?.querySelector(".v2-drawer-scroll")?.scrollTo({ top: 0 });
+  }, [item?.key]);
 
   const source = useMemo(() => getSourceMeta(item?.url || ""), [item?.url]);
   const isImage = source.id === "image" || String(item?.type || "").toLowerCase().includes("image");
@@ -97,13 +113,15 @@ export default function DetailDrawer({
   useEffect(() => {
     if (!item || !userId) return;
     let active = true;
+    setActivityLoading(true);
     Promise.all([getItemComments(userId, item.key), getMomentMarks(userId, item.key)]).then(([c, m]) => {
       if (!active) return;
       setComments(c || []);
       setMarks(m || []);
-    }).catch((error) => { if (active) setActionError(error?.message || "Could not load activity."); });
+    }).catch((error) => { if (active) setActionError(error?.message || "Could not load activity."); })
+      .finally(() => { if (active) setActivityLoading(false); });
     return () => { active = false; };
-  }, [item, userId, activityRevision]);
+  }, [item?.key, userId, activityRevision]);
 
   useEffect(() => {
     if (!item || !ref.current) return;
@@ -112,11 +130,16 @@ export default function DetailDrawer({
     const close = root.querySelector("[data-close]");
     close?.focus();
     const handler = (event) => {
-      if (event.key === "Escape") { event.preventDefault(); onClose(); return; }
+      const nav = keyboardState.current;
+      if (event.key === "Escape") {
+        event.preventDefault();
+        if (!nav.busy && !actionLock.current) nav.onClose?.();
+        return;
+      }
       const tag = String(document.activeElement?.tagName || "").toLowerCase();
       const editing = tag === "input" || tag === "textarea" || tag === "select" || document.activeElement?.isContentEditable;
-      if (!editing && event.key === "ArrowLeft" && hasPrev) { event.preventDefault(); onNavigate?.(currentIndex - 1); return; }
-      if (!editing && event.key === "ArrowRight" && hasNext) { event.preventDefault(); onNavigate?.(currentIndex + 1); return; }
+      if (!editing && !nav.busy && event.key === "ArrowLeft" && nav.hasPrev) { event.preventDefault(); nav.onNavigate?.(nav.currentIndex - 1); return; }
+      if (!editing && !nav.busy && event.key === "ArrowRight" && nav.hasNext) { event.preventDefault(); nav.onNavigate?.(nav.currentIndex + 1); return; }
       if (event.key !== "Tab") return;
       const nodes = [...root.querySelectorAll('button:not([disabled]),[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')];
       if (!nodes.length) return;
@@ -126,7 +149,7 @@ export default function DetailDrawer({
     };
     document.addEventListener("keydown", handler);
     return () => { document.removeEventListener("keydown", handler); before?.focus?.(); };
-  }, [item, onClose, hasPrev, hasNext, currentIndex, onNavigate]);
+  }, [item?.key]);
 
   if (!item) return null;
 
@@ -159,43 +182,38 @@ export default function DetailDrawer({
 
   return (
     <>
-      <div className="v2-backdrop" onMouseDown={onClose} aria-hidden="true" />
+      <div className="v2-backdrop" onMouseDown={closeIfIdle} aria-hidden="true" />
       <aside
         ref={ref}
         className="v2-drawer"
         role="dialog"
         aria-modal="true"
         aria-labelledby="v2-detail-title"
-        onTouchStart={(e) => {
-          const t = e.touches?.[0];
-          if (t) swipeStart.current = { x:t.clientX, y:t.clientY };
-        }}
-        onTouchEnd={(e) => {
-          const start = swipeStart.current;
-          const t = e.changedTouches?.[0];
-          swipeStart.current = null;
-          if (!start || !t) return;
-          const dx = t.clientX - start.x;
-          const dy = t.clientY - start.y;
-          if (Math.abs(dx) < 72 || Math.abs(dy) > 64) return;
-          if (dx < 0 && hasNext) onNavigate?.(currentIndex + 1);
-          if (dx > 0 && hasPrev) onNavigate?.(currentIndex - 1);
-        }}
       >
         <div className="v2-drawer-head">
           <div className="v2-detail-pager">
-            <button type="button" className="v2-iconbtn" onClick={() => onNavigate?.(currentIndex - 1)} disabled={!hasPrev} aria-label="Previous media"><Icon name="chevronLeft" size={18}/></button>
+            <button type="button" className="v2-iconbtn" onClick={() => onNavigate?.(currentIndex - 1)} disabled={!hasPrev || busy} aria-label="Previous media"><Icon name="chevronLeft" size={18}/></button>
             <span className="v2-hint">{currentIndex >= 0 && totalItems ? `${currentIndex + 1} of ${totalItems}` : "Item detail"}</span>
-            <button type="button" className="v2-iconbtn" onClick={() => onNavigate?.(currentIndex + 1)} disabled={!hasNext} aria-label="Next media"><Icon name="chevronRight" size={18}/></button>
+            <button type="button" className="v2-iconbtn" onClick={() => onNavigate?.(currentIndex + 1)} disabled={!hasNext || busy} aria-label="Next media"><Icon name="chevronRight" size={18}/></button>
           </div>
           <div className="v2-detail-head-actions">
-            <button type="button" className="v2-iconbtn v2-iconbtn-danger" onClick={() => setConfirmDelete(true)} aria-label="Delete media"><Icon name="trash" size={17}/></button>
-            <button data-close type="button" className="v2-iconbtn" onClick={onClose} aria-label="Close item detail"><Icon name="x" size={18}/></button>
+            <button type="button" className="v2-iconbtn v2-iconbtn-danger" disabled={busy} onClick={() => setConfirmDelete(true)} aria-label="Delete media"><Icon name="trash" size={17}/></button>
+            <button data-close type="button" className="v2-iconbtn" disabled={busy} onClick={closeIfIdle} aria-label="Close item detail"><Icon name="x" size={18}/></button>
           </div>
         </div>
         <div className="v2-drawer-scroll" aria-busy={busy}>
           {actionError ? <div className="v2-error" role="alert">{actionError}</div> : null}
-          <div className="v2-detail-art" style={isImage ? { aspectRatio:"4 / 5", maxHeight:520, marginInline:"auto", background:"#080809" } : undefined}>
+          <div className="v2-detail-art" style={isImage ? { aspectRatio:"4 / 5", maxHeight:520, marginInline:"auto", background:"#080809" } : undefined}
+            onTouchStart={(e) => { const t = e.touches?.[0]; if (t) swipeStart.current = { x:t.clientX, y:t.clientY }; }}
+            onTouchEnd={(e) => {
+              const start = swipeStart.current, t = e.changedTouches?.[0];
+              swipeStart.current = null;
+              if (!start || !t || busy) return;
+              const dx = t.clientX - start.x, dy = t.clientY - start.y;
+              if (Math.abs(dx) < 72 || Math.abs(dy) > 64) return;
+              if (dx < 0 && hasNext) onNavigate?.(currentIndex + 1);
+              if (dx > 0 && hasPrev) onNavigate?.(currentIndex - 1);
+            }}>
             <DetailPreview item={item} isImage={isImage} />
           </div>
           <h2 className="v2-detail-title" id="v2-detail-title">{item.title || item.url}</h2>
@@ -214,7 +232,7 @@ export default function DetailDrawer({
           </div>
           {confirmDelete ? (
             <div className="v2-delete-confirm" role="alert">
-              <span>Delete “{item.title || "this item"}” from Vault?</span>
+              <span>Delete “{item.title || "this item"}” permanently? This cannot be undone.</span>
               <div>
                 <button type="button" className="v2-btn v2-btn-danger" disabled={busy} onClick={() => runAction(() => onDelete(item))}>Delete</button>
                 <button type="button" className="v2-btn" onClick={() => setConfirmDelete(false)}>Cancel</button>
@@ -258,7 +276,7 @@ export default function DetailDrawer({
           {tab === "activity" ? (
             <div>
               <div className="v2-detail-label">Comments</div>
-              {comments.length ? comments.map((c) => (
+              {activityLoading ? <p className="v2-hint" role="status">Loading activity…</p> : comments.length ? comments.map((c) => (
                 <div className="v2-comment" key={c.id}>
                   <div>{c.body}</div>
                   <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:8 }}>
@@ -275,7 +293,7 @@ export default function DetailDrawer({
 
               <div className="v2-detail-block" style={{ marginTop:18 }}>
                 <div className="v2-detail-label">Moment marks</div>
-                {marks.length ? marks.map((m) => (
+                {activityLoading ? <p className="v2-hint">Loading moments…</p> : marks.length ? marks.map((m) => (
                   <div className="v2-comment" key={m.id}>
                     <strong>{formatTime(m.seconds)}</strong>{m.rating ? <span style={{ color:"var(--v2-muted)" }}> · ★ {m.rating}</span> : null}{m.note ? <span style={{ color:"var(--v2-muted)" }}> · {m.note}</span> : null}
                   </div>
@@ -293,15 +311,7 @@ export default function DetailDrawer({
               <div className="v2-detail-kv"><span>Cover</span><span>{item.cover_mode || "automatic"}</span></div>
               <button type="button" className="v2-btn" style={{ marginTop:14 }} onClick={() => onEdit(item)}>Edit details</button>
               <div className="v2-detail-block" style={{ marginTop:18 }}>
-                {confirmDelete ? (
-  <div style={{ display:"grid", gap:8 }}>
-    <div className="v2-hint">This removes the item from Vault. This action cannot be undone.</div>
-    <div style={{ display:"flex", gap:8 }}>
-      <button type="button" className="v2-btn v2-btn-danger" disabled={busy} onClick={() => runAction(() => onDelete(item))}>Confirm delete</button>
-      <button type="button" className="v2-btn" onClick={() => setConfirmDelete(false)}>Cancel</button>
-    </div>
-  </div>
-) : <button type="button" className="v2-btn v2-btn-danger" onClick={() => setConfirmDelete(true)}>Delete from Vault</button>}
+                <button type="button" className="v2-btn v2-btn-danger" disabled={busy} onClick={() => setConfirmDelete(true)}>Delete from Vault</button>
               </div>
             </div>
           )}
