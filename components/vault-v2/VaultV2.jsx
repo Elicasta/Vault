@@ -47,8 +47,12 @@ const MOBILE_NAV = [
 const ROUTE_TITLES = {
   home: "Home", library: "Library", inbox: "Inbox",
   collections: "Collections", search: "Search", settings: "Settings",
-  import: "Import Media",
+  import: "Import Media", nsfw: "18+ Discover",
 };
+
+function isNsfwTagged(item) {
+  return (Array.isArray(item?.tags) ? item.tags : []).some(tag => String(tag).trim().toLowerCase() === "nsfw");
+}
 
 function folderFor(item, state) {
   return item?.folder || state?.folder || "";
@@ -258,6 +262,18 @@ export default function VaultV2({ route = "home" }) {
   const [mobileControl, setMobileControl] = useState(null);
   const [newCollectionOpen, setNewCollectionOpen] = useState(false);
   const [browserOpen, setBrowserOpen] = useState(false);
+  const [nsfwAccess, setNsfwAccess] = useState(false);
+  const [nsfwAcknowledged, setNsfwAcknowledged] = useState(false);
+  const [nsfwQuery, setNsfwQuery] = useState("");
+  useEffect(() => {
+    if (route !== "nsfw") return;
+    try { setNsfwAccess(sessionStorage.getItem("vault-nsfw-consent-v1") === "yes"); } catch {}
+  }, [route]);
+  const enterNsfw = () => {
+    if (!nsfwAcknowledged) return;
+    setNsfwAccess(true);
+    try { sessionStorage.setItem("vault-nsfw-consent-v1", "yes"); } catch {}
+  };
   const [mobileBrowser, setMobileBrowser] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState("");
   const [collectionBusy, setCollectionBusy] = useState(false);
@@ -479,10 +495,9 @@ export default function VaultV2({ route = "home" }) {
     }
   };
 
-  const displayItems = useMemo(
-    () => resolveMediaPreviews(items, coverLibrary).filter((item) => !isHiddenLibraryItem(item)),
-    [items, coverLibrary]
-  );
+  const resolvedItems = useMemo(() => resolveMediaPreviews(items, coverLibrary).filter((item) => !isHiddenLibraryItem(item)), [items, coverLibrary]);
+  const displayItems = useMemo(() => resolvedItems.filter(item => !isNsfwTagged(item)), [resolvedItems]);
+  const nsfwItems = useMemo(() => resolvedItems.filter(isNsfwTagged).sort((a,b) => new Date(b.addedAt||0) - new Date(a.addedAt||0)), [resolvedItems]);
   const hiddenItems = useMemo(() => items.filter(isHiddenLibraryItem), [items]);
 
   const allFiltered = useMemo(() => {
@@ -527,11 +542,12 @@ export default function VaultV2({ route = "home" }) {
   const collectionItems = useMemo(()=>selectedCollection ? displayItems.filter((i)=>folderFor(i,userData[i.key]||{})===selectedCollection) : [],[displayItems,userData,selectedCollection]);
 
   const detailContextItems = useMemo(() => {
+    if (route === "nsfw") return nsfwItems;
     if (route === "inbox") return inboxItems;
     if (route === "collections" && selectedCollection) return collectionItems;
     if (route === "library" || route === "search") return allFiltered;
     return displayItems;
-  }, [route, selectedCollection, inboxItems, collectionItems, allFiltered, displayItems]);
+  }, [route, selectedCollection, inboxItems, collectionItems, allFiltered, displayItems, nsfwItems]);
 
   const detailIndex = detailItem ? detailContextItems.findIndex((item) => item.key === detailItem.key) : -1;
 
@@ -615,6 +631,14 @@ export default function VaultV2({ route = "home" }) {
         </form>
         <div className="v2-discover-hint">Tip: Paste a gallery link to explore its categories and individual media, or search by name.</div>
       </div>
+      <section className="v2-discover-private">
+        <div className="v2-discover-private-copy">
+          <span className="v2-eyebrow">SEPARATE DISCOVERY SPACE</span>
+          <h2>18+ Discover</h2>
+          <p>Adult-oriented searching is kept apart from Regular Discover. Access requires a separate opt-in, and items saved here stay out of your standard home shelves.</p>
+        </div>
+        <button type="button" className="v2-btn" onClick={()=>router.push("/nsfw")}>Open 18+ section <Icon name="chevronRight" size={16}/></button>
+      </section>
       {query.trim() ? <section className="v2-discover-library">
         <div className="v2-section-head"><div><h2 className="v2-section-title">Already in your Vault</h2><p className="v2-section-sub">Search your saved media without leaving Discover.</p></div><button type="button" className="v2-linkbtn" onClick={()=>setBrowserOpen(true)}>Continue on the web <Icon name="chevronRight" size={16}/></button></div>
         {renderGrid(allFiltered,"Not in your library yet","Search the web to find something new.",{action:()=>setBrowserOpen(true),label:"Search the web"})}
@@ -623,6 +647,41 @@ export default function VaultV2({ route = "home" }) {
         {loading ? <LoadingGrid/> : loadError ? null : recentItems.length ? <div className="v2-grid">{recentItems.slice(0,8).map((item)=><MediaCard key={item.key} item={item} state={userData[item.key]||{}} onOpen={setDetailItem}/>)}</div> : <EmptyState icon="search" title="Your discovery begins here" text="Use the search field above to find a video, image or gallery on the web." action={()=>setBrowserOpen(true)} actionLabel="Explore the web"/>}
       </section>}
     </div>;
+  } else if(route==="nsfw") {
+    page = !nsfwAccess ?
+      <section className="v2-nsfw-gate">
+        <span className="v2-eyebrow">SEPARATE SPACE / 18+</span>
+        <h1>Adult Discover</h1>
+        <p>This is an opt-in area for adult-oriented web search. Regular Discover remains filtered by default. The confirmation below is not age verification.</p>
+        <label className="v2-nsfw-consent">
+          <input type="checkbox" checked={nsfwAcknowledged} onChange={event=>setNsfwAcknowledged(event.target.checked)}/>
+          <span>I confirm that I am at least 18 and choose to enter the adult section.</span>
+        </label>
+        <div className="v2-nsfw-gate-actions">
+          <button type="button" className="v2-btn v2-btn-primary" disabled={!nsfwAcknowledged} onClick={enterNsfw}>Enter 18+ Discover</button>
+          <button type="button" className="v2-btn" onClick={()=>router.push("/search")}>Back to Discover</button>
+        </div>
+      </section>
+      : <div className="v2-discover-page v2-adult-discover">
+          <div className="v2-discover-hero">
+            <button type="button" className="v2-linkbtn" onClick={()=>router.push("/search")}>← Regular Discover</button>
+            <div className="v2-eyebrow">18+ DISCOVER / OPT-IN</div>
+            <h1 className="v2-h1">Adult discovery.</h1>
+            <p className="v2-lead">Search for videos, images and galleries in a dedicated space. Source restrictions and site permissions still apply.</p>
+            <form className="v2-discover-search" role="search" aria-label="Search adult web results" onSubmit={event=>{event.preventDefault();setBrowserOpen(true)}}>
+              <Icon name="search" size={20}/>
+              <input type="search" value={nsfwQuery} onChange={event=>setNsfwQuery(event.target.value)}
+                placeholder="Search or paste a link…" aria-label="Adult web search" enterKeyHint="search" autoComplete="off"/>
+              {nsfwQuery ? <button type="button" className="v2-discover-clear" onClick={()=>setNsfwQuery("")} aria-label="Clear adult search"><Icon name="x" size={16}/></button> : null}
+              <button type="submit" className="v2-btn v2-btn-primary"><Icon name="search" size={15}/> Search web</button>
+            </form>
+            <div className="v2-discover-hint">Regular search history is separate. Items saved here are marked NSFW and kept out of the standard library shelves.</div>
+          </div>
+          <section className="v2-discover-library">
+            <div className="v2-section-head"><div><h2 className="v2-section-title">Saved in your adult space</h2><p className="v2-section-sub">Only items explicitly tagged NSFW appear here.</p></div></div>
+            {renderGrid(nsfwItems,"No adult items saved","Search above to discover media and choose what to save.",{action:()=>setBrowserOpen(true),label:"Search the web"})}
+          </section>
+        </div>;
   } else if(route==="import") {
     page = <ImportMediaWorkspace userId={user?.id} folders={folders} items={displayItems}
       onSave={saveItem} onCreateFolder={createCollection} />;
@@ -716,10 +775,11 @@ export default function VaultV2({ route = "home" }) {
           onClose={()=>setBrowserOpen(false)}
           onSave={saveItem}
           folders={folders}
-          existingItems={displayItems}
+          existingItems={route === "nsfw" ? nsfwItems : displayItems}
           isMobile={mobileBrowser}
           onCreateFolder={createCollection}
-          initialQuery={query}
+          initialQuery={route === "nsfw" ? nsfwQuery : query}
+          initialMode={route === "nsfw" ? "nsfw" : "regular"}
         />
       ) : null}
 
@@ -734,9 +794,9 @@ export default function VaultV2({ route = "home" }) {
 
       {playerItem ? <Player
         item={playerItem}
-        items={displayItems}
-        currentIdx={Math.max(0,displayItems.findIndex((x)=>x.key===playerItem.key))}
-        onNavigate={(idx)=>setPlayerItem(displayItems[idx])}
+        items={route === "nsfw" ? nsfwItems : displayItems}
+        currentIdx={Math.max(0,(route === "nsfw" ? nsfwItems : displayItems).findIndex((x)=>x.key===playerItem.key))}
+        onNavigate={(idx)=>setPlayerItem((route === "nsfw" ? nsfwItems : displayItems)[idx])}
         onClose={()=>setPlayerItem(null)}
         onRemoveFromLibrary={(item) => setItemVisibility(item, true)}
         userId={user?.id}
