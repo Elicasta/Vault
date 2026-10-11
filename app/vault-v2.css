@@ -256,3 +256,84 @@
   .v2-searchbox input,.v2-select,.v2-input,.v2-textarea,.v2-filter{font-size:16px}
   .v2-mobile-nav a{font-size:10px;gap:5px}
 }
+
+
+/* Experience polish: collections read as places containing actual media, not empty tiles. */
+.v2-collection-preview{
+  min-height:216px;
+  padding:0;
+  gap:0;
+  display:flex;
+  overflow:hidden;
+  flex-direction:column;
+  justify-content:flex-start;
+  background:#121213;
+  transition:border-color .18s ease,transform .18s ease,box-shadow .18s ease;
+}
+.v2-collection-covers{
+  display:grid;
+  grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);
+  grid-template-rows:repeat(2,minmax(0,1fr));
+  gap:3px;
+  height:142px;
+  width:100%;
+  overflow:hidden;
+  background:radial-gradient(circle at 30% 10%,rgba(255,255,255,.08),transparent 60%),#19191b;
+}
+.v2-collection-covers[data-count="1"]{grid-template-columns:1fr}
+.v2-collection-covers[data-count="2"]{grid-template-columns:repeat(2,minmax(0,1fr));grid-template-rows:1fr}
+.v2-collection-covers[data-count="0"]{grid-template-columns:1fr}
+.v2-collection-cover{min-height:0;min-width:0;overflow:hidden;background:#171719}
+.v2-collection-cover:first-child{grid-row:span 2}
+.v2-collection-covers[data-count="2"] .v2-collection-cover:first-child{grid-row:auto}
+.v2-collection-cover img{display:block;width:100%;height:100%;object-fit:cover;transition:transform .24s ease}
+.v2-collection-preview:hover .v2-collection-cover img{transform:scale(1.035)}
+.v2-collection-empty-art{display:grid;place-items:center;grid-row:span 2;color:var(--v2-subtle)}
+.v2-collection-footer{min-height:72px;padding:13px 15px;display:flex;justify-content:space-between;align-items:center;gap:8px}
+.v2-collection-footer svg{color:var(--v2-subtle);flex-shrink:0;transition:transform .18s ease}
+.v2-collection-preview:hover .v2-collection-footer svg{transform:translateX(2px);color:var(--v2-text)}
+.v2-collection-labels{min-width:0;flex:1}
+.v2-collection-preview .v2-collection-name{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.v2-collection-preview:hover{box-shadow:0 16px 35px rgba(0,0,0,.32)}
+.v2-collection-preview:active{transform:translateY(0);box-shadow:none}
+
+/* More readable library cards without sacrificing a consistent grid. */
+.v2-card-title{
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+  line-clamp:2;
+  white-space:normal;
+  overflow:hidden;
+  min-height:2.7em;
+}
+.v2-card-sub>span:not(.v2-dot){overflow:hidden;text-overflow:ellipsis}
+.v2-linkbtn{padding-inline:8px}
+.v2-card-button:active .v2-art{border-color:rgba(255,255,255,.28)}
+
+/* Calm, consistent keyboard affordances across all primary surfaces. */
+.v2-root :is(.v2-nav-link,.v2-collection,.v2-mobile-nav a,.v2-mobile-nav button,.v2-btn,.v2-iconbtn,.v2-linkbtn,.v2-segmented button,.v2-add-path,.v2-star):focus-visible{
+  outline:2px solid #f2f2f4;
+  outline-offset:3px;
+}
+.v2-root :is(.v2-btn,.v2-iconbtn,.v2-collection,.v2-mobile-nav a,.v2-mobile-nav button):disabled{
+  opacity:.48;
+  cursor:not-allowed;
+}
+.v2-root :is(.v2-btn,.v2-iconbtn,.v2-linkbtn,.v2-collection):active:not(:disabled){filter:brightness(1.1)}
+@media(max-width:899px){
+  .v2-keyboard-hint{display:none}
+  .v2-mobile-nav a[aria-current="page"]{background:rgba(255,255,255,.095)}
+  .v2-collection-covers{height:132px}
+  .v2-collection-preview{min-height:204px}
+  .v2-collection-footer{padding:12px}
+}
+@media(max-width:599px){
+  .v2-collection-covers{height:110px}
+  .v2-collection-preview{min-height:180px}
+  .v2-collection-footer{min-height:70px}
+  .v2-collection-preview .v2-collection-name{font-size:13px}
+}
+@media(prefers-reduced-motion:reduce){
+  .v2-collection-preview,.v2-collection-cover img,.v2-collection-footer svg{transition:none!important;transform:none!important}
+}
