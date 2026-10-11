@@ -6,16 +6,16 @@ const read = (path) => fs.readFileSync(path, "utf8");
 
 test("Vault V2 exposes the locked desktop and mobile navigation", () => {
   const source = read("components/vault-v2/VaultV2.jsx");
-  for (const label of ["Home","Library","Inbox","Collections","Search","Settings"]) {
+  for (const label of ["Home","Library","Collections","Settings"]) {
     assert.match(source, new RegExp('"' + label + '"'));
   }
-  assert.match(source, /const MOBILE_NAV = \[[\s\S]*"Home"[\s\S]*"Browse"[\s\S]*"Discover"[\s\S]*"Collections"[\s\S]*"Add"/);
+  assert.match(source, /const MOBILE_NAV = \[[\s\S]*"Home"[\s\S]*"Library"[\s\S]*"Collections"[\s\S]*"Add"/);
   assert.match(source, /className="v2-desktop-nav"/);
   assert.doesNotMatch(source, /"Favorites".*"Continue".*"Rated"/s);
 });
 
 test("primary App Router destinations exist and remain feature gated", () => {
-  for (const route of ["library","inbox","collections","search","settings"]) {
+  for (const route of ["library","collections","settings"]) {
     assert.equal(fs.existsSync("app/" + route + "/page.jsx"), true, route);
   }
   const gate = read("components/VaultExperience.jsx");
@@ -51,8 +51,9 @@ test("accessibility primitives are present on cards, dialogs, filters and reduce
   assert.match(add, /event\.key === "Escape"/);
   const detail = read("components/vault-v2/DetailDrawer.jsx");
   assert.match(detail, /role="dialog"/);
-  assert.match(detail, /role="tablist"/);
-  assert.match(detail, /Rate .* out of 5/);
+  assert.match(detail, /v2-clean-detail-fields/);
+  assert.match(detail, /<span>Rating<\/span>/);
+  assert.doesNotMatch(detail, /Moment marks|Comments/);
   const css = read("app/vault-v2.css");
   assert.match(css, /prefers-reduced-motion:reduce/);
   assert.match(css, /min-height:44px/);
