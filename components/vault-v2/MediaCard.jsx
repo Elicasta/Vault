@@ -53,12 +53,12 @@ export default function MediaCard({ item, state = {}, onOpen }) {
             />
           ) : null}
           <div className="v2-art-shade" />
+          <div className="v2-card-title" title={item.title || item.url}>{item.title || item.url}</div>
           <div className="v2-playbubble"><Icon name={isLink ? "link" : isImage ? "zoomIn" : "play"} size={17} filled={!isImage&&!isLink} /></div>
           {state.favorite ? <div className="v2-favbadge" aria-label="Favorite"><Icon name="star" size={15} filled /></div> : null}
           <SyncBadge entityKey={item.key} style={{ left: 10, right: "auto", top: 10, bottom: "auto" }} />
         </div>
         <div className="v2-card-meta">
-          <div className="v2-card-title" title={item.title || item.url}>{item.title || item.url}</div>
           <div className="v2-card-sub">
             <span>{isLink ? "Saved link" : source.name}</span>
             {state.rating ? <><span className="v2-dot" /><span>★ {state.rating}</span></> : null}
