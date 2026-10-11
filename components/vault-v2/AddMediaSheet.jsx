@@ -12,15 +12,18 @@ import {
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 
 function useDialogFocus(open, onClose, ref) {
+  const closeRef = useRef(onClose);
+  useEffect(() => { closeRef.current = onClose; }, [onClose]);
   useEffect(() => {
     if (!open || !ref.current) return;
     const root = ref.current;
+    const previousFocus = document.activeElement;
     const first = root.querySelector("input,select,textarea,button,[href]");
     first?.focus();
     const handler = (event) => {
       if (event.key === "Escape") {
         event.preventDefault();
-        onClose();
+        closeRef.current?.();
         return;
       }
       if (event.key !== "Tab") return;
@@ -34,8 +37,11 @@ function useDialogFocus(open, onClose, ref) {
       }
     };
     document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
-  }, [open, onClose, ref]);
+    return () => {
+      document.removeEventListener("keydown", handler);
+      if (previousFocus?.isConnected) previousFocus.focus?.();
+    };
+  }, [open, ref]);
 }
 
 function titleFromFile(file) {
@@ -61,7 +67,9 @@ export default function AddMediaSheet({
 }) {
   const dialogRef = useRef(null);
   const fileInputRef = useRef(null);
-  useDialogFocus(open, onClose, dialogRef);
+  const saveInFlight = useRef(false);
+  const closeIfIdle = () => { if (!saveInFlight.current) onClose(); };
+  useDialogFocus(open, closeIfIdle, dialogRef);
 
   const [mode, setMode] = useState("url");
   const [file, setFile] = useState(null);
@@ -276,7 +284,9 @@ export default function AddMediaSheet({
   };
 
   const submit = async () => {
-    if (!valid || saving) return;
+    // A ref locks synchronously so two rapid taps cannot start two uploads.
+    if (!valid || saveInFlight.current) return;
+    saveInFlight.current = true;
     setSaving(true);
     setError("");
     setUploadStage("");
@@ -287,6 +297,7 @@ export default function AddMediaSheet({
     } catch (e) {
       setError(e?.message || "This item was not saved. Your draft is still here.");
     } finally {
+      saveInFlight.current = false;
       setSaving(false);
       setUploadStage("");
     }
@@ -298,19 +309,19 @@ export default function AddMediaSheet({
 
   return (
     <>
-      <div className="v2-backdrop" onMouseDown={onClose} aria-hidden="true" />
-      <section ref={dialogRef} className="v2-sheet" role="dialog" aria-modal="true" aria-labelledby="v2-add-title">
+      <div className="v2-backdrop" onMouseDown={closeIfIdle} aria-hidden="true" />
+      <section ref={dialogRef} className="v2-sheet" role="dialog" aria-modal="true" aria-labelledby="v2-add-title" aria-busy={saving}>
         <div className="v2-sheet-head">
           <div>
             <div className="v2-modal-title" id="v2-add-title">{initialItem ? "Edit media" : "Add to Vault"}</div>
             <div className="v2-hint">{mode === "upload" ? "Upload privately to Vault Storage." : "Paste a link. Vault saves it even when a preview is unavailable."}</div>
           </div>
-          <button type="button" className="v2-iconbtn" onClick={onClose} aria-label="Close add media">
+          <button type="button" className="v2-iconbtn" onClick={closeIfIdle} disabled={saving} aria-label="Close add media">
             <Icon name="x" size={18} />
           </button>
         </div>
 
-        <div className="v2-sheet-body">
+        <div className="v2-sheet-body" inert={saving}>
           {error ? <div className="v2-error" role="alert"><span>{error}</span></div> : null}
 
           <div className="v2-add-paths" role="tablist" aria-label="Add media method">
@@ -419,7 +430,7 @@ export default function AddMediaSheet({
         </div>
 
         <div className="v2-sheet-foot">
-          <button type="button" className="v2-btn" onClick={onClose}>Cancel</button>
+          <button type="button" className="v2-btn" onClick={closeIfIdle} disabled={saving}>Cancel</button>
           <button type="button" className="v2-btn v2-btn-primary" onClick={submit} disabled={!valid || saving}>
             {saving ? (uploadStage || "Saving…") : initialItem ? "Save changes" : mode === "upload" ? "Upload to Vault" : "Save to Vault"}
           </button>
