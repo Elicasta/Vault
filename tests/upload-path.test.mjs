@@ -25,16 +25,15 @@ test("Vault persists canonical private locators instead of expiring signed URLs"
   assert.match(source, /return Promise\.all\(\(data \|\| \[\]\)\.map\(async \(r\)/);
 });
 
-test("Add sheet exposes Paste URL and Upload File paths with Free-plan validation", () => {
-  const source = read("components/vault-v2/AddMediaSheet.jsx");
-  assert.match(source, /Paste URL/);
-  assert.match(source, /Upload File/);
-  assert.match(source, /accept="image\/\*,video\/\*,audio\/\*"/);
-  assert.match(source, /Choose from Photos or Files/);
-  assert.match(source, /50 MB max/);
-  assert.match(source, /uploadVaultMedia\(userId, file\)/);
-  assert.match(source, /deleteVaultMedia\(userId, uploaded\.locator\)/);
-  assert.match(source, /URL\.createObjectURL\(file\)/);
+test("Add Media uses a simple URL and verified cover workflow instead of direct uploading",()=>{
+ const source=read("components/vault-v2/AddMediaSheet.jsx");
+ assert.match(source,/Media URL/);
+ assert.match(source,/Cover image URL/);
+ assert.match(source,/Name/);
+ assert.match(source,/Tags/);
+ assert.match(source,/Description/);
+ assert.match(source,/coverReady && !coverFailed/);
+ assert.doesNotMatch(source,/uploadVaultMedia\(userId,file\)|Upload File/);
 });
 
 test("uploaded media deletion removes Storage object and Vault row", () => {
@@ -56,10 +55,9 @@ test("direct audio uploads have a native player", () => {
   assert.match(player, /embed\?\.kind === "audio"/);
 });
 
-test("upload path has dedicated premium UI styling", () => {
-  const css = read("app/vault-v2.css");
-  assert.match(css, /\.v2-add-paths/);
-  assert.match(css, /\.v2-upload-drop/);
-  assert.match(css, /\.v2-upload-preview/);
-  assert.match(css, /\.v2-upload-status/);
+test("Add Media uses compact cover preview and form styling",()=>{
+ const css=read("app/vault-v2.css");
+ assert.match(css,/\.v2-simple-add-form/);
+ assert.match(css,/\.v2-simple-cover-art/);
+ assert.match(css,/\.v2-simple-add-actions/);
 });
