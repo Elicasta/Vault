@@ -52,10 +52,10 @@ test("Vault browser exposes clear safety controls and media scopes with regular 
   assert.match(view,/Unrestricted/);
   assert.match(view,/aria-pressed=\{searchMode===value\}/);
   assert.match(view,/All results/);
-  assert.match(view,/Sites \/ galleries/);
+  assert.match(view,/Sites & galleries/);
   assert.match(view,/searchScope/);
-  assert.match(view,/Filter by website/);
-  assert.match(view,/More results/);
+  assert.match(view,/Refine web results|Websites/);
+  assert.match(view,/Next page/);
 });
 test("Vault uses universal import with gallery depth and keeps Chrome image capture",()=>{
   const vault=fs.readFileSync("components/vault-v2/VaultV2.jsx","utf8");
