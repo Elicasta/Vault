@@ -399,3 +399,24 @@
   .vv-results-pagination span{font-size:11px;white-space:nowrap}
 }
 @media(prefers-reduced-motion:reduce){.vv-search-result-card,.vv-result-cover{transition:none!important}}
+
+
+/* A single clear browser search action, identical for search terms and pasted links. */
+.vv-browser-topbar{min-height:68px;padding-inline:clamp(10px,1.6vw,23px)!important}
+.vv-browser-topbar form{align-items:center;gap:7px!important;background:rgba(255,255,255,.055);border:1px solid rgba(255,255,255,.11);border-radius:12px;padding:5px 5px 5px 10px}
+.vv-browser-topbar form:focus-within{border-color:rgba(255,255,255,.4);box-shadow:0 0 0 3px rgba(255,255,255,.045)}
+.vv-browser-topbar form input{flex:1!important;min-width:0;background:none!important;border:0!important;border-radius:0!important;outline:0!important;box-shadow:none!important;padding:7px!important;color:#fff;font-size:16px!important}
+.vv-browser-topbar form input::-webkit-search-cancel-button{display:none}
+.vv-browser-clear{min-width:34px;min-height:34px;flex-shrink:0;display:grid;place-items:center;border-radius:8px;border:0;background:rgba(255,255,255,.09);color:#c9cdd5;cursor:pointer}
+.vv-browser-topbar .vv-browser-search-submit{display:inline-flex;gap:9px;align-items:center;justify-content:center;min-width:96px;min-height:41px;padding:0 15px!important;background:#f3f4f6!important;color:#101114!important;border-radius:9px!important;border-color:#f3f4f6!important;font-weight:780;flex-shrink:0}
+.vv-browser-topbar .vv-browser-search-submit>span{font-size:13px}
+.vv-browser-topbar .vv-browser-search-submit:hover{background:#fff!important}
+.vv-results-pagination{scroll-margin-bottom:25px}
+@media(max-width:599px){
+ .vv-browser-topbar{min-height:63px;padding-top:calc(7px + env(safe-area-inset-top))!important}
+ .vv-browser-topbar form{padding-left:7px;gap:4px!important}
+ .vv-browser-topbar form input{padding:6px 2px!important;font-size:16px!important}
+ .vv-browser-topbar .vv-browser-search-submit{min-width:42px;width:42px;min-height:40px;padding:0!important}
+ .vv-browser-topbar .vv-browser-search-submit>span{display:none}
+ .vv-browser-clear{min-width:30px;width:30px}
+}
