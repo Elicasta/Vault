@@ -600,24 +600,29 @@ export default function VaultV2({ route = "home" }) {
   } else if(route==="inbox") {
     page = <><div className="v2-hero"><div className="v2-eyebrow">{inboxItems.length} waiting</div><h1 className="v2-h1">Inbox</h1><p className="v2-lead">Anything saved without a Collection lands here. Assign a Collection from item detail when you are ready.</p></div>{renderGrid(inboxItems,"Inbox cleared","Every saved item is organized into a Collection.")}</>;
   } else if(route==="search") {
-    page = <>
-      <div className="v2-hero">
-        <div className="v2-eyebrow">Find anything</div>
-        <h1 className="v2-h1">{query ? "Results for “"+query+"”" : "Search"}</h1>
-        <p className="v2-lead">Search your Vault first, or safely search the web and save a result directly into your library.</p>
+    page = <div className="v2-discover-page">
+      <div className="v2-discover-hero">
+        <div className="v2-eyebrow">DISCOVER</div>
+        <h1 className="v2-h1">Find your next watch.</h1>
+        <p className="v2-lead">Search the web for videos, images and galleries. Explore the source before saving anything.</p>
+        <form className="v2-discover-search" role="search" aria-label="Search the web" onSubmit={(event)=>{event.preventDefault();setBrowserOpen(true)}}>
+          <Icon name="search" size={20}/>
+          <input type="search" value={query} onChange={(event)=>setQuery(event.target.value)}
+            placeholder="Search videos, galleries or paste a URL…" aria-label="What do you want to find?"
+            enterKeyHint="search" autoComplete="off" />
+          {query ? <button type="button" className="v2-discover-clear" onClick={()=>setQuery("")} aria-label="Clear search"><Icon name="x" size={16}/></button> : null}
+          <button type="submit" className="v2-btn v2-btn-primary"><Icon name="search" size={15}/> Search web</button>
+        </form>
+        <div className="v2-discover-hint">Tip: Paste a gallery link to explore its categories and individual media, or search by name.</div>
       </div>
-      <div className="v2-web-search-card">
-        <div>
-          <div className="v2-section-title">Search outside Vault</div>
-          <div className="v2-section-sub">Server-side search results only. Preview when allowed, then save the source URL into Vault.</div>
-        </div>
-        <button type="button" className="v2-btn v2-btn-primary" onClick={()=>setBrowserOpen(true)}>
-          <Icon name="search" size={15}/> Search the web
-        </button>
-      </div>
-      {filtersBar}
-      {query.trim()?renderGrid(allFiltered,"No Vault results","Try web search for this phrase, or clear a filter.", {action:()=>setBrowserOpen(true),label:"Search the web"}):<EmptyState icon="search" title="Search your Vault" text="Use the search field above, or search the web for something new to save." action={()=>setBrowserOpen(true)} actionLabel="Search the web"/>}
-    </>;
+      {query.trim() ? <section className="v2-discover-library">
+        <div className="v2-section-head"><div><h2 className="v2-section-title">Already in your Vault</h2><p className="v2-section-sub">Search your saved media without leaving Discover.</p></div><button type="button" className="v2-linkbtn" onClick={()=>setBrowserOpen(true)}>Continue on the web <Icon name="chevronRight" size={16}/></button></div>
+        {renderGrid(allFiltered,"Not in your library yet","Search the web to find something new.",{action:()=>setBrowserOpen(true),label:"Search the web"})}
+      </section> : <section className="v2-discover-library">
+        <div className="v2-section-head"><div><h2 className="v2-section-title">Recently in your Vault</h2><p className="v2-section-sub">Keep watching, or discover something different.</p></div><button type="button" className="v2-linkbtn" onClick={()=>router.push("/library")}>Browse all</button></div>
+        {loading ? <LoadingGrid/> : loadError ? null : recentItems.length ? <div className="v2-grid">{recentItems.slice(0,8).map((item)=><MediaCard key={item.key} item={item} state={userData[item.key]||{}} onOpen={setDetailItem}/>)}</div> : <EmptyState icon="search" title="Your discovery begins here" text="Use the search field above to find a video, image or gallery on the web." action={()=>setBrowserOpen(true)} actionLabel="Explore the web"/>}
+      </section>}
+    </div>;
   } else if(route==="import") {
     page = <ImportMediaWorkspace userId={user?.id} folders={folders} items={displayItems}
       onSave={saveItem} onCreateFolder={createCollection} />;
