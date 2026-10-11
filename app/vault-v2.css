@@ -464,3 +464,9 @@
 @media(prefers-reduced-motion:reduce){
  .v2-featured-art img,.v2-collection-cover img{transition:none!important}
 }
+
+/* Keep settings available on small screens; never hide the only account route. */
+@media(max-width:599px){
+ .v2-topbar .v2-iconbtn{display:inline-flex;min-width:42px;min-height:42px;max-width:42px}
+}
+@media(max-width:409px){.v2-topbar .v2-mobile-title{display:none}}
