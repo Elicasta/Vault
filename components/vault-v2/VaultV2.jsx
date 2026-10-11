@@ -9,8 +9,6 @@ import SyncStatus from "@/components/SyncStatus";
 import MediaCard from "./MediaCard";
 import AddMediaSheet from "./AddMediaSheet";
 import DetailDrawer from "./DetailDrawer";
-import InAppBrowser from "@/components/InAppBrowser";
-import ImportMediaWorkspace from "@/components/ImportMediaWorkspace";
 import GoogleDriveBackup from "@/components/GoogleDriveBackup";
 import { isHiddenLibraryItem, withLibraryVisibility } from "@/lib/library-visibility.mjs";
 
@@ -26,36 +24,24 @@ import { getSourceMeta, SOURCE_OPTIONS } from "@/lib/sources";
 import { resolveMediaPreviews } from "@/lib/media-preview";
 import { proxiedMediaUrl } from "@/lib/utils";
 
-const NAV = [
-  ["home", "/", "home", "Home"],
-  ["library", "/library", "grid", "Library"],
-  ["inbox", "/inbox", "inbox", "Inbox"],
-  ["collections", "/collections", "folder", "Collections"],
-  ["search", "/search", "search", "Search"],
-  ["import", "/import", "download", "Import Media"],
-  ["settings", "/settings", "settings", "Settings"],
-];
-
-const MOBILE_NAV = [
-  ["home", "/", "home", "Home"],
-  ["library", "/library", "grid", "Browse"],
-  ["search", "/search", "search", "Discover"],
-  ["collections", "/collections", "folder", "Collections"],
-  ["add", "#add", "plus", "Add"],
-];
-
-const ROUTE_TITLES = {
-  home: "Home", library: "Library", inbox: "Inbox",
-  collections: "Collections", search: "Search", settings: "Settings",
-  import: "Import Media", nsfw: "18+ Discover",
-};
-
-function isNsfwTagged(item) {
-  return (Array.isArray(item?.tags) ? item.tags : []).some(tag => String(tag).trim().toLowerCase() === "nsfw");
-}
+const NAV = [["home","/","home","Home"],["library","/library","grid","Library"],["collections","/collections","folder","Collections"],["settings","/settings","settings","Settings"]];
+const MOBILE_NAV = [["home","/","home","Home"],["library","/library","grid","Library"],["collections","/collections","folder","Collections"],["add","#add","plus","Add"]];
+const ROUTE_TITLES = {home:"Home",library:"Library",collections:"Collections",settings:"Settings"};
 
 function folderFor(item, state) {
   return item?.folder || state?.folder || "";
+}
+function collectionBranch(name, folders) {
+  const names = new Set([name]);
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const f of folders) if (names.has(f.parent_folder) && !names.has(f.name)) {
+      names.add(f.name);
+      changed = true;
+    }
+  }
+  return names;
 }
 
 function mediaType(item) {
@@ -261,20 +247,6 @@ export default function VaultV2({ route = "home" }) {
   const [editItem, setEditItem] = useState(null);
   const [mobileControl, setMobileControl] = useState(null);
   const [newCollectionOpen, setNewCollectionOpen] = useState(false);
-  const [browserOpen, setBrowserOpen] = useState(false);
-  const [nsfwAccess, setNsfwAccess] = useState(false);
-  const [nsfwAcknowledged, setNsfwAcknowledged] = useState(false);
-  const [nsfwQuery, setNsfwQuery] = useState("");
-  useEffect(() => {
-    if (route !== "nsfw") return;
-    try { setNsfwAccess(sessionStorage.getItem("vault-nsfw-consent-v1") === "yes"); } catch {}
-  }, [route]);
-  const enterNsfw = () => {
-    if (!nsfwAcknowledged) return;
-    setNsfwAccess(true);
-    try { sessionStorage.setItem("vault-nsfw-consent-v1", "yes"); } catch {}
-  };
-  const [mobileBrowser, setMobileBrowser] = useState(false);
   const [newCollectionName, setNewCollectionName] = useState("");
   const [collectionBusy, setCollectionBusy] = useState(false);
   const [collectionError, setCollectionError] = useState("");
@@ -290,7 +262,7 @@ export default function VaultV2({ route = "home" }) {
       ? previous : { ...previous, status:routeStatus, type:routeType, favorite:routeFavorite });
   }, [routeStatus,routeType,routeFavorite]);
 
-  const dialogOpen = !!(detailItem || playerItem || addOpen || editItem || mobileControl || newCollectionOpen || browserOpen);
+  const dialogOpen = !!(detailItem || playerItem || addOpen || editItem || mobileControl || newCollectionOpen);
   useEffect(() => {
     if (!dialogOpen) return;
     const previous = document.body.style.overflow;
@@ -305,7 +277,7 @@ export default function VaultV2({ route = "home" }) {
     const [remoteItems, data, remoteFolders, remoteCovers] = await Promise.all([
       getVaultItems(id), getUserData(id), getFolders(id), getCoverLibrary(id),
     ]);
-    setItems(mergeRemoteItemsWithOutbox(remoteItems));
+    setItems(mergeRemoteItemsWithOutbox(remoteItems).filter(item => String(item?.canonical_thumbnail || item?.thumbnail || "").trim()));
     setUserData(data || {});
     setFolders(remoteFolders || []);
     setCoverLibrary(remoteCovers || []);
@@ -412,7 +384,6 @@ export default function VaultV2({ route = "home" }) {
     await upsertVaultItem(user.id, item);
     if (item.previousKey && item.previousKey !== item.key) await removeVaultItem(user.id, item.previousKey);
     setItems((prev) => [item, ...prev.filter((x) => x.key !== item.key && x.key !== item.previousKey)]);
-    fetch("/api/sheets-sync", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"upsert",...item})}).catch(()=>{});
     setDetailItem((current) => current?.key === item.previousKey || current?.key === item.key ? item : current);
   };
 
@@ -437,7 +408,6 @@ export default function VaultV2({ route = "home" }) {
     if (user) await removeVaultItem(user.id,item.key);
     setItems((prev)=>prev.filter((x)=>x.key!==item.key));
     setDetailItem(null);
-    fetch("/api/sheets-sync",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"delete",key:item.key})}).catch(()=>{});
   };
 
   const createCollection = async (name) => {
@@ -495,40 +465,8 @@ export default function VaultV2({ route = "home" }) {
     }
   };
 
-  const resolvedItems = useMemo(() => resolveMediaPreviews(items, coverLibrary).filter((item) => !isHiddenLibraryItem(item)), [items, coverLibrary]);
-  const displayItems = useMemo(() => resolvedItems.filter(item => !isNsfwTagged(item)), [resolvedItems]);
-  const nsfwItems = useMemo(() => resolvedItems.filter(isNsfwTagged).sort((a,b) => new Date(b.addedAt||0) - new Date(a.addedAt||0)), [resolvedItems]);
-  const hiddenItems = useMemo(() => items.filter(item => isHiddenLibraryItem(item) && !isNsfwTagged(item)), [items]);
-
-  const allFiltered = useMemo(() => {
-    let result = displayItems.filter((item)=>{
-      const state=userData[item.key]||{};
-      if(!matchesQuery(item,state,debouncedQuery)) return false;
-      if(filters.type!=="all" && mediaType(item)!==filters.type) return false;
-      const folder=folderFor(item,state);
-      if(filters.collection==="inbox" && folder) return false;
-      if(filters.collection!=="all" && filters.collection!=="inbox" && folder!==filters.collection) return false;
-      const source=getSourceMeta(item.url||"").id;
-      if(filters.source!=="all" && source!==filters.source) return false;
-      if(filters.favorite==="yes" && !state.favorite) return false;
-      if(filters.favorite==="no" && state.favorite) return false;
-      if(filters.rating!=="all" && Number(state.rating||0)<Number(filters.rating)) return false;
-      const p=Number(state.progress||0),d=Number(state.duration||0),ratio=d>0?p/d:0;
-      if(filters.status==="continue" && !(p>5&&d>0&&ratio<.95)) return false;
-      if(filters.status==="unwatched" && p>5) return false;
-      if(filters.status==="complete" && !(d>0&&ratio>=.95)) return false;
-      return true;
-    });
-    result=[...result].sort((a,b)=>{
-      const ad=userData[a.key]||{},bd=userData[b.key]||{};
-      if(sort==="alpha") return String(a.title||"").localeCompare(String(b.title||""));
-      if(sort==="rating") return Number(bd.rating||0)-Number(ad.rating||0);
-      if(sort==="viewed") return new Date(bd.last_viewed_at||bd.updated_at||0)-new Date(ad.last_viewed_at||ad.updated_at||0);
-      return new Date(b.addedAt||0)-new Date(a.addedAt||0);
-    });
-    return result;
-  },[displayItems,userData,debouncedQuery,filters,sort]);
-
+  const displayItems = useMemo(() => resolveMediaPreviews(items, coverLibrary).filter(item =>
+    !isHiddenLibraryItem(item) && String(item?.canonical_thumbnail || item?.thumbnail || "").trim()), [items, coverLibrary]);
   const inboxItems = useMemo(()=>displayItems.filter((i)=>!folderFor(i,userData[i.key]||{})),[displayItems,userData]);
   const continueItems = useMemo(()=>displayItems.filter((i)=>{const d=userData[i.key]||{};return d.progress>5&&d.duration>0&&d.progress/d.duration<.95}).sort((a,b)=>new Date(userData[b.key]?.updated_at||0)-new Date(userData[a.key]?.updated_at||0)).slice(0,8),[displayItems,userData]);
   const recentItems = useMemo(()=>[...displayItems].sort((a,b)=>new Date(b.addedAt||0)-new Date(a.addedAt||0)).slice(0,12),[displayItems]);
@@ -539,22 +477,20 @@ export default function VaultV2({ route = "home" }) {
   const topRated = useMemo(()=>displayItems.filter((i)=>userData[i.key]?.rating).sort((a,b)=>Number(userData[b.key]?.rating||0)-Number(userData[a.key]?.rating||0)).slice(0,8),[displayItems,userData]);
   const recentFolders = useMemo(()=>[...folders].sort((a,b)=>new Date(b.last_viewed_at||b.updated_at||0)-new Date(a.last_viewed_at||a.updated_at||0)).slice(0,6),[folders]);
 
-  const collectionItems = useMemo(()=>selectedCollection ? displayItems.filter((i)=>folderFor(i,userData[i.key]||{})===selectedCollection) : [],[displayItems,userData,selectedCollection]);
+  const collectionItems = useMemo(() => {
+    if (!selectedCollection) return [];
+    const descendantNames = collectionBranch(selectedCollection, folders);
+    return displayItems.filter(item => descendantNames.has(folderFor(item,userData[item.key]||{})));
+  },[displayItems,userData,selectedCollection,folders]);
 
   const detailContextItems = useMemo(() => {
-    if (route === "nsfw") return nsfwItems;
     if (route === "inbox") return inboxItems;
     if (route === "collections" && selectedCollection) return collectionItems;
-    if (route === "library" || route === "search") return allFiltered;
+    if (route === "library") return allFiltered;
     return displayItems;
-  }, [route, selectedCollection, inboxItems, collectionItems, allFiltered, displayItems, nsfwItems]);
+  }, [route, selectedCollection, inboxItems, collectionItems, allFiltered, displayItems]);
 
   const detailIndex = detailItem ? detailContextItems.findIndex((item) => item.key === detailItem.key) : -1;
-
-  const globalSearchSubmit=(e)=>{
-    e.preventDefault();
-    router.push(query.trim()?"/search?q="+encodeURIComponent(query.trim()):"/search");
-  };
 
   const resetFilters=()=>{
     setFilters({type:"all",collection:"all",source:"all",favorite:"all",rating:"all",status:"all"});
@@ -606,7 +542,7 @@ export default function VaultV2({ route = "home" }) {
         <MediaRow title="Continue Watching" subtitle="Start right where you left off" items={continueItems} userData={userData} onOpen={setDetailItem} onSeeAll={()=>router.push("/library?status=continue")}/>
         <MediaRow title="Recently Added" subtitle="The latest in your library" items={recentItems} userData={userData} onOpen={setDetailItem} onSeeAll={()=>router.push("/library")}/>
         <MediaRow title="Your Videos" subtitle="Ready to play" items={videoItems} userData={userData} onOpen={setDetailItem} onSeeAll={()=>router.push("/library?type=video")}/>
-        {recentFolders.length ? <section className="v2-section v2-home-collections"><div className="v2-section-head"><div><h2 className="v2-section-title">Your Collections</h2><div className="v2-section-sub">Pick a collection and keep exploring</div></div><button className="v2-linkbtn" onClick={()=>router.push("/collections")}>See all</button></div><div className="v2-collection-grid">{recentFolders.map((f)=><CollectionCard key={f.name} folder={f} items={displayItems.filter((i)=>folderFor(i,userData[i.key]||{})===f.name)} onOpen={()=>router.push("/collections?folder="+encodeURIComponent(f.name))}/>)}</div></section> : null}
+        {recentFolders.length ? <section className="v2-section v2-home-collections"><div className="v2-section-head"><div><h2 className="v2-section-title">Your Collections</h2><div className="v2-section-sub">Pick a collection and keep exploring</div></div><button className="v2-linkbtn" onClick={()=>router.push("/collections")}>See all</button></div><div className="v2-collection-grid">{recentFolders.map((f)=><CollectionCard key={f.name} folder={f} items={displayItems.filter((i)=>collectionBranch(f.name,folders).has(folderFor(i,userData[i.key]||{})))} onOpen={()=>router.push("/collections?folder="+encodeURIComponent(f.name))}/>)}</div></section> : null}
         <MediaRow title="Your Favorites" items={favoriteItems} userData={userData} onOpen={setDetailItem} onSeeAll={()=>router.push("/library?favorite=yes")}/>
         <MediaRow title="Photos & Artwork" items={imageItems} userData={userData} onOpen={setDetailItem} onSeeAll={()=>router.push("/library?type=image")}/>
       </div>
@@ -615,78 +551,8 @@ export default function VaultV2({ route = "home" }) {
     page = <><div className="v2-hero"><div className="v2-eyebrow">Everything you saved</div><h1 className="v2-h1">Library</h1><p className="v2-lead">One clean view of your entire Vault.</p></div>{filtersBar}{renderGrid(allFiltered,"No matching media","Try clearing filters or add something new.", activeFilterCount ? {action:resetFilters,label:"Clear filters"} : {})}</>;
   } else if(route==="inbox") {
     page = <><div className="v2-hero"><div className="v2-eyebrow">{inboxItems.length} waiting</div><h1 className="v2-h1">Inbox</h1><p className="v2-lead">Anything saved without a Collection lands here. Assign a Collection from item detail when you are ready.</p></div>{renderGrid(inboxItems,"Inbox cleared","Every saved item is organized into a Collection.")}</>;
-  } else if(route==="search") {
-    page = <div className="v2-discover-page">
-      <div className="v2-discover-hero">
-        <div className="v2-eyebrow">DISCOVER</div>
-        <h1 className="v2-h1">Find your next watch.</h1>
-        <p className="v2-lead">Search the web for videos, images and galleries. Explore the source before saving anything.</p>
-        <form className="v2-discover-search" role="search" aria-label="Search the web" onSubmit={(event)=>{event.preventDefault();setBrowserOpen(true)}}>
-          <Icon name="search" size={20}/>
-          <input type="search" value={query} onChange={(event)=>setQuery(event.target.value)}
-            placeholder="Search videos, galleries or paste a URL…" aria-label="What do you want to find?"
-            enterKeyHint="search" autoComplete="off" />
-          {query ? <button type="button" className="v2-discover-clear" onClick={()=>setQuery("")} aria-label="Clear search"><Icon name="x" size={16}/></button> : null}
-          <button type="submit" className="v2-btn v2-btn-primary"><Icon name="search" size={15}/> Search web</button>
-        </form>
-        <div className="v2-discover-hint">Tip: Paste a gallery link to explore its categories and individual media, or search by name.</div>
-      </div>
-      <section className="v2-discover-private">
-        <div className="v2-discover-private-copy">
-          <span className="v2-eyebrow">SEPARATE DISCOVERY SPACE</span>
-          <h2>18+ Discover</h2>
-          <p>Adult-oriented searching is kept apart from Regular Discover. Access requires a separate opt-in, and items saved here stay out of your standard home shelves.</p>
-        </div>
-        <button type="button" className="v2-btn" onClick={()=>router.push("/nsfw")}>Open 18+ section <Icon name="chevronRight" size={16}/></button>
-      </section>
-      {query.trim() ? <section className="v2-discover-library">
-        <div className="v2-section-head"><div><h2 className="v2-section-title">Already in your Vault</h2><p className="v2-section-sub">Search your saved media without leaving Discover.</p></div><button type="button" className="v2-linkbtn" onClick={()=>setBrowserOpen(true)}>Continue on the web <Icon name="chevronRight" size={16}/></button></div>
-        {renderGrid(allFiltered,"Not in your library yet","Search the web to find something new.",{action:()=>setBrowserOpen(true),label:"Search the web"})}
-      </section> : <section className="v2-discover-library">
-        <div className="v2-section-head"><div><h2 className="v2-section-title">Recently in your Vault</h2><p className="v2-section-sub">Keep watching, or discover something different.</p></div><button type="button" className="v2-linkbtn" onClick={()=>router.push("/library")}>Browse all</button></div>
-        {loading ? <LoadingGrid/> : loadError ? null : recentItems.length ? <div className="v2-grid">{recentItems.slice(0,8).map((item)=><MediaCard key={item.key} item={item} state={userData[item.key]||{}} onOpen={setDetailItem}/>)}</div> : <EmptyState icon="search" title="Your discovery begins here" text="Use the search field above to find a video, image or gallery on the web." action={()=>setBrowserOpen(true)} actionLabel="Explore the web"/>}
-      </section>}
-    </div>;
-  } else if(route==="nsfw") {
-    page = !nsfwAccess ?
-      <section className="v2-nsfw-gate">
-        <span className="v2-eyebrow">SEPARATE SPACE / 18+</span>
-        <h1>Adult Discover</h1>
-        <p>This is an opt-in area for adult-oriented web search. Regular Discover remains filtered by default. The confirmation below is not age verification.</p>
-        <label className="v2-nsfw-consent">
-          <input type="checkbox" checked={nsfwAcknowledged} onChange={event=>setNsfwAcknowledged(event.target.checked)}/>
-          <span>I confirm that I am at least 18 and choose to enter the adult section.</span>
-        </label>
-        <div className="v2-nsfw-gate-actions">
-          <button type="button" className="v2-btn v2-btn-primary" disabled={!nsfwAcknowledged} onClick={enterNsfw}>Enter 18+ Discover</button>
-          <button type="button" className="v2-btn" onClick={()=>router.push("/search")}>Back to Discover</button>
-        </div>
-      </section>
-      : <div className="v2-discover-page v2-adult-discover">
-          <div className="v2-discover-hero">
-            <button type="button" className="v2-linkbtn" onClick={()=>router.push("/search")}>← Regular Discover</button>
-            <div className="v2-eyebrow">18+ DISCOVER / OPT-IN</div>
-            <h1 className="v2-h1">Adult discovery.</h1>
-            <p className="v2-lead">Search for videos, images and galleries in a dedicated space. Source restrictions and site permissions still apply.</p>
-            <form className="v2-discover-search" role="search" aria-label="Search adult web results" onSubmit={event=>{event.preventDefault();setBrowserOpen(true)}}>
-              <Icon name="search" size={20}/>
-              <input type="search" value={nsfwQuery} onChange={event=>setNsfwQuery(event.target.value)}
-                placeholder="Search or paste a link…" aria-label="Adult web search" enterKeyHint="search" autoComplete="off"/>
-              {nsfwQuery ? <button type="button" className="v2-discover-clear" onClick={()=>setNsfwQuery("")} aria-label="Clear adult search"><Icon name="x" size={16}/></button> : null}
-              <button type="submit" className="v2-btn v2-btn-primary"><Icon name="search" size={15}/> Search web</button>
-            </form>
-            <div className="v2-discover-hint">Regular search history is separate. Items saved here are marked NSFW and kept out of the standard library shelves.</div>
-          </div>
-          <section className="v2-discover-library">
-            <div className="v2-section-head"><div><h2 className="v2-section-title">Saved in your adult space</h2><p className="v2-section-sub">Only items explicitly tagged NSFW appear here.</p></div></div>
-            {renderGrid(nsfwItems,"No adult items saved","Search above to discover media and choose what to save.",{action:()=>setBrowserOpen(true),label:"Search the web"})}
-          </section>
-        </div>;
-  } else if(route==="import") {
-    page = <ImportMediaWorkspace userId={user?.id} folders={folders} items={displayItems}
-      onSave={saveItem} onCreateFolder={createCollection} />;
   } else if(route==="collections") {
-    page = selectedCollection ? <><div className="v2-hero"><button className="v2-linkbtn" onClick={()=>router.push("/collections")}>← All Collections</button><div className="v2-eyebrow">Collection</div><h1 className="v2-h1">{selectedCollection}</h1><p className="v2-lead">{collectionItems.length} item{collectionItems.length===1?"":"s"}</p></div>{renderGrid(collectionItems,"Collection is empty","Add media and choose this Collection as its destination.")}</> : <><div className="v2-hero"><div className="v2-eyebrow">Organize without clutter</div><h1 className="v2-h1">Collections</h1><p className="v2-lead">Folders and galleries share one simple product concept: Collections.</p></div><div style={{display:"flex",justifyContent:"flex-end",marginBottom:16}}><button className="v2-btn v2-btn-primary" onClick={()=>setNewCollectionOpen(true)}><Icon name="plus" size={15}/> New Collection</button></div>{folders.length?<div className="v2-collection-grid">{folders.map((f)=><CollectionCard key={f.name} folder={f} items={displayItems.filter((i)=>folderFor(i,userData[i.key]||{})===f.name)} onOpen={()=>router.push("/collections?folder="+encodeURIComponent(f.name))}/>)}</div>:<EmptyState icon="folder" title="No Collections yet" text="Create a Collection to organize related media." action={()=>setNewCollectionOpen(true)} actionLabel="New Collection"/>}</>;
+    page = selectedCollection ? <><div className="v2-hero"><button className="v2-linkbtn" onClick={()=>router.push("/collections")}>← All Collections</button><div className="v2-eyebrow">Collection</div><h1 className="v2-h1">{selectedCollection}</h1><p className="v2-lead">{collectionItems.length} item{collectionItems.length===1?"":"s"}</p></div>{renderGrid(collectionItems,"Collection is empty","Add media and choose this Collection as its destination.")}</> : <><div className="v2-hero"><div className="v2-eyebrow">Organize without clutter</div><h1 className="v2-h1">Collections</h1><p className="v2-lead">Folders and galleries share one simple product concept: Collections.</p></div><div style={{display:"flex",justifyContent:"flex-end",marginBottom:16}}><button className="v2-btn v2-btn-primary" onClick={()=>setNewCollectionOpen(true)}><Icon name="plus" size={15}/> New Collection</button></div>{folders.length?<div className="v2-collection-grid">{folders.map((f)=><CollectionCard key={f.name} folder={f} items={displayItems.filter((i)=>collectionBranch(f.name,folders).has(folderFor(i,userData[i.key]||{})))} onOpen={()=>router.push("/collections?folder="+encodeURIComponent(f.name))}/>)}</div>:<EmptyState icon="folder" title="No Collections yet" text="Create a Collection to organize related media." action={()=>setNewCollectionOpen(true)} actionLabel="New Collection"/>}</>;
   } else {
     page = <><div className="v2-hero"><div className="v2-eyebrow">Vault preferences</div><h1 className="v2-h1">Settings</h1><p className="v2-lead">Account, data, sync, and security status in one quiet place.</p></div><div className="v2-settings-grid"><div className="v2-settings-card"><h3>Library</h3><p>{displayItems.length} visible items · {hiddenItems.length} hidden items · {folders.length} Collections · {inboxItems.length} in Inbox.</p>
       <div style={{ marginTop: 12 }}>
@@ -698,7 +564,7 @@ export default function VaultV2({ route = "home" }) {
             <button className="v2-btn" type="button" onClick={() => setItemVisibility(item, false).catch(() => {})}>Restore</button>
           </div>
         ))}
-      </div><GoogleDriveBackup userId={user?.id} items={displayItems} /></div><div className="v2-settings-card"><h3>Cloud sync</h3><p>Supabase is the durable source of truth. Unsynced changes stay visibly marked until confirmed.</p><div style={{marginTop:12}}><span className="v2-state-pill" data-state={online?"ok":"warn"}>{online?"Online":"Offline"}</span></div></div><div className="v2-settings-card"><h3>Security</h3><p>Authenticated data access, RLS ownership checks, and protected media proxies are active in this preview.</p></div><div className="v2-settings-card"><h3>Import & tools</h3><p>Bring media into your Vault from files, links, Google Sheets, or your browser.</p><button className="v2-btn" type="button" onClick={()=>router.push("/import")} style={{marginTop:14}}><Icon name="download" size={15}/> Open Import Media</button></div><div className="v2-settings-card"><h3>Account</h3><p>{user?.email || "Signed in"}</p><button type="button" className="v2-btn" style={{marginTop:14}} onClick={async()=>{await supabase.auth.signOut();window.location.reload();}}><Icon name="logout" size={15}/> Sign out</button></div></div></>;
+      </div><GoogleDriveBackup userId={user?.id} items={displayItems} /></div><div className="v2-settings-card"><h3>Cloud sync</h3><p>Supabase is the durable source of truth. Unsynced changes stay visibly marked until confirmed.</p><div style={{marginTop:12}}><span className="v2-state-pill" data-state={online?"ok":"warn"}>{online?"Online":"Offline"}</span></div></div><div className="v2-settings-card"><h3>Security</h3><p>Authenticated data access, RLS ownership checks, and protected media proxies are active in this preview.</p></div><div className="v2-settings-card"><h3>Account</h3><p>{user?.email || "Signed in"}</p><button type="button" className="v2-btn" style={{marginTop:14}} onClick={async()=>{await supabase.auth.signOut();window.location.reload();}}><Icon name="logout" size={15}/> Sign out</button></div></div></>;
   }
 
   return (
@@ -720,16 +586,10 @@ export default function VaultV2({ route = "home" }) {
           <header className="v2-topbar">
             <Link href="/" className="v2-desktop-brand"><span className="v2-brandmark"><Icon name="vault" size={17}/></span><strong>VAULT</strong></Link>
             <nav className="v2-desktop-nav" aria-label="Browse Vault">
-              {[["home","/","Home"],["library","/library","Browse"],["search","/search","Discover"],["collections","/collections","Collections"]].map(([id,href,label])=><Link key={id} href={href} aria-current={route===id?"page":undefined}>{label}</Link>)}
+              {[["home","/","Home"],["library","/library","Library"],["collections","/collections","Collections"]].map(([id,href,label])=><Link key={id} href={href} aria-current={route===id?"page":undefined}>{label}</Link>)}
             </nav>
             <div className="v2-mobile-title">{ROUTE_TITLES[route]}</div>
-            <form className="v2-searchbox" role="search" onSubmit={globalSearchSubmit}>
-              <Icon name="search" size={16}/>
-              <input ref={searchRef} value={query} onChange={(e)=>setQuery(e.target.value)} placeholder="Search Vault" aria-label="Search Vault"/>
-              <span className="v2-hint v2-keyboard-hint" aria-hidden="true">⌘K</span>
-            </form>
-            <button type="button" className="v2-btn v2-desktop-add v2-desktop-import" onClick={()=>router.push("/import")}><Icon name="download" size={15}/> Import</button>
-            <button type="button" className="v2-btn v2-btn-primary v2-desktop-add" onClick={()=>setAddOpen(true)}><Icon name="plus" size={15}/> Add</button>
+            <button type="button" className="v2-btn v2-btn-primary v2-desktop-add" onClick={()=>setAddOpen(true)}><Icon name="plus" size={15}/> Add Media</button>
             <button type="button" className="v2-iconbtn" onClick={()=>router.push("/settings")} aria-label="Settings"><Icon name="settings" size={17}/></button>
           </header>
           <div className="v2-content">
@@ -747,7 +607,7 @@ export default function VaultV2({ route = "home" }) {
       </nav>
 
       {visibilityError ? <div role="alert" className="v2-error">{visibilityError}<button className="v2-btn" onClick={() => setVisibilityError("")}>Dismiss</button></div> : null}
-      <AddMediaSheet open={addOpen||!!editItem} initialItem={editItem} initialFolder={route === "collections" ? selectedCollection : ""} userId={user?.id} onClose={()=>{setAddOpen(false);setEditItem(null)}} onSave={item=>saveItem(route === "nsfw" ? {...item, tags:[...new Set([...(Array.isArray(item.tags)?item.tags:[]),"nsfw"])]} : item)} folders={folders} onCreateCollection={createCollection}/>
+      <AddMediaSheet open={addOpen||!!editItem} initialItem={editItem} initialFolder={route === "collections" ? selectedCollection : ""} onClose={()=>{setAddOpen(false);setEditItem(null)}} onSave={saveItem} folders={folders} onCreateCollection={createCollection}/>
       <DetailDrawer
         key={detailItem?.key || "closed"}
         item={detailItem}
@@ -770,19 +630,6 @@ export default function VaultV2({ route = "home" }) {
 
       <MobileControlSheet kind={mobileControl} filters={filters} setFilters={setFilters} sort={sort} setSort={setSort} folders={folders} onReset={resetFilters} onClose={()=>setMobileControl(null)}/>
 
-      {browserOpen ? (
-        <InAppBrowser
-          onClose={()=>setBrowserOpen(false)}
-          onSave={saveItem}
-          folders={folders}
-          existingItems={route === "nsfw" ? nsfwItems : displayItems}
-          isMobile={mobileBrowser}
-          onCreateFolder={createCollection}
-          initialQuery={route === "nsfw" ? nsfwQuery : query}
-          initialMode={route === "nsfw" ? "nsfw" : "regular"}
-        />
-      ) : null}
-
       {newCollectionOpen ? <>
         <div className="v2-backdrop" onMouseDown={()=>{if(!collectionBusy)setNewCollectionOpen(false)}} aria-hidden="true"/>
         <section ref={newCollectionRef} className="v2-sheet" role="dialog" aria-modal="true" aria-labelledby="v2-new-collection-title" style={{maxWidth:460}}>
@@ -794,9 +641,9 @@ export default function VaultV2({ route = "home" }) {
 
       {playerItem ? <Player
         item={playerItem}
-        items={route === "nsfw" ? nsfwItems : displayItems}
-        currentIdx={Math.max(0,(route === "nsfw" ? nsfwItems : displayItems).findIndex((x)=>x.key===playerItem.key))}
-        onNavigate={(idx)=>setPlayerItem((route === "nsfw" ? nsfwItems : displayItems)[idx])}
+        items={displayItems}
+        currentIdx={Math.max(0,displayItems.findIndex((x)=>x.key===playerItem.key))}
+        onNavigate={(idx)=>setPlayerItem(displayItems[idx])}
         onClose={()=>setPlayerItem(null)}
         onRemoveFromLibrary={(item) => setItemVisibility(item, true)}
         userId={user?.id}
