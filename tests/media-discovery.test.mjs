@@ -99,22 +99,15 @@ test("saving individual assets keeps URL, folder and origin note", () => {
   assert.equal(item.isVaultItem, true);
 });
 
-test("UI exposes mobile sheet recovery, media switch, bulk selection", () => {
-  const browser = fs.readFileSync("components/InAppBrowser.jsx", "utf8");
-  const css = fs.readFileSync("components/InAppBrowser.css", "utf8");
-  const media = fs.readFileSync("components/MediaDiscoveryPanel.jsx", "utf8");
-  const server = fs.readFileSync("app/api/media-discovery/route.js", "utf8");
-  assert.match(browser, /<MediaDiscoveryPanel/);
-  assert.match(browser, /viewMode === "media"/);
-  assert.match(fs.readFileSync("components/vault-v2/VaultV2.jsx", "utf8"), /existingItems=\{route === "nsfw" \? nsfwItems : displayItems\}/);
-  assert.match(browser, /searchQuery \|\| \(keyboardOpen && isMobile\) \? "none" : "block"/);
-  assert.match(browser, /showQuickSave/);
-  assert.match(css, /max-height:\s*min\(55dvh,440px\)/);
-  assert.match(media, /Save " \+ selectedCount \+ " to Vault"/);
-  assert.match(media, /parseCapturedMedia/);
-  assert.match(server, /guardProxyRequest\(request, "discovery"\)/);
-  assert.match(server, /validatePublicUrl\(rawUrl\)/);
-  assert.doesNotMatch(server, /(?<!safe)\bfetch\s*\(/);
+test("media discovery extraction remains available to the capture extension, not the Vault interface", () => {
+ const media=fs.readFileSync("components/MediaDiscoveryPanel.jsx","utf8");
+ const server=fs.readFileSync("app/api/media-discovery/route.js","utf8");
+ const modern=fs.readFileSync("components/vault-v2/VaultV2.jsx","utf8");
+ assert.match(media,/parseCapturedMedia/);
+ assert.match(server,/guardProxyRequest\(request, "discovery"\)/);
+ assert.match(server,/validatePublicUrl\(rawUrl\)/);
+ assert.doesNotMatch(server,/(?<!safe)\bfetch\s*\(/);
+ assert.doesNotMatch(modern,/InAppBrowser|MediaDiscoveryPanel|ImportMediaWorkspace/);
 });
 
 test("extension reads network media without modifying network requests", () => {
