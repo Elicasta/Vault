@@ -54,16 +54,6 @@ function mediaType(item) {
   return "link";
 }
 
-function matchesQuery(item, state, query) {
-  if (!query.trim()) return true;
-  const source = getSourceMeta(item.url || "").name;
-  const text = [
-    item.title, item.url, item.note, folderFor(item, state), source,
-    ...(Array.isArray(item.tags) ? item.tags : []),
-  ].filter(Boolean).join(" ").toLowerCase();
-  return text.includes(query.trim().toLowerCase());
-}
-
 function EmptyState({ icon="inbox", title, text, action, actionLabel }) {
   return (
     <div className="v2-empty">
@@ -220,7 +210,6 @@ function MobileControlSheet({ kind, filters, setFilters, sort, setSort, folders,
 export default function VaultV2({ route = "home" }) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const searchRef = useRef(null);
   const newCollectionRef = useRef(null);
   const reactingKeys = useRef(new Set());
 
@@ -233,8 +222,6 @@ export default function VaultV2({ route = "home" }) {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [online, setOnline] = useState(true);
-  const [query, setQuery] = useState(searchParams.get("q") || "");
-  const [debouncedQuery, setDebouncedQuery] = useState(searchParams.get("q") || "");
   const routeStatus = searchParams.get("status") === "continue" ? "continue" : "all";
   const routeType = ["video","image","audio","pdf","link"].includes(searchParams.get("type")) ? searchParams.get("type") : "all";
   const routeFavorite = searchParams.get("favorite")==="yes" ? "yes" : "all";
@@ -308,11 +295,6 @@ export default function VaultV2({ route = "home" }) {
     return () => { active = false; };
   }, [refresh]);
 
-  const routeQuery = searchParams.get("q") || "";
-  useEffect(() => {
-    setQuery(routeQuery);
-  }, [routeQuery]);
-
   useEffect(() => {
     if (!SECURITY_V2_ENABLED || !user?.id) return;
     const renew = () => { if (!document.hidden) ensureProxySession().catch(() => {}); };
@@ -327,13 +309,8 @@ export default function VaultV2({ route = "home" }) {
   }, [user?.id]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setDebouncedQuery(query), 200);
-    return () => clearTimeout(timer);
-  }, [query]);
-
-  useEffect(() => {
     setVisibleLimit(60);
-  }, [route, debouncedQuery, filters, sort, selectedCollection]);
+  }, [route, filters, sort, selectedCollection]);
 
   useEffect(() => {
     const sync = () => setOnline(navigator.onLine);
@@ -346,17 +323,6 @@ export default function VaultV2({ route = "home" }) {
       window.removeEventListener("offline",sync);
       window.removeEventListener("resize", syncMobile);
     };
-  }, []);
-
-  useEffect(() => {
-    const handler = (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase()==="k") {
-        e.preventDefault();
-        searchRef.current?.focus();
-      }
-    };
-    window.addEventListener("keydown",handler);
-    return () => window.removeEventListener("keydown",handler);
   }, []);
 
   useEffect(() => {
@@ -467,6 +433,31 @@ export default function VaultV2({ route = "home" }) {
 
   const displayItems = useMemo(() => resolveMediaPreviews(items, coverLibrary).filter(item =>
     !isHiddenLibraryItem(item) && String(item?.canonical_thumbnail || item?.thumbnail || "").trim()), [items, coverLibrary]);
+  const allFiltered = useMemo(() => {
+    const filtered = displayItems.filter(item => {
+      const state=userData[item.key]||{};
+      const type=mediaType(item);
+      if (filters.type !== "all" && filters.type !== type) return false;
+      if (filters.collection !== "all" && folderFor(item,state) !== filters.collection) return false;
+      if (filters.source !== "all" && getSourceMeta(item.url||"").id !== filters.source) return false;
+      if (filters.favorite === "yes" && !state.favorite) return false;
+      if (filters.favorite === "no" && !!state.favorite) return false;
+      if (filters.rating !== "all" && Number(state.rating||0) < Number(filters.rating)) return false;
+      const progress=Number(state.progress||0),duration=Number(state.duration||0);
+      const watchPct=duration>0?progress/duration:0;
+      if (filters.status === "continue" && !(progress>5 && duration>0 && watchPct<.95)) return false;
+      if (filters.status === "complete" && !(duration>0 && watchPct>=.95)) return false;
+      if (filters.status === "unwatched" && progress>5) return false;
+      return true;
+    });
+    filtered.sort((a,b) => {
+      if(sort==="alpha") return String(a.title||"").localeCompare(String(b.title||""));
+      if(sort==="rating") return Number(userData[b.key]?.rating||0)-Number(userData[a.key]?.rating||0);
+      if(sort==="viewed") return new Date(userData[b.key]?.last_viewed_at||0)-new Date(userData[a.key]?.last_viewed_at||0);
+      return new Date(b.addedAt||0)-new Date(a.addedAt||0);
+    });
+    return filtered;
+  },[displayItems,userData,filters,sort]);
   const inboxItems = useMemo(()=>displayItems.filter((i)=>!folderFor(i,userData[i.key]||{})),[displayItems,userData]);
   const continueItems = useMemo(()=>displayItems.filter((i)=>{const d=userData[i.key]||{};return d.progress>5&&d.duration>0&&d.progress/d.duration<.95}).sort((a,b)=>new Date(userData[b.key]?.updated_at||0)-new Date(userData[a.key]?.updated_at||0)).slice(0,8),[displayItems,userData]);
   const recentItems = useMemo(()=>[...displayItems].sort((a,b)=>new Date(b.addedAt||0)-new Date(a.addedAt||0)).slice(0,12),[displayItems]);
