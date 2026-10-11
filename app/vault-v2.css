@@ -582,3 +582,161 @@
  .v2-clean-detail-fields{grid-template-columns:1fr}
  .v2-clean-detail{width:100vw;max-height:100dvh;border-radius:0}
 }
+
+
+/* COVER-LED COLLECTIONS — one real thumbnail with restrained editorial labels. */
+.v2-collection-preview{
+  display:block;
+  width:100%;
+  min-height:0;
+  padding:0;
+  overflow:hidden;
+  border-radius:12px;
+  background:#17191d;
+  text-align:left;
+}
+.v2-collection-covers,
+.v2-collection-covers[data-count="0"],
+.v2-collection-covers[data-count="1"]{
+  display:block;
+  width:100%;
+  height:auto;
+  min-height:0;
+  aspect-ratio:16/10;
+  position:relative;
+  overflow:hidden;
+  background:#161a22;
+}
+.v2-collection-cover{
+  position:absolute;
+  inset:0;
+  width:100%;
+  height:100%;
+  display:block;
+  z-index:1;
+  overflow:hidden;
+}
+.v2-collection-cover:first-child{grid-row:auto}
+.v2-collection-cover img{
+  display:block;
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  transition:transform .28s ease;
+}
+.v2-collection-artwork{
+  position:absolute;
+  inset:0;
+  z-index:0;
+  display:grid;
+  place-items:center;
+  color:rgba(255,255,255,.35);
+  padding:0;
+}
+.v2-collection-artwork:after{display:none}
+.v2-collection-caption{
+  position:absolute;
+  z-index:2;
+  inset:auto 0 0;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  gap:3px;
+  min-width:0;
+  min-height:76px;
+  padding:34px 14px 13px;
+  background:linear-gradient(to bottom,transparent 0%,rgba(4,7,12,.63) 39%,rgba(4,7,12,.91) 100%);
+  pointer-events:none;
+}
+.v2-collection-preview .v2-collection-name{
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+  line-clamp:2;
+  overflow:hidden;
+  white-space:normal;
+  font-size:12.5px;
+  font-weight:680;
+  letter-spacing:.005em;
+  line-height:1.27;
+  color:#fff;
+  text-shadow:0 1px 6px rgba(0,0,0,.55);
+  max-width:100%;
+}
+.v2-collection-preview .v2-collection-count{
+  font-size:10px;
+  color:rgba(245,246,251,.72);
+  font-weight:500;
+  line-height:1.3;
+  margin:0;
+}
+.v2-collection-preview:hover .v2-collection-cover img{transform:scale(1.018)}
+.v2-collection-preview:focus-visible{outline:2px solid #fff;outline-offset:3px}
+
+/* STREAMING MEDIA CARDS — artwork is the focal point; title lives on the cover. */
+.v2-art{isolation:isolate}
+.v2-card .v2-art-shade{
+  z-index:1;
+  height:51%;
+  background:linear-gradient(to bottom,transparent 0%,rgba(0,0,0,.14) 29%,rgba(3,5,8,.81) 100%);
+}
+.v2-card .v2-card-title{
+  position:absolute;
+  z-index:2;
+  inset:auto 11px 12px;
+  display:-webkit-box;
+  -webkit-box-orient:vertical;
+  -webkit-line-clamp:2;
+  line-clamp:2;
+  overflow:hidden;
+  max-width:calc(100% - 22px);
+  min-height:0;
+  margin:0;
+  color:#fff;
+  font-size:12px;
+  font-weight:650;
+  line-height:1.32;
+  letter-spacing:.005em;
+  text-shadow:0 1px 7px rgba(0,0,0,.67);
+}
+.v2-card .v2-playbubble{
+  z-index:3;
+  top:50%;
+  left:50%;
+  right:auto;
+  bottom:auto;
+  transform:translate(-50%,-44%);
+  opacity:0;
+}
+@media (hover:hover){
+  .v2-card-button:hover .v2-playbubble{transform:translate(-50%,-50%);opacity:1}
+}
+.v2-card-button:focus-visible .v2-playbubble{transform:translate(-50%,-50%);opacity:1}
+.v2-card .v2-favbadge{z-index:3}
+.v2-card-meta{
+  min-height:28px;
+  padding:7px 2px 0;
+}
+.v2-card-sub{
+  margin:0;
+  font-size:10px;
+  line-height:1.45;
+  min-height:16px;
+  color:#969ba6;
+  overflow:hidden;
+  white-space:nowrap;
+}
+.v2-card .v2-progress{margin-top:6px}
+@media(max-width:599px){
+  .v2-collection-covers,.v2-collection-covers[data-count="0"],.v2-collection-covers[data-count="1"]{height:auto;aspect-ratio:4/3}
+  .v2-collection-preview{min-height:0}
+  .v2-collection-caption{padding:28px 10px 10px;min-height:62px}
+  .v2-collection-preview .v2-collection-name{font-size:11.5px}
+  .v2-collection-preview .v2-collection-count{font-size:9.5px}
+  .v2-card .v2-card-title{font-size:11px;left:9px;right:9px;bottom:10px}
+  .v2-card-meta{min-height:25px;padding-top:6px}
+  .v2-card-sub{font-size:9.5px}
+}
+@media(prefers-reduced-motion:reduce){
+  .v2-collection-preview .v2-collection-cover img{transition:none}
+}
