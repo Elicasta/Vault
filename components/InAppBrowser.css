@@ -420,3 +420,24 @@
  .vv-browser-topbar .vv-browser-search-submit>span{display:none}
  .vv-browser-clear{min-width:30px;width:30px}
 }
+
+
+/* Mixed media results show actual sourced artwork when available. */
+.vv-result-media{position:relative;display:flex;align-items:stretch;width:100%;min-width:0;min-height:130px;overflow:hidden;border-radius:9px;background:linear-gradient(140deg,#252d38,#151820)}
+.vv-result-media .vv-result-cover{position:relative;min-width:0;width:100%;min-height:130px;display:grid;place-items:center;border-radius:9px;overflow:hidden}
+.vv-result-media .vv-result-cover img{position:absolute;inset:0;width:100%;height:100%;max-height:none;object-fit:cover;display:block}
+.vv-result-media .vv-result-cover-placeholder{position:absolute;inset:0;display:grid;place-items:center;color:#c7cbd3;pointer-events:none}
+.vv-result-media .vv-result-cover-placeholder.has-image{display:none}
+.vv-result-kind-badge{position:absolute;left:8px;top:8px;max-width:calc(100% - 16px);padding:5px 7px;border:1px solid rgba(255,255,255,.12);border-radius:6px;background:rgba(5,6,10,.8);backdrop-filter:blur(8px);font-size:10px;font-weight:740;color:#fff;pointer-events:none}
+.vv-result-play-icon{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:44px;height:44px;display:grid;place-items:center;border-radius:100%;background:rgba(247,247,249,.94);box-shadow:0 8px 22px rgba(0,0,0,.35);color:#121317;pointer-events:none}
+.vv-result-inline-video{display:block;width:100%;height:100%;min-height:130px;max-height:230px;object-fit:contain;background:#030406}
+.vv-result-media[data-kind="image"] .vv-result-cover img{object-fit:contain;background:#0e1118}
+.vv-result-media button:focus-visible{outline:2px solid #fff;outline-offset:-3px}
+.vv-search-safe-indicator{font-size:11px;color:#b6bcc6;white-space:nowrap}
+.vv-search-safe-indicator a{color:#e9e9ef;text-underline-offset:3px}
+@media(max-width:520px){
+ .vv-result-media{min-height:120px}
+ .vv-result-media .vv-result-cover{min-height:120px}
+ .vv-result-kind-badge{font-size:9px;left:5px;top:5px}
+ .vv-result-play-icon{height:32px;width:32px}
+}
