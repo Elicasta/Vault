@@ -63,6 +63,7 @@ export default function AddMediaSheet({
   folders = [],
   onCreateCollection,
   initialItem = null,
+  initialFolder = "",
   userId = null,
 }) {
   const dialogRef = useRef(null);
@@ -98,7 +99,7 @@ export default function AddMediaSheet({
     setLocalPreview("");
     setUrl(initialUploaded ? initialCanonical : (initialItem?.url || ""));
     setTitle(initialItem?.title || "");
-    setFolder(initialItem?.folder || "");
+    setFolder(initialItem?.folder || initialFolder || "");
     setNote(initialItem?.note || "");
     setTags(Array.isArray(initialItem?.tags) ? initialItem.tags.join(", ") : "");
     setThumbnail(initialItem?.thumbnail || "");
@@ -108,7 +109,7 @@ export default function AddMediaSheet({
     setError("");
     setUploadStage("");
     setNewCollection("");
-  }, [open, initialItem, initialCanonical, initialUploaded]);
+  }, [open, initialItem, initialCanonical, initialUploaded, initialFolder]);
 
   useEffect(() => {
     if (!file) {
