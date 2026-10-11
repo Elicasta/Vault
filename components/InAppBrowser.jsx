@@ -61,6 +61,8 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
   const [searchPage, setSearchPage] = useState(0);
   const [searchInfo, setSearchInfo] = useState(null);
   const [searchError, setSearchError] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [savedUrl, setSavedUrl] = useState("");
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [viewMode, setViewMode] = useState("media");
   const [videoTrail, setVideoTrail] = useState([]);
@@ -156,6 +158,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
     searchAbort.current = controller;
     const sequence = ++searchSequence.current;
     setSearchQuery(q);
+    setSaveError("");
     setSearchPage(page);
     setSearchInfo(null);
     setVideoTrail([]);
@@ -213,6 +216,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
     searchAbort.current?.abort();
     ++searchSequence.current;
     setCurrentUrl(target);
+    setSaveError("");
     setViewMode("media");
     setShowQuickSave(false);
     setAddress(target);
@@ -311,6 +315,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
   const saveUrl = async (url, meta = {}) => {
     if (!url) return;
     setSaving(true);
+    setSaveError("");
     try {
       let finalMeta = meta;
       if (!finalMeta.title) {
@@ -336,7 +341,10 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
         addedAt: new Date().toISOString(),
       };
       await saveToVault(item);
+      setSavedUrl(url);
       commitHistory(url, finalMeta);
+    } catch (error) {
+      setSaveError(error?.message || "Could not save this link. Try again.");
     } finally {
       setSaving(false);
     }
@@ -470,7 +478,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
           </div>
         )}
 
-        <div className="vv-browser-content" style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: isMobile ? "minmax(0,1fr)" : "minmax(0,1fr) minmax(280px,340px)", gridTemplateRows: "minmax(0,1fr)", position: "relative", overflow: "hidden" }}>
+        <div className="vv-browser-content" style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: isMobile || searchQuery ? "minmax(0,1fr)" : "minmax(0,1fr) minmax(280px,340px)", gridTemplateRows: "minmax(0,1fr)", position: "relative", overflow: "hidden" }}>
           <div ref={resultsScrollRef} className="vv-browser-main" style={{ minHeight: 0, minWidth: 0, background: "#050505", position: "relative", overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
             {!currentUrl && !searchQuery ? (
               <EmptySearch />
@@ -480,7 +488,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
                 onPreview={previewResult} onSave={saveResult} onOpen={openExternal}
                 onRetry={() => runSearch(searchQuery,{mode:searchMode,scope:searchScope,page:searchPage})}
                 onPage={(next) => runSearch(searchQuery,{mode:searchMode,scope:searchScope,page:next})}
-                saving={saving} />
+                saving={saving} savedUrl={savedUrl} saveError={saveError} onDismissSaveError={()=>setSaveError("")}/>
             ) : currentUrl && viewMode === "media" ? (
               <MediaDiscoveryPanel
                 pageUrl={currentUrl}
@@ -521,7 +529,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
             overscrollBehavior: "contain",
             minHeight: 0,
             maxHeight: isMobile ? "min(55dvh, 440px)" : "100%",
-            display: keyboardOpen && isMobile ? "none" : "block",
+            display: searchQuery || (keyboardOpen && isMobile) ? "none" : "block",
             ...(isMobile && !showQuickSave ? { display: "none" } : {}),
           }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
@@ -538,6 +546,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
 
             <FolderPicker folders={folders} folder={folder} setFolder={setFolder} newFolderName={newFolderName} setNewFolderName={setNewFolderName} handleCreateFolder={handleCreateFolder} creatingFolder={creatingFolder} />
 
+            {saveError && <div role="alert" className="vv-search-warning">{saveError}</div>}
             <button onClick={saveCurrent} disabled={!currentUrl || saving} style={{ width: "100%", padding: "12px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.18)", background: currentUrl ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.04)", color: currentUrl ? T.text1 : T.text4, cursor: currentUrl ? "pointer" : "not-allowed", fontWeight: 700, fontSize: 14 }}>
               {saving ? "Saving..." : "Save URL to Vault"}
             </button>
@@ -582,7 +591,7 @@ function EmptySearch() {
   </div>;
 }
 
-function SearchResults({ state, error, query, results, info, mode, page, hostFilter, onHostFilter, onPreview, onSave, onOpen, onRetry, onPage, saving }) {
+function SearchResults({ state, error, query, results, info, mode, page, hostFilter, onHostFilter, onPreview, onSave, onOpen, onRetry, onPage, saving, savedUrl, saveError, onDismissSaveError }) {
   const [refine, setRefine] = useState("");
   const [kind, setKind] = useState("all");
   useEffect(() => { setRefine(""); setKind("all"); }, [query,mode]);
@@ -612,6 +621,7 @@ function SearchResults({ state, error, query, results, info, mode, page, hostFil
       </div>
       <span className="vv-results-count">{state==="loading"?"Searching…":results.length+" on this page"}</span>
     </header>
+    {saveError && <div className="vv-search-message" role="alert">{saveError} <button type="button" onClick={onDismissSaveError}>Dismiss</button></div>}
     {state==="fail" && <div className="vv-search-message" role="alert">
       {error||"Search failed"}
       <div className="vv-search-result-actions">
@@ -656,7 +666,7 @@ function SearchResults({ state, error, query, results, info, mode, page, hostFil
                 {r.snippet&&<p>{r.snippet}</p>}
                 <div className="vv-search-result-actions">
                   <button type="button" className="vv-search-explore" onClick={()=>onPreview(r)}>Explore gallery →</button>
-                  <button type="button" onClick={()=>onSave(r)} disabled={saving}>{saving?"Saving…":"Save"}</button>
+                  <button type="button" onClick={()=>onSave(r)} disabled={saving}>{saving?"Saving…":savedUrl===r.url?"Saved ✓":"Save"}</button>
                   <button type="button" onClick={()=>onOpen(r.url)}>Original ↗</button>
                 </div>
               </div>
