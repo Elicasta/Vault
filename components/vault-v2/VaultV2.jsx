@@ -111,26 +111,29 @@ function FeaturedStage({ item, state, onWatch, onDetails, onBrowse }) {
 }
 
 function CollectionCard({ folder, items, onOpen }) {
-  const covers = items.map((item) => item.display_thumbnail || item.thumbnail).filter(Boolean).slice(0, 3);
+  // Use one representative thumbnail, not a collage. Parent collections inherit
+  // the first visible piece of media from their nested collections.
+  const firstItem = items[0] || null;
+  const cover = firstItem?.display_thumbnail || firstItem?.thumbnail || "";
+  const [coverAttempt, setCoverAttempt] = useState(0);
+  useEffect(() => setCoverAttempt(0), [cover]);
+  const poster = coverAttempt === 0 ? proxiedMediaUrl(cover) : cover;
+  const hasPoster = Boolean(cover) && coverAttempt < 2;
   const tone = [...folder.name].reduce((sum, char) => sum + char.charCodeAt(0), 0) % 5;
   return (
     <button type="button" className="v2-collection v2-collection-preview" onClick={onOpen}
-      aria-label={`Open collection ${folder.name}, ${items.length} saved items`}>
-      <div className={`v2-collection-covers v2-tone-${tone}`} data-count={covers.length} aria-hidden="true">
-        <div className="v2-collection-artwork"><span className="v2-collection-artwork-overline">VAULT COLLECTION</span><strong>{folder.name}</strong><span className="v2-collection-artwork-symbol"><Icon name="folder" size={28}/></span></div>
-        {covers.length ? covers.map((url, index) => (
-          <div className="v2-collection-cover" key={url + index}>
-            <img src={proxiedMediaUrl(url)} alt="" loading="lazy" decoding="async"
-              onError={(event) => { event.currentTarget.style.opacity = "0"; }} />
-          </div>
-        )) : null}
-      </div>
-      <div className="v2-collection-footer">
-        <div className="v2-collection-labels">
+      aria-label={"Open collection " + folder.name + ", " + items.length + " saved items"}>
+      <div className={"v2-collection-covers v2-tone-" + tone} data-count={hasPoster ? 1 : 0} aria-hidden="true">
+        {hasPoster ? <div className="v2-collection-cover">
+          <img key={poster} src={poster} alt="" loading="lazy" decoding="async" referrerPolicy="no-referrer"
+            onError={() => setCoverAttempt(n => n + 1)} />
+        </div> : <div className="v2-collection-artwork">
+          <Icon name="folder" size={31} />
+        </div>}
+        <div className="v2-collection-caption">
           <div className="v2-collection-name" title={folder.name}>{folder.name}</div>
-          <div className="v2-collection-count">{items.length} item{items.length === 1 ? "" : "s"}{folder.parent_folder ? ` · in ${folder.parent_folder}` : ""}</div>
+          <div className="v2-collection-count">{items.length} item{items.length === 1 ? "" : "s"}</div>
         </div>
-        <Icon name="chevronRight" size={17}/>
       </div>
     </button>
   );
