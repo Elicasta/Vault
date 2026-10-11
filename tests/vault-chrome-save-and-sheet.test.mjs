@@ -82,7 +82,7 @@ test("right-click opens Vault folder picker and delivers only selected image URL
  const listeners = { installed: [], clicked: [], updated: [], removed: [], message: [], alarm: [], startup: [] };
  const opened = [], menus = [], injected = [];
  const session = new Map(), local = {};
- const origin = "https://vault-preview-temp-92jlcgdgn-elicastas-projects.vercel.app";
+ const origin = "https://vault-preview-temp-git-feat-extension-7e2809-elicastas-projects.vercel.app";
  const chrome = {
   webRequest: {onBeforeRequest:{addListener(){}},onHeadersReceived:{addListener(){}}},
   tabs: {
