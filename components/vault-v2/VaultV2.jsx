@@ -498,7 +498,7 @@ export default function VaultV2({ route = "home" }) {
   const resolvedItems = useMemo(() => resolveMediaPreviews(items, coverLibrary).filter((item) => !isHiddenLibraryItem(item)), [items, coverLibrary]);
   const displayItems = useMemo(() => resolvedItems.filter(item => !isNsfwTagged(item)), [resolvedItems]);
   const nsfwItems = useMemo(() => resolvedItems.filter(isNsfwTagged).sort((a,b) => new Date(b.addedAt||0) - new Date(a.addedAt||0)), [resolvedItems]);
-  const hiddenItems = useMemo(() => items.filter(isHiddenLibraryItem), [items]);
+  const hiddenItems = useMemo(() => items.filter(item => isHiddenLibraryItem(item) && !isNsfwTagged(item)), [items]);
 
   const allFiltered = useMemo(() => {
     let result = displayItems.filter((item)=>{
@@ -747,7 +747,7 @@ export default function VaultV2({ route = "home" }) {
       </nav>
 
       {visibilityError ? <div role="alert" className="v2-error">{visibilityError}<button className="v2-btn" onClick={() => setVisibilityError("")}>Dismiss</button></div> : null}
-      <AddMediaSheet open={addOpen||!!editItem} initialItem={editItem} initialFolder={route === "collections" ? selectedCollection : ""} userId={user?.id} onClose={()=>{setAddOpen(false);setEditItem(null)}} onSave={saveItem} folders={folders} onCreateCollection={createCollection}/>
+      <AddMediaSheet open={addOpen||!!editItem} initialItem={editItem} initialFolder={route === "collections" ? selectedCollection : ""} userId={user?.id} onClose={()=>{setAddOpen(false);setEditItem(null)}} onSave={item=>saveItem(route === "nsfw" ? {...item, tags:[...new Set([...(Array.isArray(item.tags)?item.tags:[]),"nsfw"])]} : item)} folders={folders} onCreateCollection={createCollection}/>
       <DetailDrawer
         key={detailItem?.key || "closed"}
         item={detailItem}
