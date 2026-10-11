@@ -9,8 +9,8 @@ test("the unified V2 shell is default and retains an explicit rollback switch", 
   const modern = source("components/vault-v2/VaultV2.jsx");
   assert.match(shell, /NEXT_PUBLIC_VAULT_UI_V2 !== "false"/);
   assert.match(shell, /<VaultV2 route=\{route\}/);
-  assert.match(modern, /<ImportMediaWorkspace/);
-  assert.match(modern, /<InAppBrowser/);
+  assert.match(modern, /<AddMediaSheet/);
+  assert.doesNotMatch(modern, /<ImportMediaWorkspace|<InAppBrowser/);
   assert.match(modern, /<GoogleDriveBackup/);
 });
 
@@ -32,17 +32,16 @@ test("library network failures are visible and cannot impersonate an empty Vault
   assert.match(modern, /refresh\(user\?\.id\)\.then\(\(\)=>setLoadError\(""\)\)/);
 });
 
-test("V2 saving cannot double-submit or dismiss an active file upload", () => {
-  const dialog = source("components/vault-v2/AddMediaSheet.jsx");
-  assert.match(dialog, /saveInFlight = useRef\(false\)/);
-  assert.match(dialog, /if \(!valid \|\| saveInFlight\.current\) return/);
-  assert.match(dialog, /saveInFlight\.current = true/);
-  assert.match(dialog, /saveInFlight\.current = false/);
-  assert.match(dialog, /onMouseDown=\{closeIfIdle\}/);
-  assert.match(dialog, /disabled=\{saving\} aria-label="Close add media"/);
-  assert.match(dialog, /aria-busy=\{saving\}/);
-  assert.match(dialog, /inert=\{saving\}/);
-  assert.match(dialog, /catch \(e\) \{\n\s*setError/);
+test("simple plus form prevents double submits and preserves draft on failure",()=>{
+ const dialog=source("components/vault-v2/AddMediaSheet.jsx");
+ assert.match(dialog,/const lock = useRef\(false\)/);
+ assert.match(dialog,/if \(!valid \|\| lock\.current\) return/);
+ assert.match(dialog,/lock\.current = true/);
+ assert.match(dialog,/lock\.current=false/);
+ assert.match(dialog,/onMouseDown=\{close\}/);
+ assert.match(dialog,/disabled=\{saving\}/);
+ assert.match(dialog,/setError\(e\?\.message/);
+ assert.match(dialog,/coverReady && !coverFailed/);
 });
 
 test("V2 player reactions use persistent state and expose failed writes", () => {
