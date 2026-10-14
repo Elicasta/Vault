@@ -3,18 +3,31 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Vault · Save Images</title>
+<title>Vault · Save Links and Media</title>
 <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <header>
     <span class="kicker">VAULT / CHROME</span>
     <h1>Save to Vault</h1>
-    <p>Right-click any image to save it, or collect images from this gallery.</p>
+    <p>Save videos, shared links, pins, Drive files and images to your account.</p>
   </header>
 
+  <section class="connection" aria-live="polite">
+    <div class="connection-line"><span id="vault-connection-dot" class="connection-dot"></span><div>
+      <strong id="vault-connection-status">Checking Vault login…</strong>
+      <small id="vault-connection-account">Your password stays in Vault.</small></div>
+    </div>
+    <div class="connection-actions"><button type="button" id="vault-connect">Open Vault / Sign in</button><button type="button" id="vault-check">Refresh</button></div>
+  </section>
+  <div class="source-input">
+    <label for="source-link">Save a link from anywhere</label>
+    <div class="source-entry"><input id="source-link" type="url" placeholder="YouTube, Google Drive, Pinterest, website URL…"/><button type="button" id="add-link">Add link</button></div>
+    <div id="source-kind" role="status">Automatically detects the source and uses its available cover.</div>
+  </div>
   <div class="toolbar primary">
-    <button id="scan">Find images on page</button>
+    <button id="save-page" type="button">Save this page</button>
+    <button id="scan">Find media</button>
     <button id="all">Select all</button>
     <button id="clear">Clear</button>
   </div>
@@ -63,6 +76,7 @@ https://example.com/original.jpg    Example photo    image" aria-label="Paste UR
   </footer>
 
 <script src="batch-parser.js"></script>
+<script src="source-aware.js"></script>
 <script src="popup.js"></script>
 <script src="smart-screenshot.js"></script>
 </body>
