@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Vault — Save Images",
-  "version": "2.0.0",
-  "description": "Save right-clicked images or selected galleries into your Elicasta Vault folders.",
+  "name": "Vault — Save Links & Media",
+  "version": "2.1.0",
+  "description": "Save pages, links, YouTube videos, Google Drive shares, Pinterest pins, and galleries to your signed-in Vault account.",
   "permissions": [
     "activeTab",
     "scripting",
