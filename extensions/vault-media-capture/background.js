@@ -1,6 +1,8 @@
 // MV3 Network observer. The browser extension can see actual media fetches,
 // unlike a third-party iframe. It never fetches media, bypasses access control,
 // modifies requests, or transmits URLs to another service.
+importScripts("source-aware.js");
+const sourceAware = globalThis.VaultSourceAware;
 const MAX_ITEMS = 300;
 const TTL_MS = 60 * 60 * 1000;
 const state = new Map();
@@ -140,14 +142,16 @@ function cleanSelection(incoming) {
   const saved = [], seen = new Set();
   for (const item of (Array.isArray(incoming) ? incoming : [])) {
     const url = normalize(item?.url);
-    if (!url || seen.has(url) || !["image", "video"].includes(item?.type)) continue;
+    if (!url || seen.has(url) || !["image", "video", "link", "audio"].includes(item?.type)) continue;
     seen.add(url);
+    const analyzed=sourceAware.enrich({...item,url});
+    if (!analyzed) continue;
     saved.push({
-      url, type:item.type,
-      title:String(item.title || "").slice(0, 180),
-      thumbnail:normalize(item.thumbnail) || (item.type === "image" ? url : ""),
+      url:analyzed.url,type:analyzed.type,source:analyzed.source,sourceName:analyzed.sourceName,
+      title:String(item.title || analyzed.title || "").slice(0,180),
+      thumbnail:normalize(item.thumbnail) || analyzed.thumbnail,
       sourcePage:normalize(item.sourcePage) || url,
-      sourceKind:/^browser-/.test(item.sourceKind || "") ? item.sourceKind : "browser-network-capture",
+      sourceKind:/^browser-/.test(item.sourceKind || "") ? item.sourceKind : "browser-shared-link",
     });
     if (saved.length >= MAX_BATCH) break;
   }
@@ -203,7 +207,7 @@ async function resumeCaptureJobs() {
 }
 async function launchFolderPicker(items, requestedOrigin) {
   const cleaned=cleanSelection(items);
-  if (!cleaned.length) throw new Error("Choose an image or video before saving.");
+  if (!cleaned.length) throw new Error("Choose a media file or link before saving.");
   const origin=await getVaultOrigin(requestedOrigin);
   const popup=await chrome.windows.create({
     url:origin+"/capture", type:"popup", focused:true, width:740, height:800,
@@ -224,9 +228,40 @@ async function launchFolderPicker(items, requestedOrigin) {
   return {ok:true,count:cleaned.length,tabId};
 }
 
+// Capture context for links/pages without downloading content or reading cookies.
+function inspectPageForVault(absoluteLink) {
+  function safe(raw) {
+    try {const u=new URL(raw,location.href);return ["http:","https:"].includes(u.protocol)?u.href:"";} catch {return "";}
+  }
+  const meta=(key)=>document.querySelector('meta[property="'+key+'"]')?.content ||
+    document.querySelector('meta[name="'+key+'"]')?.content || "";
+  let image=safe(meta("og:image") || meta("twitter:image"));
+  let title=meta("og:title") || document.title || "Saved page";
+  if (absoluteLink) {
+    const target=safe(absoluteLink);
+    for(const a of [...document.querySelectorAll("a[href]")].slice(0,800)) {
+      if(safe(a.href)!==target)continue;
+      const thumb=a.querySelector("img");
+      image=safe(thumb?.currentSrc || thumb?.src || "") || image;
+      title=thumb?.alt || a.getAttribute("aria-label") || a.title || title;
+      break;
+    }
+  }
+  return {title,thumbnail:image};
+}
+async function captureContext(tabId,targetUrl) {
+  try {
+    const result=await chrome.scripting.executeScript({
+      target:{tabId},func:inspectPageForVault,args:[targetUrl || ""],
+    });
+    return result?.[0]?.result || {};
+  } catch {return {};}
+}
 chrome.runtime.onInstalled.addListener(()=>{
   chrome.contextMenus.create({id:"vault_save_image",title:"Save image to Vault",contexts:["image"]},()=>{void chrome.runtime.lastError;});
   chrome.contextMenus.create({id:"vault_queue_image",title:"Add image to Vault capture queue",contexts:["image"]},()=>{void chrome.runtime.lastError;});
+  chrome.contextMenus.create({id:"vault_save_link",title:"Save link to Vault",contexts:["link"]},()=>{void chrome.runtime.lastError;});
+  chrome.contextMenus.create({id:"vault_save_page",title:"Save this page to Vault",contexts:["page"]},()=>{void chrome.runtime.lastError;});
   chrome.alarms.create(RETRY_ALARM,{periodInMinutes:1});
 });
 chrome.runtime.onStartup.addListener(()=>{
@@ -237,20 +272,30 @@ chrome.alarms.onAlarm.addListener(info=>{
   if (info.name === RETRY_ALARM) void resumeCaptureJobs();
 });
 chrome.contextMenus.onClicked.addListener((info,tab)=>{
-  if (!["vault_save_image","vault_queue_image"].includes(info.menuItemId) || !Number.isInteger(tab?.id)) return;
-  const image=normalize(info.srcUrl || "");
-  if (!image) return;
-  const link=normalize(info.linkUrl || "");
-  const full=/\.(?:jpe?g|png|webp|avif|gif|bmp)(?:$|[?#])/i.test(link) ? link : image;
-  const item={url:full,type:"image",title:"Captured image",thumbnail:image,
-    sourcePage:normalize(tab.url || "") || full,sourceKind:"browser-linked-full-image"};
-  const map=state.get(tab.id) || new Map();
-  map.set(full,item);
-  state.set(tab.id,map);
-  schedulePersist(tab.id);
-  if (info.menuItemId === "vault_save_image") {
-    void launchFolderPicker([item]).catch(e=>console.warn("[Vault capture]",e.message));
-  }
+  if (!Number.isInteger(tab?.id)) return;
+  const kind=info.menuItemId;
+  if (!["vault_save_image","vault_queue_image","vault_save_link","vault_save_page"].includes(kind)) return;
+  void (async()=>{
+    const context=kind==="vault_save_image"||kind==="vault_queue_image"?"image":kind==="vault_save_link"?"link":"page";
+    const clicked=normalize(context==="image"?info.srcUrl:context==="link"?info.linkUrl:tab.url);
+    if (!clicked) return;
+    let extra={};
+    if(context!=="image") extra=await captureContext(tab.id,context==="link"?clicked:"");
+    const link=context==="image"?normalize(info.linkUrl || ""):"";
+    const full=context==="image" && /\\.(?:jpe?g|png|webp|avif|gif|bmp)(?:$|[?#])/i.test(link)?link:clicked;
+    const item=sourceAware.enrich({
+      url:full,title:extra.title || tab.title || "Saved media",
+      thumbnail:context==="image"?clicked:extra.thumbnail,
+      sourcePage:normalize(tab.url)||full,
+      sourceKind:context==="image"?"browser-linked-full-image":"browser-shared-link",
+    });
+    if (!item) return;
+    const map=state.get(tab.id)||new Map();
+    map.set(item.url,item);
+    state.set(tab.id,map);
+    schedulePersist(tab.id);
+    if(kind!=="vault_queue_image") await launchFolderPicker([item]);
+  })().catch(e=>console.warn("[Vault capture]",e.message));
 });
 chrome.tabs.onUpdated.addListener((tabId,change)=>{
   if (change.status === "complete") void deliverJob(tabId);
