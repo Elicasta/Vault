@@ -282,7 +282,7 @@ chrome.contextMenus.onClicked.addListener((info,tab)=>{
     let extra={};
     if(context!=="image") extra=await captureContext(tab.id,context==="link"?clicked:"");
     const link=context==="image"?normalize(info.linkUrl || ""):"";
-    const full=context==="image" && /\\.(?:jpe?g|png|webp|avif|gif|bmp)(?:$|[?#])/i.test(link)?link:clicked;
+    const full=context==="image" && /\.(?:jpe?g|png|webp|avif|gif|bmp)(?:$|[?#])/i.test(link)?link:clicked;
     const item=sourceAware.enrich({
       url:full,title:extra.title || tab.title || "Saved media",
       thumbnail:context==="image"?clicked:extra.thumbnail,
