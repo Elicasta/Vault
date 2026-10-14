@@ -1,42 +1,27 @@
-# Elicasta Vault Chrome extension v2.0
+# Elicasta Vault Chrome extension v2.1
 
-**Repository:** [Elicasta/Vault](https://github.com/Elicasta/Vault)
-**Feature:** Right-click image saving, gallery multi-selection, folder selection, and Google Sheets URL import.
+**Save to your own Vault account.** Open Vault in desktop Chrome and sign in first. The extension can confirm the email displayed by Vault on an authenticated tab, but cannot see or store your password, Supabase tokens or cookies. When you click **Choose folder & save**, a Vault window completes the write using the current website login.
 
-## Install (desktop Chrome)
+## Supported capture flows
 
-1. Download `vault-media-capture.zip` from the Vault preview at `/downloads/vault-media-capture.zip`, then unzip it.
-2. In desktop Chrome, open `chrome://extensions` and enable **Developer mode**.
-3. Choose **Load unpacked** and select the extracted `vault-media-capture` folder (the folder containing `manifest.json`).
-4. Pin Vault to your Chrome toolbar.
-5. In **Vault destination**, use `https://vault-preview-temp-git-polish-vault-p-5026a8-elicastas-projects.vercel.app` as the stable polish-branch preview. After the final release, change to the permanent Elicasta Vault URL.
+- Paste any standard HTTPS URL into **Save a link from anywhere**; the extension identifies YouTube, Google Drive, Google Docs/Sheets/Slides, Pinterest, Vimeo, TikTok, Instagram, Dropbox, Reddit and regular pages
+- Click **Save this page** to use the page title and Open Graph cover where available
+- Right-click an image, link, or page and choose the matching Vault action
+- Use **Find media**, Select All, and **Choose folder & save** for gallery items
+- Existing CSV/TSV and Google Sheets URL-list parsing remains in the extension
 
-## Save a single image
+A YouTube link is saved as a YouTube video link, a Drive link stays a Drive share (not guessed to be a video), and Pinterest remains a pin/page link. Generic HTTPS sites save as links. The extension never downloads content behind restricted sharing permissions or grants access to private Drive files.
 
-Right-click a photo → **Save image to Vault**.
-A separate Vault window opens. If requested, sign into your own Vault account.
-Choose **Inbox**, an existing folder, or a nested gallery. Use **Create** to make a new gallery inside the selected folder.
-Press **Save to Vault** to complete the operation.
+## Install and connect
 
-For several manually chosen images, right-click **Add image to Vault capture queue** on each one, then open the extension.
+1. Download the latest `vault-media-capture.zip` from the preview at `/downloads/vault-media-capture.zip`.
+2. Unzip it and use Chrome (desktop) → `chrome://extensions` → **Developer mode** → **Load unpacked**, selecting the unzipped `vault-media-capture` folder containing `manifest.json`.
+3. Open `https://vault-preview-temp-git-polish-vault-p-5026a8-elicastas-projects.vercel.app` in desktop Chrome and sign in.
+4. Open the extension and press **Refresh**. The **Connected to Vault** status should show your account email.
+5. Select links or media, choose a Vault collection, review automatically detected title and cover, and save.
 
-## Save a large gallery
+If the site does not expose a usable cover, the Vault save window requests a **Cover URL** before saving. Covers from private sites or expiring links may fail later. Saving a page link does not copy its media bytes into Supabase Storage.
 
-1. Open the original gallery in Chrome, scroll so lazy-loaded images appear.
-2. Click the Vault extension icon and **Find images on page**.
-3. Select individual images, or **Select all**. The extension supports up to 300 URLs per batch.
-4. Choose **Choose folder & save**.
-5. In the Vault picker, choose a destination and confirm. All selected images go to that folder.
+## Permissions and privacy
 
-The prior Google Sheets copy/paste, public CSV URL, and exported CSV/TSV importer remain available.
-
-## Behavior and privacy
-
-- This is a user-triggered action. The extension never auto-saves or reads site passwords, browser cookies, or Supabase credentials.
-- The capture window is owned by the signed-in Vault website, which uses the existing authenticated save functions.
-- Duplicate URLs use Vault's stable item keys. Re-saving a URL keeps existing title, notes, tags, and cover settings, but moves it to the selected destination.
-- Partial failures show the count and preserve only unsaved items for retry.
-- The extension does not bypass website access restrictions. Saving a URL is **not downloading a permanent copy**. Hotlink-blocked, expiring, or 403-protected images can still fail later.
-- If you have rights to download a file, use the original website's download feature and upload that file to Vault for permanent storage.
-- Some websites use thumbnails or canvas media without reusable original URLs; the existing screenshot tool can capture visible pixels, not original resolution.
-- Chrome on iPhone does not install desktop Chrome extensions.
+Broad website access is needed to discover sources on arbitrary pages. The extension captures only when you choose to scan, save, or right-click. It does not read website passwords or Supabase credentials. The account indicator only reads the authenticated account name from your own Vault tab. Full session and permissions enforcement remain on Vault's side. Chrome extensions require desktop Chrome.
