@@ -53,8 +53,8 @@ async function checkVaultAccount() {
       } catch {}
     }
     connectionPanel.dataset.status="disconnected";
-    accountStatus.textContent="Not connected yet";
-    accountLabel.textContent="Open Vault and sign in; then refresh this status.";
+    accountStatus.textContent=matching.length ? "Vault sign-in not detected" : "Vault account not verified";
+    accountLabel.textContent="Open Vault in Chrome, sign in, and press Refresh.";
   } catch (error) {
     connectionPanel.dataset.status="disconnected";
     accountStatus.textContent="Cannot check Vault login";
