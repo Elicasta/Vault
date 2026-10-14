@@ -57,7 +57,7 @@ test("extension popup retains gallery scanner, Google Sheets and folder-picker a
  const popup = source("popup.js");
  const html = source("popup.html");
  assert.equal(manifest.manifest_version, 3);
- assert.equal(manifest.version, "2.0.0");
+ assert.equal(manifest.version, "2.1.0");
  assert.ok(manifest.permissions.includes("contextMenus"));
  assert.ok(manifest.permissions.includes("alarms"));
  assert.match(popup, /VAULT_OPEN_PICKER/);
@@ -116,10 +116,12 @@ test("right-click opens Vault folder picker and delivers only selected image URL
   },
   scripting:{executeScript:async opts=>{injected.push(opts);return [{result:true}];}},
  };
- vm.runInNewContext(background,{chrome,URL,Date,Math,Promise,Map,Set,
-  setTimeout:(fn)=>{fn();return 1;},clearTimeout(){},console});
+ const context={chrome,URL,Date,Math,Promise,Map,Set,
+  setTimeout:(fn)=>{fn();return 1;},clearTimeout(){},console};
+ context.importScripts=(name)=>vm.runInNewContext(source(name),context);
+ vm.runInNewContext(background,context);
  for(const fn of listeners.installed)fn();
- assert.deepEqual(menus.map(item=>item.id), ["vault_save_image","vault_queue_image"]);
+ assert.deepEqual(menus.map(item=>item.id), ["vault_save_image","vault_queue_image","vault_save_link","vault_save_page"]);
  listeners.clicked[0]({menuItemId:"vault_save_image",srcUrl:"https://images.example/photo.webp",
   linkUrl:"https://images.example/full.jpg"},{id:22,url:"https://gallery.example/album/1"});
  await new Promise(resolve=>setImmediate(resolve));
