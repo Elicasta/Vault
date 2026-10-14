@@ -433,6 +433,7 @@ export default function VaultV2({ route = "home" }) {
     }
   };
 
+  const hiddenItems = useMemo(() => items.filter(isHiddenLibraryItem), [items]);
   const displayItems = useMemo(() => resolveMediaPreviews(items, coverLibrary).filter(item =>
     !isHiddenLibraryItem(item) && String(item?.canonical_thumbnail || item?.thumbnail || "").trim()), [items, coverLibrary]);
   const allFiltered = useMemo(() => {
