@@ -8,7 +8,7 @@ const unknownAsImage = document.querySelector("#unknown-as-image");
 const vaultUrlInput = document.querySelector("#vault-url");
 const vaultHostLabel = document.querySelector("#vault-host-label");
 const vaultUrlResult = document.querySelector("#vault-url-result");
-const DEFAULT_VAULT = "https://vault-preview-temp-git-polish-vault-p-5026a8-elicastas-projects.vercel.app";
+const DEFAULT_VAULT = "https://vault-preview-temp.vercel.app";
 function isOldVaultPreview(origin) {
   try {
     const host = new URL(origin).hostname;
