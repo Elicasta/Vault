@@ -5,9 +5,9 @@
 
 ## Install (desktop Chrome)
 
-1. Download the [latest polished Vault branch](https://github.com/Elicasta/Vault/tree/polish/vault-premium-pass) as a ZIP and unzip it.
-2. In Chrome, open `chrome://extensions` and enable **Developer mode**.
-3. Choose **Load unpacked** and select `extensions/vault-media-capture` from the extracted repository.
+1. Download `vault-media-capture.zip` from the Vault preview at `/downloads/vault-media-capture.zip`, then unzip it.
+2. In desktop Chrome, open `chrome://extensions` and enable **Developer mode**.
+3. Choose **Load unpacked** and select the extracted `vault-media-capture` folder (the folder containing `manifest.json`).
 4. Pin Vault to your Chrome toolbar.
 5. In **Vault destination**, use `https://vault-preview-temp-git-polish-vault-p-5026a8-elicastas-projects.vercel.app` as the stable polish-branch preview. After the final release, change to the permanent Elicasta Vault URL.
 
