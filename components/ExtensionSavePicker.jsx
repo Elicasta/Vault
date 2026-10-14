@@ -324,7 +324,7 @@ export default function ExtensionSavePicker() {
               <button type="button" disabled={saving} onClick={()=>{metadataChecked.current.add(entry.url);void refreshMetadata(entry);}}
                 style={{marginTop:7,padding:"5px 8px",fontSize:10,color:"#dce9fb",background:"#232c39",border:"1px solid #404d5d",borderRadius:6,cursor:"pointer"}}>
                 Refresh title &amp; cover
-              </button>}
+              </button>
             </div>
             <button type="button" disabled={saving} onClick={() => setItems(old => old.filter(x => x.url !== entry.url))}
               aria-label={"Remove " + entry.title} style={{ border: 0, background: "none", color: "#aaa", cursor: "pointer", fontSize: 20 }}>×</button>
@@ -337,7 +337,7 @@ export default function ExtensionSavePicker() {
         style={{ ...buttonStyle, width: "100%", padding: 17, fontSize: 14, marginTop: 15,
           opacity: !items.length || !userId || saving || loading ? .5 : 1 }}>
         {saving ? "Saving " + completed + " of " + items.length + "…" :
-          "Save " + items.length + " item" + (items.length === 1 ? "" : "s") + " to " + (folder || "Inbox")}
+          "Save " + items.length + " item" + (items.length === 1 ? "" : "s") + " to " + (folder || "Library")}
       </button>
       <p style={{ marginTop: 14, color: "#888", fontSize: 11, lineHeight: 1.7 }}>
         Vault saves the link. If the source requires sign-in, expires, or returns HTTP 403, this does not make a permanent copy of its image bytes.
