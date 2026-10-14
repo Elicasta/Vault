@@ -63,7 +63,14 @@ export default function AuthGate({ children }) {
     );
   }
 
-  if (session) return children;
+  // Chrome may read this public session *status* on Vault-origin tabs only.
+  // Do not expose Supabase credentials, cookies or access tokens here.
+  if (session) return <>
+    <span data-vault-extension-session="signed-in"
+      data-vault-extension-account={session.user?.email || ""}
+      aria-hidden="true" hidden />
+    {children}
+  </>;
 
   const handleSubmit = async () => {
     if (!email.trim() || !password.trim()) return;
