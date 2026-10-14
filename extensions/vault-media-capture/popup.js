@@ -12,7 +12,9 @@ const DEFAULT_VAULT = "https://vault-preview-temp-git-polish-vault-p-5026a8-elic
 function isOldVaultPreview(origin) {
   try {
     const host = new URL(origin).hostname;
-    return host.startsWith("vault-preview-temp-git-feat-extension-") && host.endsWith("-elicastas-projects.vercel.app");
+    return host.startsWith("vault-preview-temp-") &&
+      host.endsWith("-elicastas-projects.vercel.app") &&
+      host !== new URL(DEFAULT_VAULT).hostname;
   } catch { return false; }
 }
 const selectedEl = document.querySelector("#selected");
@@ -301,9 +303,7 @@ sendBtn.addEventListener("click",async()=>{
   if(!items.length)return;
   sendBtn.disabled=true;
   try{
-    // Clipboard copy is the fallback when a user must sign in before the
-    // existing Vault form can be populated by the extension.
-    await navigator.clipboard.writeText(makePayload(items)).catch(()=>{});
+    // Never write captured URLs into the clipboard without an explicit click.
     const response=await chrome.runtime.sendMessage({
       type:"VAULT_OPEN_PICKER",
       items,origin:safeVaultOrigin(vaultUrlInput.value)||DEFAULT_VAULT,
