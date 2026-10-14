@@ -86,7 +86,7 @@ test("right-click opens Vault folder picker and delivers only selected image URL
  };
  const origin = background.match(/const VAULT_DEFAULT_URL = "([^"]+)"/)?.[1];
  assert.ok(origin?.startsWith("https://"), "Chrome capture needs a valid configured HTTPS Vault preview");
- assert.match(origin, /git-polish-vault/);
+ assert.equal(origin, "https://vault-preview-temp.vercel.app");
  assert.doesNotMatch(origin, /feat-extension/);
  const chrome = {
   webRequest: {onBeforeRequest:{addListener(){}},onHeadersReceived:{addListener(){}}},
