@@ -316,15 +316,14 @@ export default function VaultV2({ route = "home" }) {
   }, [route, filters, sort, selectedCollection]);
 
   useEffect(() => {
+    // Online status is all this listener owns. Mobile-browser UI was removed.
     const sync = () => setOnline(navigator.onLine);
-    const syncMobile = () => setMobileBrowser(window.matchMedia("(max-width: 899px)").matches);
-    sync(); syncMobile();
-    window.addEventListener("online",sync); window.addEventListener("offline",sync);
-    window.addEventListener("resize", syncMobile);
+    sync();
+    window.addEventListener("online", sync);
+    window.addEventListener("offline", sync);
     return () => {
-      window.removeEventListener("online",sync);
-      window.removeEventListener("offline",sync);
-      window.removeEventListener("resize", syncMobile);
+      window.removeEventListener("online", sync);
+      window.removeEventListener("offline", sync);
     };
   }, []);
 
