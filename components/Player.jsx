@@ -493,7 +493,11 @@ export default function Player({ item, items = [], currentIdx = 0, onNavigate, o
     e?.stopPropagation?.();
     const id = Date.now() + Math.random();
     setOilBursts((prev) => [...prev.slice(-3), { id }]);
-    onOil?.();
+    Promise.resolve().then(() => onOil?.()).catch(() => {
+      setMarkNotice("Could not save reaction. Please try again.");
+      if (markNoticeTimer.current) clearTimeout(markNoticeTimer.current);
+      markNoticeTimer.current = setTimeout(() => setMarkNotice(""), 2500);
+    });
     setTimeout(() => setOilBursts((prev) => prev.filter((b) => b.id !== id)), 1050);
   }, [onOil]);
 
@@ -732,6 +736,12 @@ export default function Player({ item, items = [], currentIdx = 0, onNavigate, o
       <button onClick={(e) => { e.stopPropagation(); setShowComments((v) => !v); }} style={{ ...actionBtn, background: showComments ? "rgba(255,255,255,0.16)" : actionBtn.background }} title="Comments" aria-label="Comments">
         <Icon name="comment" size={15} />
       </button>
+      {integrated && (
+        <button type="button" onClick={triggerOil} disabled={!userId} style={{...actionBtn, width:"auto", minWidth:44, padding:"0 9px", gap:4}} title="React to this media" aria-label="React to this media">
+          <span style={{...oilDropIcon, width:9, height:12}} aria-hidden="true" />
+          {oilCount > 0 ? <span style={{fontSize:11}}>{oilCount}</span> : null}
+        </button>
+      )}
       <button onClick={(e) => { e.stopPropagation(); openPopout(); }} style={actionBtn} title="Pop out" aria-label="Pop out media">
         <Icon name="external" size={14} />
       </button>
@@ -819,6 +829,7 @@ export default function Player({ item, items = [], currentIdx = 0, onNavigate, o
           )}
           {isFullscreen && <div style={topControls}>{controlBar}</div>}
           {markNotice && <div style={integrated ? integratedMarkToast : markToast} role="status">{markNotice}</div>}
+          {oilBursts.map((burst, idx) => <div key={burst.id} style={{...oilSplash, bottom:`${118 + idx * 8}px`}}><span style={oilDripOne}/><span style={oilDripTwo}/><span style={oilDripThree}/></div>)}
           <div ref={stageRef} style={isFullscreen ? fullscreenStage : integratedStage}>{renderStage()}</div>
         </section>
       ) : (

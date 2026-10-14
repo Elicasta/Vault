@@ -211,7 +211,9 @@ export default function Vault() {
         }
       } catch {}
     };
-    init();
+    init().catch((error) => {
+      setError(error?.message || "Could not load your Vault library. Retry or reload without clearing local data.");
+    });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -457,8 +459,8 @@ export default function Vault() {
   const handleQuickAdd = async (item) => {
     const normalizedItem = { ...item, folder: inferFolderForItem(item) };
     setQuickAdds((prev) => [normalizedItem, ...prev.filter((i) => i.url !== normalizedItem.url && i.key !== normalizedItem.key && i.key !== normalizedItem.previousKey)]);
-    if (user && normalizedItem.previousKey && normalizedItem.previousKey !== normalizedItem.key) await removeVaultItem(user.id, normalizedItem.previousKey);
     if (user) await upsertVaultItem(user.id, normalizedItem);
+    if (user && normalizedItem.previousKey && normalizedItem.previousKey !== normalizedItem.key) await removeVaultItem(user.id, normalizedItem.previousKey);
     if (normalizedItem.previousKey && normalizedItem.previousKey !== normalizedItem.key) {
       fetch("/api/sheets-sync", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "delete", key: normalizedItem.previousKey }) }).catch(() => {});
     }
@@ -877,7 +879,7 @@ export default function Vault() {
   };
 
   return (
-    <div style={{ display: "flex", minHeight: "100dvh", background: T.bg, color: T.text1, fontFamily: "'Inter',-apple-system,BlinkMacSystemFont,sans-serif", overflowX: "hidden" }}>
+    <div className="vault-legacy" style={{ display: "flex", minHeight: "100dvh", background: T.bg, color: T.text1, fontFamily: "'Inter',-apple-system,BlinkMacSystemFont,sans-serif", overflowX: "hidden" }}>
 
       <Sidebar
         tabs={[]}
@@ -1078,7 +1080,7 @@ export default function Vault() {
 
       {showConfig && <ConfigModal onSave={handleSaveConfig} onClose={() => !needsManualTabs && setShowConfig(false)} savedId={sheetId} needsManualTabs={needsManualTabs} coverRules={coverRules} onSaveCoverRules={handleSaveCoverRules} coverLibrary={coverLibrary} onSaveCover={handleSaveCover} onDeleteCover={handleDeleteCover} diagnostics={diagnostics} sheetSources={sheetSources} defaultSheetSourceId={defaultSheetSourceId} onSaveSheetSources={handleSaveSheetSources} onExportJSON={handleExportJSON} onExportCSV={handleExportCSV} />}
       {showQuickAdd && <QuickAddModal onAdd={handleQuickAdd} onClose={() => setShowQuickAdd(false)} folders={folders} onCreateFolder={handleCreateFolder} />}
-      {editingItem && <QuickAddModal mode="edit" initialItem={editingItem} onAdd={(item) => { handleQuickAdd(item); setEditingItem(null); }} onClose={() => setEditingItem(null)} folders={folders} onCreateFolder={handleCreateFolder} />}
+      {editingItem && <QuickAddModal mode="edit" initialItem={editingItem} onAdd={handleQuickAdd} onClose={() => setEditingItem(null)} folders={folders} onCreateFolder={handleCreateFolder} />}
       {showImport && <SheetImportModal onClose={() => setShowImport(false)} onImport={handleSheetImport} existingCount={quickAdds.length} sheetSources={sheetSources} defaultSheetSourceId={defaultSheetSourceId} onSaveSheetSources={handleSaveSheetSources} />}
       {activeItem && (
         <Player
@@ -1430,35 +1432,44 @@ const dashSecondary = { padding: "10px 15px", borderRadius: 12, background: "rgb
 function MobileTopBar({ title, onMenu, onSearch, syncing, searchOpen, searchRef, search, onSearchChange, onSort, sortBy, onImport, onQuickAdd }) {
   return (
     <div style={{ padding: "10px 14px", display: "flex", alignItems: "center", gap: 8, borderBottom: `1px solid ${T.borderSub}`, position: "sticky", top: 0, background: "rgba(0,0,0,0.88)", backdropFilter: "blur(16px)", zIndex: 100 }}>
-      <button onClick={onMenu} style={iconBtn}><Icon name="menu" size={18} /></button>
+      <button aria-label="Open navigation" onClick={onMenu} style={iconBtn}><Icon name="menu" size={18} /></button>
       {searchOpen
-        ? <input ref={searchRef} value={search} onChange={(e) => onSearchChange?.(e.target.value)} placeholder="Search..." autoFocus style={{ flex: 1, padding: "7px 11px", background: "rgba(255,255,255,0.07)", border: `1px solid ${T.border}`, borderRadius: 8, color: T.text1, fontSize: 14, outline: "none" }} />
+        ? <input ref={searchRef} value={search} onChange={(e) => onSearchChange?.(e.target.value)} aria-label="Search library" placeholder="Search..." autoFocus style={{ flex: 1, padding: "7px 11px", background: "rgba(255,255,255,0.07)", border: `1px solid ${T.border}`, borderRadius: 8, color: T.text1, fontSize: 14, outline: "none" }} />
         : <div style={{ flex: 1, fontSize: 15, fontWeight: 500, color: T.text1, letterSpacing: -0.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
       }
-      {onSort && <button onClick={onSort} style={{ ...iconBtn, background: sortBy !== "default" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.06)" }}><Icon name="sort" size={16} /></button>}
+      {onSort && <button aria-label="Sort library" onClick={onSort} style={{ ...iconBtn, background: sortBy !== "default" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.06)" }}><Icon name="sort" size={16} /></button>}
       {onImport && <button onClick={onImport} style={iconBtn} title="Import Sheet"><Icon name="import" size={16} /></button>}
-      {onQuickAdd && <button onClick={onQuickAdd} style={iconBtn} title="Add video"><Icon name="addCircle" size={16} /></button>}
-      <button onClick={onSearch} style={iconBtn}><Icon name="search" size={16} /></button>
+      {onQuickAdd && <button onClick={onQuickAdd} style={iconBtn} title="Add media"><Icon name="addCircle" size={16} /></button>}
+      <button aria-label="Toggle search" aria-expanded={searchOpen} onClick={onSearch} style={iconBtn}><Icon name="search" size={16} /></button>
     </div>
   );
 }
 
 function DesktopTopBar({ viewTitle, viewItems, search, onSearch, viewMode, onViewMode, onImport, syncing, sortBy, onSortChange, onQuickAdd, installPrompt, onInstall, showFilterPills, onToggleFilters }) {
   const [showSortDrop, setShowSortDrop] = useState(false);
+  const sortRef = useRef(null);
+  useEffect(() => {
+    if (!showSortDrop) return;
+    const outside = (event) => { if (!sortRef.current?.contains(event.target)) setShowSortDrop(false); };
+    const escape = (event) => { if (event.key === "Escape") { setShowSortDrop(false); sortRef.current?.querySelector("button")?.focus(); } };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    return () => { document.removeEventListener("pointerdown", outside); document.removeEventListener("keydown", escape); };
+  }, [showSortDrop]);
   return (
     <div style={{ padding: "12px 24px", display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: `1px solid ${T.borderSub}`, position: "sticky", top: 0, background: "rgba(0,0,0,0.88)", backdropFilter: "blur(16px)", zIndex: 100, gap: 12, flexWrap: "wrap" }}>
       <div style={{ fontSize: 15, fontWeight: 500, color: T.text1, letterSpacing: -0.2, display: "flex", alignItems: "center", gap: 8 }}>
         {viewTitle} <span style={{ fontSize: 11, color: T.text4, fontWeight: 400 }}>{viewItems.length}</span>
       </div>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-        <input value={search} onChange={(e) => onSearch(e.target.value)} placeholder="Search..."
+        <input value={search} onChange={(e) => onSearch(e.target.value)} aria-label="Search library" placeholder="Search..."
           style={{ padding: "6px 11px", background: "rgba(255,255,255,0.06)", border: `1px solid ${T.border}`, borderRadius: 7, color: T.text1, fontSize: 12, outline: "none", width: 150 }} />
-        <div style={{ position: "relative" }}>
-          <button onClick={() => setShowSortDrop(!showSortDrop)} style={{ ...iconBtn, borderRadius: 7, background: sortBy !== "default" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.06)" }} title="Sort">
+        <div ref={sortRef} style={{ position: "relative" }}>
+          <button aria-expanded={showSortDrop} onClick={() => setShowSortDrop(!showSortDrop)} style={{ ...iconBtn, borderRadius: 7, background: sortBy !== "default" ? "rgba(255,255,255,0.1)" : "rgba(255,255,255,0.06)" }} title="Sort">
             <Icon name="sort" size={15} />
           </button>
           {showSortDrop && (
-            <div style={{ position: "absolute", top: 38, right: 0, background: "rgba(14,14,14,0.97)", backdropFilter: "blur(20px)", border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden", zIndex: 50, minWidth: 180, boxShadow: "0 16px 48px rgba(0,0,0,0.7)" }}>
+            <div style={{ position: "absolute", top: 50, right: 0, background: "rgba(14,14,14,0.97)", backdropFilter: "blur(20px)", border: `1px solid ${T.border}`, borderRadius: 10, overflow: "hidden", zIndex: 50, minWidth: 180, boxShadow: "0 16px 48px rgba(0,0,0,0.7)" }}>
               {SORT_OPTIONS.map((o) => (
                 <button key={o.id} onClick={() => { onSortChange(o.id); setShowSortDrop(false); }} style={{ display: "block", width: "100%", textAlign: "left", padding: "9px 14px", background: sortBy === o.id ? "rgba(255,255,255,0.07)" : "transparent", border: "none", color: sortBy === o.id ? T.text1 : T.text2, fontSize: 13, cursor: "pointer" }}>
                   {o.label}
@@ -1469,14 +1480,14 @@ function DesktopTopBar({ viewTitle, viewItems, search, onSearch, viewMode, onVie
         </div>
         <div style={{ display: "flex", background: "rgba(255,255,255,0.05)", borderRadius: 7, padding: 2, border: `1px solid ${T.border}` }}>
           {VIEW_MODES.map((m) => (
-            <button key={m.id} onClick={() => onViewMode(m.id)} title={m.label} style={{ background: viewMode === m.id ? "rgba(255,255,255,0.12)" : "transparent", border: "none", color: viewMode === m.id ? T.text1 : T.text4, cursor: "pointer", borderRadius: 5, padding: "5px 10px" }}>
+            <button key={m.id} aria-pressed={viewMode === m.id} onClick={() => onViewMode(m.id)} title={m.label} style={{ background: viewMode === m.id ? "rgba(255,255,255,0.12)" : "transparent", border: "none", color: viewMode === m.id ? T.text1 : T.text4, cursor: "pointer", borderRadius: 5, padding: "5px 10px" }}>
               <Icon name={m.icon} size={14} />
             </button>
           ))}
         </div>
-        <button onClick={onToggleFilters} style={{ ...iconBtn, borderRadius: 7, background: showFilterPills ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.06)" }} title="Show filters"><Icon name="filter" size={16} /></button>
+        <button aria-expanded={showFilterPills} onClick={onToggleFilters} style={{ ...iconBtn, borderRadius: 7, background: showFilterPills ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.06)" }} title="Show filters"><Icon name="filter" size={16} /></button>
         <button onClick={onImport} style={{ ...iconBtn, borderRadius: 7 }} title="Import Sheet"><Icon name="import" size={16} /></button>
-        <button onClick={onQuickAdd} style={{ ...iconBtn, borderRadius: 7 }} title="Add video"><Icon name="addCircle" size={16} /></button>
+        <button onClick={onQuickAdd} style={{ ...iconBtn, borderRadius: 7 }} title="Add media"><Icon name="addCircle" size={16} /></button>
         {installPrompt && <button onClick={onInstall} style={{ ...iconBtn, borderRadius: 7 }} title="Install app"><Icon name="download" size={15} /></button>}
 
       </div>
@@ -1525,4 +1536,4 @@ const EmptyState = ({ icon, title, sub, action, actionLabel, secondaryAction, se
   </div>
 );
 
-const iconBtn = { background: "rgba(255,255,255,0.06)", border: "none", color: T.text2, cursor: "pointer", borderRadius: "50%", width: 34, height: 34, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 };
+const iconBtn = { background: "rgba(255,255,255,0.06)", border: "none", color: T.text2, cursor: "pointer", borderRadius: "50%", width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 };

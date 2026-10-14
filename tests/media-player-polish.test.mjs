@@ -47,13 +47,13 @@ test("relay normalizes generic content types and preserves media range semantics
   assert.match(source, /X-Vault-Relay/);
 });
 
-test("player-created Moment Marks trigger detail refresh", () => {
-  const vault = read("components/vault-v2/VaultV2.jsx");
-  const detail = read("components/vault-v2/DetailDrawer.jsx");
-  assert.match(vault, /setActivityRevision\(\(n\)=>n\+1\)/);
-  assert.match(vault, /activityRevision=\{activityRevision\}/);
-  assert.match(detail, /\[item, userId, activityRevision\]/);
-  assert.doesNotMatch(detail, /Add mark<\/button>/);
+test("clean detail deliberately omits activity and notes while player remains integrated",()=>{
+ const vault=read("components/vault-v2/VaultV2.jsx");
+ const detail=read("components/vault-v2/DetailDrawer.jsx");
+ assert.match(vault,/variant="integrated"/);
+ assert.match(vault,/<Player/);
+ assert.match(detail,/v2-clean-detail/);
+ assert.doesNotMatch(detail,/Moment marks|Comments|Add mark/);
 });
 
 test("V2 reloads existing Cover Library rules for automatic display previews", () => {

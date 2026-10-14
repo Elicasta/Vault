@@ -155,7 +155,6 @@ test("signed proxy session rejects tampering and expiry", async () => {
 
 test("all network-capable API routes use the security guard and no direct fetch", () => {
   const protectedRoutes = [
-    "app/api/browser-search/route.js",
     "app/api/drive/route.js",
     "app/api/extract/route.js",
     "app/api/file/route.js",

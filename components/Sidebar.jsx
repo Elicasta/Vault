@@ -221,7 +221,7 @@ export default function Sidebar({
             </div>
           )}
           {!mobile && (
-            <button onClick={onToggleCollapse} style={{ background: "transparent", border: "none", color: T.text4, cursor: "pointer", padding: 4 }}>
+            <button aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"} onClick={onToggleCollapse} style={{ background: "transparent", border: "none", color: T.text4, cursor: "pointer", padding: 4 }}>
               <Icon name={collapsed ? "chevronRight" : "chevronLeft"} size={14} />
             </button>
           )}
@@ -272,7 +272,7 @@ export default function Sidebar({
                 autoFocus
                 style={{ flex: 1, padding: "5px 8px", background: "rgba(255,255,255,0.06)", border: `1px solid ${T.border}`, borderRadius: 5, color: T.text1, fontSize: 12, outline: "none" }}
               />
-              <button onClick={() => { setAdding(false); setNewFolder(""); }} style={{ background: "transparent", border: "none", color: T.text4, cursor: "pointer" }}>
+              <button aria-label="Cancel new folder" onClick={() => { setAdding(false); setNewFolder(""); }} style={{ background: "transparent", border: "none", color: T.text4, cursor: "pointer" }}>
                 <Icon name="x" size={12} />
               </button>
             </div>

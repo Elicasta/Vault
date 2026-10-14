@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Icon from "./Icons";
+import SearchResultPreview from "./SearchResultPreview";
 import { T } from "@/lib/theme";
 import { itemKey, sourceIdOf } from "@/lib/utils";
 import { ensureProxySession, SECURITY_V2_ENABLED } from "@/lib/security-session";
@@ -36,7 +37,7 @@ function hostOf(url) {
   try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return ""; }
 }
 
-export default function InAppBrowser({ onClose, onSave, folders = [], existingItems = [], isMobile = false, onCreateFolder, initialQuery = "" }) {
+export default function InAppBrowser({ onClose, onSave, folders = [], existingItems = [], isMobile = false, onCreateFolder, initialQuery = "", initialMode = "regular" }) {
   const [address, setAddress] = useState("");
   const [currentUrl, setCurrentUrl] = useState("");
   const [history, setHistory] = useState([]);
@@ -45,7 +46,12 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
   const [frameBlocked, setFrameBlocked] = useState(false);
   const [saving, setSaving] = useState(false);
   const [discreetLabels, setDiscreetLabels] = useState(true);
-  const saveToVault = item => onSave?.(withDiscreetMediaLabels(item, discreetLabels));
+  const saveToVault = item => {
+    const tagged = initialMode === "nsfw"
+      ? { ...item, tags: [...new Set([...(Array.isArray(item.tags) ? item.tags : []), "nsfw"])] }
+      : item;
+    return onSave?.(withDiscreetMediaLabels(tagged, discreetLabels));
+  };
   const [metadata, setMetadata] = useState(null);
   const [metaState, setMetaState] = useState("idle");
   const [folder, setFolder] = useState("");
@@ -54,11 +60,15 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
   const [searchQuery, setSearchQuery] = useState("");
   const [searchState, setSearchState] = useState("idle");
   const [searchResults, setSearchResults] = useState([]);
-  const [searchMode, setSearchMode] = useState("regular");
+  const [savedSearch, setSavedSearch] = useState(null);
+  const [resultHost, setResultHost] = useState("all");
+  const [searchMode, setSearchMode] = useState(initialMode === "nsfw" ? "nsfw" : "regular");
   const [searchScope, setSearchScope] = useState("all");
   const [searchPage, setSearchPage] = useState(0);
   const [searchInfo, setSearchInfo] = useState(null);
   const [searchError, setSearchError] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const [savedUrl, setSavedUrl] = useState("");
   const [keyboardOpen, setKeyboardOpen] = useState(false);
   const [viewMode, setViewMode] = useState("media");
   const [videoTrail, setVideoTrail] = useState([]);
@@ -71,11 +81,13 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
   const showQuickSaveRef = useRef(showQuickSave);
   showQuickSaveRef.current = showQuickSave;
   const inputRef = useRef(null);
+  const resultsScrollRef = useRef(null);
   const searchAbort = useRef(null);
   const searchSequence = useRef(0);
 
   useEffect(() => {
-    try { setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]")); } catch { setHistory([]); }
+    if (initialMode === "nsfw") setHistory([]);
+    else try { setHistory(JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]")); } catch { setHistory([]); }
     // Do not focus a mobile address bar on mount: iOS otherwise opens its
     // keyboard, reduces the visual viewport and makes the sheet appear huge.
     if (!isMobile) inputRef.current?.focus();
@@ -86,7 +98,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
     };
     window.addEventListener("keydown", h);
     return () => { window.removeEventListener("keydown", h); searchAbort.current?.abort(); ++searchSequence.current; };
-  }, [isMobile]);
+  }, [isMobile, initialMode]);
 
   useEffect(() => {
     if (!isMobile || typeof window === "undefined" || !window.visualViewport) return;
@@ -139,7 +151,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
     const row = { url, title: meta?.title || hostOf(url) || url, visitedAt: new Date().toISOString() };
     const next = [row, ...history.filter((h) => h.url !== url)].slice(0, 80);
     setHistory(next);
-    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(next)); } catch {}
+    if (initialMode !== "nsfw") try { localStorage.setItem(HISTORY_KEY, JSON.stringify(next)); } catch {}
   };
 
   const runSearch = async (query, filters = {}) => {
@@ -153,6 +165,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
     searchAbort.current = controller;
     const sequence = ++searchSequence.current;
     setSearchQuery(q);
+    setSaveError("");
     setSearchPage(page);
     setSearchInfo(null);
     setVideoTrail([]);
@@ -163,7 +176,9 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
     setMetadata(null);
     setMetaState("idle");
     setSearchState("loading");
-    setSearchResults([]);
+    // Keep the existing page visible during pagination; don't blank the viewport.
+    if (page === 0) { setSearchResults([]); setResultHost("all"); }
+    setSavedSearch(null);
     setSearchError("");
     setShowHistory(false);
     try {
@@ -182,6 +197,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
       if (!response.ok) throw new Error(data.error || `Web search failed (HTTP ${response.status})`);
       if (sequence !== searchSequence.current || controller.signal.aborted) return;
       setSearchResults(Array.isArray(data.results) ? data.results : []);
+      resultsScrollRef.current?.scrollTo(0, 0);
       setSearchInfo({ providers:data.providers||[],warning:data.warning||"",partial:!!data.partial,disclaimer:data.disclaimer||"",externalUrl:data.externalUrl||"" });
       setSearchState("done");
     } catch (error) {
@@ -195,8 +211,9 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
     const q = String(initialQuery || "").trim();
     if (!q) return;
     setAddress(q);
-    runSearch(q);
-    // Initial search should run once when this browser instance opens.
+    if (isLikelyUrl(q)) openUrl(q);
+    else runSearch(q);
+    // Initial query can be a real URL; open it rather than searching for its literal text.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -207,6 +224,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
     searchAbort.current?.abort();
     ++searchSequence.current;
     setCurrentUrl(target);
+    setSaveError("");
     setViewMode("media");
     setShowQuickSave(false);
     setAddress(target);
@@ -274,19 +292,19 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
   const go = (value = address) => {
     const raw = String(value || "").trim();
     if (!raw) return;
-    if (isLikelyUrl(raw)) openUrl(raw);
+    if (isLikelyUrl(raw)) { setSavedSearch(null); openUrl(raw); }
     else runSearch(raw);
   };
 
   const removeHistoryItem = (url) => {
     const next = history.filter((h) => h.url !== url);
     setHistory(next);
-    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(next)); } catch {}
+    if (initialMode !== "nsfw") try { localStorage.setItem(HISTORY_KEY, JSON.stringify(next)); } catch {}
   };
 
   const clearHistory = () => {
     setHistory([]);
-    try { localStorage.removeItem(HISTORY_KEY); } catch {}
+    if (initialMode !== "nsfw") try { localStorage.removeItem(HISTORY_KEY); } catch {}
   };
 
   const handleCreateFolder = async () => {
@@ -305,6 +323,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
   const saveUrl = async (url, meta = {}) => {
     if (!url) return;
     setSaving(true);
+    setSaveError("");
     try {
       let finalMeta = meta;
       if (!finalMeta.title) {
@@ -330,7 +349,10 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
         addedAt: new Date().toISOString(),
       };
       await saveToVault(item);
+      setSavedUrl(url);
       commitHistory(url, finalMeta);
+    } catch (error) {
+      setSaveError(error?.message || "Could not save this link. Try again.");
     } finally {
       setSaving(false);
     }
@@ -343,7 +365,37 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
     if (url) window.open(url, "_blank", "noopener,noreferrer");
   };
 
-  const previewResult = (result) => openUrl(result.url);
+  const previewResult = (result) => {
+    // A drill-down must always have an in-app path back to the exact results.
+    setSavedSearch({ query:searchQuery, results:searchResults, info:searchInfo,
+      page:searchPage, mode:searchMode, scope:searchScope, host:resultHost,
+      scrollTop:resultsScrollRef.current?.scrollTop || 0 });
+    openUrl(result.url);
+  };
+
+  const backToResults = () => {
+    if (!savedSearch) return;
+    searchAbort.current?.abort();
+    ++searchSequence.current;
+    setCurrentUrl("");
+    setVideoTrail([]);
+    setForwardTrail([]);
+    setFocusedVideo(null);
+    setCurrentPageTitle("");
+    setLoadingFrame(false);
+    setSearchQuery(savedSearch.query);
+    setSearchResults(savedSearch.results);
+    setSearchInfo(savedSearch.info);
+    setSearchPage(savedSearch.page);
+    setSearchMode(savedSearch.mode);
+    setSearchScope(savedSearch.scope);
+    setResultHost(savedSearch.host);
+    setSearchState("done");
+    setSearchError("");
+    setViewMode("results");
+    setAddress(savedSearch.query);
+    requestAnimationFrame(()=>resultsScrollRef.current?.scrollTo(0, savedSearch.scrollTop || 0));
+  };
 
   const currentDirectType = /\.(?:jpe?g|png|webp|gif|avif|bmp)(?:$|[?#])/i.test(currentUrl)
     ? "image" : /\.(?:mp4|m4v|mov|webm|ogv)(?:$|[?#])/i.test(currentUrl) ? "video" : "";
@@ -363,43 +415,40 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
         <div className="vv-browser-topbar" style={{ display: "flex", alignItems: "center", gap: 8, padding: isMobile ? "10px" : "12px 14px", borderBottom: `1px solid ${T.borderSub}`, background: "rgba(255,255,255,0.03)", flexShrink: 0, minWidth: 0 }}>
           <button onClick={onClose} style={toolBtn} title="Close"><Icon name="x" size={16} /></button>
           <form onSubmit={(e) => { e.preventDefault(); go(); }} style={{ flex: 1, minWidth: 0, display: "flex", gap: 8 }}>
-            <input ref={inputRef} value={address} onChange={(e) => setAddress(e.target.value)} onFocus={() => setShowHistory(false)} placeholder="Search or paste a link..." style={inputStyle} />
-            <button type="submit" style={{ ...toolBtn, width: 42 }} title="Search"><Icon name="search" size={15} /></button>
+            <input ref={inputRef} type="search" value={address} onChange={(e) => setAddress(e.target.value)} onFocus={() => setShowHistory(false)} placeholder="Search videos, galleries, or paste a link…" aria-label="Search web or open a URL" enterKeyHint="search" autoComplete="off" style={inputStyle} />
+            {address ? <button type="button" className="vv-browser-clear" onClick={()=>{setAddress("");inputRef.current?.focus()}} aria-label="Clear search"><Icon name="x" size={14}/></button> : null}
+            <button type="submit" className="vv-browser-search-submit" style={{ ...toolBtn, width: "auto" }} title="Search the web"><Icon name="search" size={15}/><span>Search</span></button>
           </form>
           {!isMobile && <button onClick={() => openExternal()} disabled={!currentUrl} style={toolBtn} title="Open original"><Icon name="external" size={15} /></button>}
           <button onClick={() => setShowHistory((v) => !v)} style={toolBtn} title="History"><Icon name="clock" size={15} /></button>
         </div>
 
         {(!currentUrl || searchQuery) && <div className="vv-search-filters" role="group" aria-label="Search settings">
-          <div className="vv-search-mode-row">
-            <span>Search mode</span>
-            <div className="vv-search-modes" role="group" aria-label="SafeSearch">
-              {[
-                ["regular","Regular"],["nsfw","NSFW"],["unrestricted","Unrestricted"]
-              ].map(([value,label]) => <button key={value} type="button"
-                aria-pressed={searchMode===value} className={"vv-search-mode-"+value}
-                onClick={() => {setSearchMode(value);runSearch(searchQuery,{mode:value,scope:searchScope,page:0});}}>
-                {label}
-              </button>)}
-            </div>
-          </div>
           <div className="vv-search-scopes" role="group" aria-label="Result type">
-            {[
-              ["all","All results"],["images","Images"],["videos","Videos"],["sites","Sites / galleries"]
-            ].map(([value,label]) => <button key={value} type="button"
-              aria-pressed={searchScope===value}
-              onClick={() => {setSearchScope(value);runSearch(searchQuery,{mode:searchMode,scope:value,page:0});}}>
-              {label}
-            </button>)}
+            {[["all","All results"],["images","Images"],["videos","Videos"],["sites","Sites & galleries"]].map(([value,label]) =>
+              <button key={value} type="button" aria-pressed={searchScope===value}
+                onClick={() => {setSearchScope(value);runSearch(searchQuery,{mode:searchMode,scope:value,page:0});}}>{label}</button>
+            )}
           </div>
-          <div className="vv-search-filter-description">
-            {searchMode==="regular" ? "Strict SafeSearch requested; designed to reduce explicit results." :
-             searchMode==="nsfw" ? "Adult results allowed. NSFW-related matches receive higher relevance." :
-             "SafeSearch off wherever supported. Results are not limited to NSFW content."}
-            <span> Provider restrictions may still apply.</span>
-          </div>
+          {initialMode === "nsfw" ? <details className="vv-search-preferences">
+            <summary>Search preferences <span>{searchMode==="regular"?"SafeSearch on":searchMode==="nsfw"?"NSFW":"Unrestricted"}</span></summary>
+            <div className="vv-search-mode-row">
+              <span>Search mode</span>
+              <div className="vv-search-modes" role="group" aria-label="SafeSearch">
+                {[["nsfw","NSFW"],["unrestricted","Unrestricted"]].map(([value,label]) =>
+                  <button key={value} type="button" aria-pressed={searchMode===value} className={"vv-search-mode-"+value}
+                    onClick={() => {setSearchMode(value);runSearch(searchQuery,{mode:value,scope:searchScope,page:0});}}>{label}</button>
+                )}
+              </div>
+              <div className="vv-search-filter-description">{searchMode==="regular"
+                ? "Strict SafeSearch requested." : searchMode==="nsfw" ? "Adult results allowed." : "SafeSearch disabled where supported."}
+                <span> Website restrictions may still apply.</span>
+              </div>
+            </div>
+          </details> : <div className="vv-search-safe-indicator">SafeSearch on · <a href="/nsfw">18+ space</a></div>}
         </div>}
         <div className="vv-browser-modebar" role="toolbar" aria-label="Browser views">
+          {savedSearch && currentUrl && <button type="button" className="vv-browser-back" onClick={backToResults}>← Results</button>}
           {videoTrail.length > 0 && <button type="button" className="vv-browser-back" onClick={backVideoPage} title="Back to previous page">← Back</button>}
           {forwardTrail.length > 0 && <button type="button" className="vv-browser-back" onClick={forwardVideoPage} title="Forward to next page">Forward →</button>}
           {videoTrail.length > 0 && <nav aria-label="Gallery page path" className="vv-browser-page-path">
@@ -438,17 +487,17 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
           </div>
         )}
 
-        <div className="vv-browser-content" style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: isMobile ? "minmax(0,1fr)" : "minmax(0,1fr) minmax(280px,340px)", gridTemplateRows: "minmax(0,1fr)", position: "relative", overflow: "hidden" }}>
-          <div className="vv-browser-main" style={{ minHeight: 0, minWidth: 0, background: "#050505", position: "relative", overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
+        <div className="vv-browser-content" style={{ flex: 1, minHeight: 0, display: "grid", gridTemplateColumns: isMobile || searchQuery ? "minmax(0,1fr)" : "minmax(0,1fr) minmax(280px,340px)", gridTemplateRows: "minmax(0,1fr)", position: "relative", overflow: "hidden" }}>
+          <div ref={resultsScrollRef} className="vv-browser-main" style={{ minHeight: 0, minWidth: 0, background: "#050505", position: "relative", overflowY: "auto", overscrollBehavior: "contain", WebkitOverflowScrolling: "touch" }}>
             {!currentUrl && !searchQuery ? (
               <EmptySearch />
             ) : searchQuery ? (
               <SearchResults state={searchState} error={searchError} query={searchQuery} results={searchResults}
-                info={searchInfo} mode={searchMode} page={searchPage}
+                info={searchInfo} mode={searchMode} page={searchPage} hostFilter={resultHost} onHostFilter={setResultHost}
                 onPreview={previewResult} onSave={saveResult} onOpen={openExternal}
                 onRetry={() => runSearch(searchQuery,{mode:searchMode,scope:searchScope,page:searchPage})}
                 onPage={(next) => runSearch(searchQuery,{mode:searchMode,scope:searchScope,page:next})}
-                saving={saving} />
+                saving={saving} savedUrl={savedUrl} saveError={saveError} onDismissSaveError={()=>setSaveError("")}/>
             ) : currentUrl && viewMode === "media" ? (
               <MediaDiscoveryPanel
                 pageUrl={currentUrl}
@@ -489,7 +538,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
             overscrollBehavior: "contain",
             minHeight: 0,
             maxHeight: isMobile ? "min(55dvh, 440px)" : "100%",
-            display: keyboardOpen && isMobile ? "none" : "block",
+            display: searchQuery || (keyboardOpen && isMobile) ? "none" : "block",
             ...(isMobile && !showQuickSave ? { display: "none" } : {}),
           }}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
@@ -506,6 +555,7 @@ export default function InAppBrowser({ onClose, onSave, folders = [], existingIt
 
             <FolderPicker folders={folders} folder={folder} setFolder={setFolder} newFolderName={newFolderName} setNewFolderName={setNewFolderName} handleCreateFolder={handleCreateFolder} creatingFolder={creatingFolder} />
 
+            {saveError && <div role="alert" className="vv-search-warning">{saveError}</div>}
             <button onClick={saveCurrent} disabled={!currentUrl || saving} style={{ width: "100%", padding: "12px", borderRadius: 12, border: "1px solid rgba(255,255,255,0.18)", background: currentUrl ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.04)", color: currentUrl ? T.text1 : T.text4, cursor: currentUrl ? "pointer" : "not-allowed", fontWeight: 700, fontSize: 14 }}>
               {saving ? "Saving..." : "Save URL to Vault"}
             </button>
@@ -550,68 +600,92 @@ function EmptySearch() {
   </div>;
 }
 
-function SearchResults({ state, error, query, results, info, mode, page, onPreview, onSave, onOpen, onRetry, onPage, saving }) {
-  const [hostFilter, setHostFilter] = useState("all");
-  useEffect(() => setHostFilter("all"), [query,mode,page,results]);
-  const hosts = useMemo(()=>[...new Set(results.map(x=>x.host).filter(Boolean))].sort(),[results]);
-  const visible = hostFilter==="all" ? results : results.filter(x=>x.host===hostFilter);
-  return <div className="vv-search-results">
-    <div className="vv-search-results-heading">
-      <div><h3>Search results</h3><p>Choose a result to explore images, videos and its individual media pages.</p></div>
-      {state==="done"&&<span>{results.length} results</span>}
-    </div>
-    {state==="loading"&&<div style={panel} role="status">Searching websites across multiple sources…</div>}
-    {state==="fail"&&<div style={panel} role="alert">{error||"Search failed"}
+function SearchResults({ state, error, query, results, info, mode, page, hostFilter, onHostFilter, onPreview, onSave, onOpen, onRetry, onPage, saving, savedUrl, saveError, onDismissSaveError }) {
+  const [refine, setRefine] = useState("");
+  const [kind, setKind] = useState("all");
+  useEffect(() => { setRefine(""); setKind("all"); }, [query,mode]);
+  const hosts = useMemo(() => {
+    const counts = new Map();
+    for (const r of results) if (r.host) counts.set(r.host, (counts.get(r.host)||0)+1);
+    return [...counts.entries()].sort((a,b) => b[1]-a[1] || a[0].localeCompare(b[0]));
+  }, [results]);
+  const byKind = (r) => r.kind === "image" ? "images" : ["video","media"].includes(r.kind) ? "videos" : "sites";
+  const visible = useMemo(() => results.filter((r) =>
+    (hostFilter === "all" || r.host === hostFilter) &&
+    (kind === "all" || byKind(r) === kind) &&
+    (!refine.trim() || [r.title,r.snippet,r.host].filter(Boolean).join(" ").toLowerCase().includes(refine.trim().toLowerCase()))
+  ), [results,hostFilter,kind,refine]);
+  const nextPage = (next) => { setRefine(""); setKind("all"); onHostFilter("all"); onPage(next); };
+  const pageButtons = <nav className="vv-results-pagination" aria-label="Search result pages">
+    <button type="button" disabled={page<=0 || state==="loading"} onClick={()=>nextPage(Math.max(0,page-1))}>← Previous</button>
+    <span>Page {page+1} of up to 4</span>
+    <button type="button" disabled={page>=3 || state==="loading" || (state==="done" && !results.length)} onClick={()=>nextPage(Math.min(3,page+1))}>Next page →</button>
+  </nav>;
+  return <section className="vv-search-results" aria-label="Web search results">
+    <header className="vv-search-results-heading">
+      <div>
+        <span className="vv-result-eyebrow">DISCOVER / WEB</span>
+        <h3>Results for “{query}”</h3>
+        <p>Explore the source, drill into its galleries, or save it to your Vault.</p>
+      </div>
+      <span className="vv-results-count">{state==="loading"?"Searching…":results.length+" on this page"}</span>
+    </header>
+    {saveError && <div className="vv-search-message" role="alert">{saveError} <button type="button" onClick={onDismissSaveError}>Dismiss</button></div>}
+    {state==="fail" && <div className="vv-search-message" role="alert">
+      {error||"Search failed"}
       <div className="vv-search-result-actions">
-        <button style={smallAction} onClick={onRetry}>Retry search</button>
-        <button style={smallAction} onClick={()=>onOpen("https://www.google.com/search?q="+encodeURIComponent(query))}>Search in browser</button>
+        <button onClick={onRetry}>Retry</button>
+        <button onClick={()=>onOpen("https://www.google.com/search?q="+encodeURIComponent(query))}>Search in browser</button>
       </div>
     </div>}
-    {state==="done"&&<>
-      <div className="vv-search-providers">
-        <span>{info?.providers?.length ? "Sources: "+info.providers.join(", ") : "No indexed providers responded"}</span>
-        {info?.partial&&<span>Some providers unavailable</span>}
+    {state==="loading" && <div className="vv-search-loading" role="status">Searching sources…</div>}
+    {state==="done" && info?.warning && <p className="vv-search-warning" role="status">{info.warning}</p>}
+    {state==="done" && mode!=="regular" && <p className="vv-search-warning">SafeSearch is disabled where supported. Source restrictions still apply.</p>}
+    {(results.length>0 || state==="done") && <>
+      <div className="vv-results-workspace">
+        <aside className="vv-results-facets" aria-label="Refine web results">
+          <h4>Browse results</h4>
+          <label className="vv-results-refine-label" htmlFor="vv-result-refine">Filter this page</label>
+          <input id="vv-result-refine" value={refine} onChange={e=>setRefine(e.target.value)} placeholder="Title or website…" autoComplete="off"/>
+          <div className="vv-results-kind" role="group" aria-label="Result category">
+            {[["all","All"],["videos","Videos"],["images","Images"],["sites","Pages"]].map(([v,label])=>
+              <button key={v} type="button" aria-pressed={kind===v} onClick={()=>setKind(v)}>
+                {label}<span>{v==="all"?results.length:results.filter(r=>byKind(r)===v).length}</span>
+              </button>)}
+          </div>
+          {hosts.length>0 && <div className="vv-results-sites">
+            <div className="vv-results-sites-label">Websites</div>
+            <button type="button" aria-pressed={hostFilter==="all"} onClick={()=>onHostFilter("all")}>All websites <span>{results.length}</span></button>
+            {hosts.slice(0,24).map(([host,count])=><button key={host} type="button" title={host} aria-pressed={hostFilter===host} onClick={()=>onHostFilter(host)}>{host}<span>{count}</span></button>)}
+          </div>}
+          {(kind!=="all" || hostFilter!=="all" || refine) && <button type="button" className="vv-results-clear" onClick={()=>{setRefine("");setKind("all");onHostFilter("all")}}>Clear refinements</button>}
+        </aside>
+        <div className="vv-results-main">
+          <div className="vv-results-summary"><span>{visible.length} matching result{visible.length===1?"":"s"}</span><span>{info?.providers?.length?info.providers.join(" · "):"Web discovery"}</span></div>
+          {visible.length ? <div className="vv-search-card-grid">
+            {visible.map((r,index)=><article key={r.url+"-"+index} className="vv-search-result-card">
+              <SearchResultPreview result={r} index={index} onPreview={onPreview}/>
+              <div className="vv-result-copy">
+                <div className="vv-search-result-metadata"><span>{r.host||"Website"}</span><span>{r.kind==="media"?"Media":r.kind==="image"?"Image":r.kind==="video"?"Video":"Page / gallery"}</span></div>
+                <button className="vv-search-result-title" type="button" onClick={()=>onPreview(r)}>{r.title||r.url}</button>
+                {r.snippet&&<p>{r.snippet}</p>}
+                <div className="vv-search-result-actions">
+                  <button type="button" className="vv-search-explore" onClick={()=>onPreview(r)}>Explore source →</button>
+                  <button type="button" onClick={()=>onSave(r)} disabled={saving}>{saving?"Saving…":savedUrl===r.url?"Saved ✓":"Save"}</button>
+                  <button type="button" onClick={()=>onOpen(r.url)}>Original ↗</button>
+                </div>
+              </div>
+            </article>)}
+          </div> : <div className="vv-search-message">No results match these refinements. <button type="button" onClick={()=>{setRefine("");setKind("all");onHostFilter("all")}}>Show all results</button></div>}
+          {state==="done" && results.length>0 && pageButtons}
+          {state==="done" && !results.length && <div className="vv-search-message">No indexed results on this page. Try the previous page or open the search in your browser.
+            {info?.externalUrl&&<button type="button" onClick={()=>onOpen(info.externalUrl)}>Open in browser ↗</button>}
+            {page>0 && pageButtons}
+          </div>}
+        </div>
       </div>
-      {hosts.length>1&&<label className="vv-search-host-filter">Filter by website
-        <select value={hostFilter} onChange={e=>setHostFilter(e.target.value)}>
-          <option value="all">All websites ({results.length})</option>
-          {hosts.map(host=><option key={host} value={host}>{host} ({results.filter(x=>x.host===host).length})</option>)}
-        </select>
-      </label>}
-      {info?.warning&&<p className="vv-search-warning" role="status">{info.warning}</p>}
-      {mode!=="regular"&&<p className="vv-search-warning">SafeSearch is disabled where supported. Some provider and website restrictions still apply.</p>}
-      {!results.length&&<div style={panel}>No indexed results found with these settings.
-        {info?.externalUrl&&<div className="vv-search-result-actions">
-          <button type="button" style={smallAction} onClick={()=>onOpen(info.externalUrl)}>Open search in browser</button>
-        </div>}
-      </div>}
     </>}
-    <div className="vv-search-card-grid">
-      {visible.map(r=><article key={r.url} className="vv-search-result-card">
-        {r.kind==="image" && /\.(?:jpe?g|png|webp|gif|avif)(?:$|[?#])/i.test(r.url) &&
-          <img className="vv-search-result-image" loading="lazy" alt={r.title}
-            src={"/api/media?url="+encodeURIComponent(r.url)}/>}
-
-        <button className="vv-search-result-title" type="button" onClick={()=>onPreview(r)}>{r.title}</button>
-        <div className="vv-search-result-metadata">
-          <span>{r.host}</span><span>{r.kind==="media"?"Media":r.kind==="image"?"Image":r.kind==="video"?"Video":"Page"}</span>
-        </div>
-        {r.snippet&&<p>{r.snippet}</p>}
-        <div className="vv-search-result-actions">
-          <button type="button" className="vv-search-save-primary" onClick={()=>onSave(r)} disabled={saving}>
-            {saving?"Saving…":"Save URL to Vault"}
-          </button>
-          <button type="button" onClick={()=>onPreview(r)}>Find media</button>
-          <button type="button" onClick={()=>onOpen(r.url)}>Open site</button>
-        </div>
-      </article>)}
-    </div>
-    {state==="done"&&results.length>0&&<div className="vv-search-pages">
-      <button type="button" disabled={page<=0} onClick={()=>{setHostFilter("all");onPage(Math.max(0,page-1));}}>Previous</button>
-      <span>Search page {page+1}</span>
-      <button type="button" disabled={page>=3} onClick={()=>{setHostFilter("all");onPage(Math.min(3,page+1));}}>More results</button>
-    </div>}
-  </div>;
+  </section>;
 }
 
 function BlockedPreview({ url, host, onOpen }) {

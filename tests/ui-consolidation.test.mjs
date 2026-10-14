@@ -6,15 +6,16 @@ const read = (path) => fs.readFileSync(path, "utf8");
 
 test("Vault V2 exposes the locked desktop and mobile navigation", () => {
   const source = read("components/vault-v2/VaultV2.jsx");
-  for (const label of ["Home","Library","Inbox","Collections","Search","Settings"]) {
+  for (const label of ["Home","Library","Collections","Settings"]) {
     assert.match(source, new RegExp('"' + label + '"'));
   }
-  assert.match(source, /const MOBILE_NAV = \[[\s\S]*"Home"[\s\S]*"Library"[\s\S]*"Add"[\s\S]*"Collections"[\s\S]*"Search"/);
+  assert.match(source, /const MOBILE_NAV = \[[\s\S]*"Home"[\s\S]*"Library"[\s\S]*"Collections"[\s\S]*"Add"/);
+  assert.match(source, /className="v2-desktop-nav"/);
   assert.doesNotMatch(source, /"Favorites".*"Continue".*"Rated"/s);
 });
 
 test("primary App Router destinations exist and remain feature gated", () => {
-  for (const route of ["library","inbox","collections","search","settings"]) {
+  for (const route of ["library","collections","settings"]) {
     assert.equal(fs.existsSync("app/" + route + "/page.jsx"), true, route);
   }
   const gate = read("components/VaultExperience.jsx");
@@ -25,14 +26,15 @@ test("primary App Router destinations exist and remain feature gated", () => {
 test("Home implements the locked priority shelves", () => {
   const source = read("components/vault-v2/VaultV2.jsx");
   const home = source.slice(source.indexOf('if(route==="home")'), source.indexOf('} else if(route==="library")'));
-  const order = ["Continue","Recently Saved","Inbox","Recent Collections","Top Rated"].map((x) => home.indexOf(x));
-  assert.ok(order.every((i) => i >= 0), "all locked Home sections must exist");
-  for (let i = 1; i < order.length; i++) assert.ok(order[i] > order[i - 1], "Home sections should preserve priority order");
+  const order = ["FeaturedStage","Continue Watching","Recently Added","Your Videos","Your Collections","Your Favorites","Photos & Artwork"].map((x) => home.indexOf(x));
+  assert.ok(order.every((i) => i >= 0), "all streaming Home shelves must exist");
+  for (let i = 1; i < order.length; i++) assert.ok(order[i] > order[i - 1], "Home shelves should preserve viewing-first order");
 });
 
-test("library performance guard uses 200ms search debounce and 60 item batches", () => {
+test("library performance guard uses cover-first filtering and 60 item batches", () => {
   const source = read("components/vault-v2/VaultV2.jsx");
-  assert.match(source, /setTimeout\(\(\) => setDebouncedQuery\(query\), 200\)/);
+  assert.match(source, /const allFiltered = useMemo/);
+  assert.doesNotMatch(source, /debouncedQuery|globalSearchSubmit/);
   assert.match(source, /useState\(60\)/);
   assert.match(source, /slice\(0, visibleLimit\)/);
   assert.match(source, /setVisibleLimit\(\(n\)=>n\+60\)/);
@@ -50,8 +52,9 @@ test("accessibility primitives are present on cards, dialogs, filters and reduce
   assert.match(add, /event\.key === "Escape"/);
   const detail = read("components/vault-v2/DetailDrawer.jsx");
   assert.match(detail, /role="dialog"/);
-  assert.match(detail, /role="tablist"/);
-  assert.match(detail, /Rate .* out of 5/);
+  assert.match(detail, /v2-clean-detail-fields/);
+  assert.match(detail, /<span>Rating<\/span>/);
+  assert.doesNotMatch(detail, /Moment marks|Comments/);
   const css = read("app/vault-v2.css");
   assert.match(css, /prefers-reduced-motion:reduce/);
   assert.match(css, /min-height:44px/);

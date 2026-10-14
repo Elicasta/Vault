@@ -20,6 +20,7 @@ on:
       - "feat/vault-chrome-save-and-sheet-import-*"
       - "feat/in-app-sheet-and-url-batch-import-*"
       - "feat/extension-folder-picker-bulk-*"
+      - "polish/vault-premium-pass"
   pull_request:
     branches:
       - "fix/relay-search-hardening-*"

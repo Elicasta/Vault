@@ -330,3 +330,20 @@ input[type="range"] { accent-color: #fff; }
  .vv-gallery-url-saver-actions button,.vv-url-list-toolbar button{flex:1 1 130px}
  .vv-gallery-url-saver-list,.vv-url-list-results{max-height:270px}
 }
+
+/* Original Vault interface: shared rhythm and readable, touch-friendly controls. */
+.vault-legacy{--vault-muted:#a7a7b0}
+.vault-legacy button,.vault-dialog button{min-height:44px}
+.vault-legacy button[title],.vault-dialog button[aria-label^="Close"],.vault-legacy aside button[aria-label]{min-width:44px}
+.vault-legacy input,.vault-dialog input:not([type="range"]):not([type="checkbox"]),.vault-dialog select{min-height:44px;min-width:0}
+.vault-legacy input::placeholder,.vault-dialog input::placeholder,.vault-dialog textarea::placeholder{color:#85858f}
+.vault-legacy button:focus-visible,.vault-dialog :focus-visible{outline:2px solid #d7d7e0!important;outline-offset:3px}
+.vault-legacy aside button{transition:background .15s ease,color .15s ease}
+.vault-legacy aside button:hover{background:rgba(255,255,255,.07)!important;color:#fff!important}
+.vault-dialog{overscroll-behavior:contain;scrollbar-gutter:stable}
+.vault-dialog input,.vault-dialog textarea,.vault-dialog select{max-width:100%}
+.vault-legacy button>svg,.vault-dialog button>svg{flex-shrink:0}
+@media(max-width:767px){
+ .vault-legacy input,.vault-dialog input,.vault-dialog textarea,.vault-dialog select{font-size:16px!important}
+ .vault-legacy button{touch-action:manipulation}
+}

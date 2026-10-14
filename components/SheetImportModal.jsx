@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useMemo, useState } from "react";
 import Icon from "./Icons";
+import useModalFocus from "./hooks/useModalFocus";
 import { T } from "@/lib/theme";
 import { DEFAULT_SHEET_SOURCE, extractSheetGid, extractSheetId, mergeSheetSources, normalizeSheetSource } from "@/lib/utils";
 
@@ -94,15 +95,17 @@ export default function SheetImportModal({
     }
   };
 
+  const dialogRef = useModalFocus(onClose);
+
   return (
     <div style={backdrop} onClick={onClose}>
-      <div style={modal} onClick={(e) => e.stopPropagation()}>
+      <div ref={dialogRef} className="vault-dialog" role="dialog" aria-modal="true" aria-label="Import from Google Sheets" tabIndex={-1} style={modal} onClick={(e) => e.stopPropagation()}>
         <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
           <div>
             <div style={{ fontSize: 18, fontWeight: 800, color: T.text1 }}>Import from Google Sheets</div>
-            <div style={{ fontSize: 12, color: T.text4, marginTop: 4 }}>Choose a saved Sheet source, pick the tab/gid, scan, then import into Supabase.</div>
+            <div style={{ fontSize: 12, color: T.text4, marginTop: 4 }}>Choose a saved Sheet source, pick the tab/gid, scan, then save to your Vault.</div>
           </div>
-          <button onClick={onClose} style={iconBtn}><Icon name="x" size={18} /></button>
+          <button aria-label="Close import from google sheets" onClick={onClose} style={iconBtn}><Icon name="x" size={18} /></button>
         </div>
 
         <div style={{ display: "grid", gap: 10 }}>

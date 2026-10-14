@@ -38,17 +38,12 @@ test("service worker does not intercept API responses or cache private routes", 
   assert.doesNotMatch(sw, /cache\.put\(request, copy\)/);
 });
 
-test("search bypasses caches, renews session, cancels stale requests, and can retry", () => {
-  const browser = source("components/InAppBrowser.jsx");
-  assert.match(browser, /searchAbort\.current\?\.abort\(\)/);
-  assert.match(browser, /sequence !== searchSequence\.current/);
-  assert.match(browser, /cache: "no-store"/);
-  assert.match(browser, /credentials: "same-origin"/);
-  assert.match(browser, /response\.status === 401/);
-  assert.match(browser, /ensureProxySession\(null, \{ force: true \}\)/);
-  assert.match(browser, /Search in browser/);
-  const server = source("app/api/browser-search/route.js");
-  assert.match(server, /"Cache-Control": "no-store"/);
+test("removed browser search cannot return web results, while URL cover metadata stays protected",()=>{
+ const vault=source("components/vault-v2/VaultV2.jsx");
+ const metadata=source("app/api/metadata/route.js");
+ assert.equal(fs.existsSync("app/api/browser-search/route.js"),false);
+ assert.doesNotMatch(vault,/InAppBrowser|setBrowserOpen/);
+ assert.match(metadata,/guardProxyRequest/);
 });
 
 test("secure Relay renews on focus and preserves playback position on mode switch", () => {

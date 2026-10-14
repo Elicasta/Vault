@@ -73,12 +73,12 @@ test("accessible category results expose gallery URLs to save, denied gallery of
  assert.match(saver,/type="checkbox"/);
  assert.match(saver,/target="_blank"/);
 });
-test("new UI shows a stable link card and a direct Open Original control instead of broken image previews",()=>{
+test("clean link cards keep stored cover previews and Original source navigation",()=>{
  const card=fs.readFileSync("components/vault-v2/MediaCard.jsx","utf8");
  const detail=fs.readFileSync("components/vault-v2/DetailDrawer.jsx","utf8");
+ assert.match(card,/item\.display_thumbnail, item\.thumbnail/);
  assert.match(card,/isLink \? \[\] : getThumbCandidates/);
- assert.match(card,/isLink \? "link"/);
- assert.match(detail,/Open original gallery/);
- assert.match(detail,/item\?\.type==="link"/);
+ assert.match(detail,/Open original source/);
  assert.match(detail,/target="_blank"/);
+ assert.match(detail,/rel="noopener noreferrer"/);
 });

@@ -3,19 +3,16 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { discoverMedia } from "../lib/server/media-discovery.mjs";
 
-test("Import Media stays URL-first but still supports gallery import and actual uploads",()=>{
- const importer=fs.readFileSync("components/ImportMediaWorkspace.jsx","utf8");
+test("the simplified plus form is the only main UI media entry",()=>{
+ const form=fs.readFileSync("components/vault-v2/AddMediaSheet.jsx","utf8");
  const nav=fs.readFileSync("components/vault-v2/VaultV2.jsx","utf8");
- assert.match(importer,/1\. Save URL to Vault/);
- assert.match(importer,/2\. Import an image gallery|ImportGallerySection/);
- assert.match(importer,/3\. Upload a permanent copy/);
- assert.match(importer,/4\. Back up imported files/);
- assert.match(importer,/buildGeneratorUrlItem/);
- assert.match(importer,/uploadVaultMedia/);
- assert.match(importer,/SourceInspector/);
- assert.match(nav,/\"import\", \"\/import\", \"download\", \"Import Media\"/);
- assert.doesNotMatch(nav,/\"venice\"|\"perchance\"|GeneratorWorkspace/);
- assert.ok(fs.existsSync("app/import/page.jsx"));
+ const retired=fs.readFileSync("app/import/page.jsx","utf8");
+ assert.match(nav,/<AddMediaSheet/);
+ assert.doesNotMatch(nav,/ImportMediaWorkspace|InAppBrowser/);
+ assert.match(form,/Media URL/);
+ assert.match(form,/Cover image URL/);
+ assert.match(form,/coverReady && !coverFailed/);
+ assert.equal(retired.includes('redirect("/library")'), true);
 });
 
 test("Gallery import uses detected original and linked photo pages with chosen collection",()=>{

@@ -23,16 +23,29 @@ export default function AuthGate({ children }) {
 
   useEffect(() => {
     if (!isSupabaseConfigured()) return;
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
+    supabase.auth.getSession().then(({ data, error: sessionError }) => {
+      if (sessionError) throw sessionError;
+      setSession(data?.session || null);
+      setChecking(false);
+    }).catch((sessionError) => {
+      setError(sessionError?.message || "Could not restore your Vault session. Retry signing in.");
       setChecking(false);
     });
     const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => setSession(s));
     return () => sub.subscription.unsubscribe();
   }, []);
 
-  // No Supabase configured = no auth, app runs in local-only mode
-  if (!isSupabaseConfigured()) return children;
+  // Vault is a cloud library. A missing deployment setting must never appear
+  // to be a new or empty Vault, and must never bypass the sign-in gate.
+  if (!isSupabaseConfigured()) return (
+    <div role="alert" style={{ minHeight:"100dvh", background:"#070707", color:"#f5f5f5", display:"grid", placeItems:"center", padding:24, fontFamily:"Inter,-apple-system,sans-serif" }}>
+      <div style={{ maxWidth:440, textAlign:"center" }}>
+        <div style={{ fontSize:20, fontWeight:700, marginBottom:12 }}>Vault connection unavailable</div>
+        <p style={{ fontSize:14, color:"#b8b8bf", lineHeight:1.6, marginBottom:20 }}>This preview is missing its cloud connection settings. Your saved media has not been cleared. Please reload or contact the Vault administrator.</p>
+        <button type="button" onClick={() => window.location.reload()} style={{ minHeight:44, borderRadius:12, background:"#f5f5f5", color:"#070707", border:0, padding:"10px 18px", fontWeight:700, cursor:"pointer" }}>Retry connection</button>
+      </div>
+    </div>
+  );
 
   if (checking) {
     return (
@@ -50,7 +63,14 @@ export default function AuthGate({ children }) {
     );
   }
 
-  if (session) return children;
+  // Chrome may read this public session *status* on Vault-origin tabs only.
+  // Do not expose Supabase credentials, cookies or access tokens here.
+  if (session) return <>
+    <span data-vault-extension-session="signed-in"
+      data-vault-extension-account={session.user?.email || ""}
+      aria-hidden="true" hidden />
+    {children}
+  </>;
 
   const handleSubmit = async () => {
     if (!email.trim() || !password.trim()) return;

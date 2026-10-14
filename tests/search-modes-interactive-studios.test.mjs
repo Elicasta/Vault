@@ -1,78 +1,46 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import fs from "node:fs";
-import { normalSearchMode,normalSearchScope,providerSafety,expandedSearchQuery,rankAndMergeSearch } from "../lib/server/search-mode.mjs";
+const read=path=>fs.readFileSync(path,"utf8");
 
-test("search defaults to strict Regular mode, with opt-in NSFW or unrestricted",()=>{
-  assert.equal(normalSearchMode(undefined),"regular");
-  assert.equal(normalSearchMode("bogus"),"regular");
-  assert.equal(normalSearchMode("nsfw"),"nsfw");
-  assert.equal(normalSearchMode("unrestricted"),"unrestricted");
-  assert.equal(providerSafety("regular").ddg,"1");
-  assert.equal(providerSafety("regular").bing,"strict");
-  assert.equal(providerSafety("nsfw").ddg,"-2");
-  assert.equal(providerSafety("unrestricted").bing,"off");
-  assert.equal(normalSearchScope("bad"),"all");
+test("Vault no longer navigates to web search, adult discovery, or the separate import page",()=>{
+ const v=read("components/vault-v2/VaultV2.jsx");
+ assert.doesNotMatch(v,/\/search|\/nsfw|\/import/);
+ assert.doesNotMatch(v,/InAppBrowser|ImportMediaWorkspace/);
+ assert.equal(fs.existsSync("app/api/browser-search/route.js"),false);
+ for(const route of ["search","nsfw","import"])assert.match(read("app/"+route+"/page.jsx"),/redirect\("\/library"\)/);
 });
-test("image and video queries target media without implicitly adding NSFW content",()=>{
-  assert.match(expandedSearchQuery("skyline","videos"),/video OR watch OR clip/);
-  assert.match(expandedSearchQuery("skyline","images"),/image OR photo OR gallery/);
-  assert.equal(expandedSearchQuery("skyline","all"),"skyline");
+
+test("plus Add Media replaces the old import with a cover-first URL workflow",()=>{
+ const v=read("components/vault-v2/VaultV2.jsx");
+ const form=read("components/vault-v2/AddMediaSheet.jsx");
+ assert.match(v,/<AddMediaSheet/);
+ assert.match(v,/Add Media<\/button>/);
+ assert.match(form,/Media URL/);
+ assert.match(form,/Cover URL/);
+ assert.match(form,/Automatic/);
+ assert.match(form,/Cover image URL/);
+ assert.match(form,/getThumbCandidates\(target\)/);
 });
-test("search results merge provider duplicates and rank media pages",()=>{
-  const result=rankAndMergeSearch([
-    {title:"Moon gallery",url:"https://site.test/photos/moon",snippet:"Beautiful image gallery",provider:"duckduckgo-html"},
-    {title:"Moon gallery",url:"https://site.test/photos/moon",snippet:"duplicate",provider:"bing-html"},
-    {title:"Unrelated guide",url:"https://example.net/about",provider:"bing-html"},
-    {title:"Moon video clip",url:"https://site.test/watch/moon",provider:"duckduckgo-lite"},
-    {title:"bad",url:"javascript:alert(1)",provider:"duckduckgo-html"},
-  ],{query:"moon",scope:"images",mode:"regular"});
-  assert.equal(result.length,3);
-  assert.equal(result[0].url,"https://site.test/photos/moon");
-  assert.equal(result[0].sources.length,2);
-  assert.equal(result.some(x=>x.url.startsWith("javascript:")),false);
-  assert.ok(result[0].kind==="image"||result[0].kind==="media");
+
+test("new titles have name, tag, description and collection fields",()=>{
+ const form=read("components/vault-v2/AddMediaSheet.jsx");
+ for(const label of ["Name","Tags","Description","Collection"])assert.ok(form.includes(label));
+ assert.match(form,/title:name\.trim\(\),note:description\.trim\(\),tags:tagList\(tags\)/);
+ assert.match(form,/folder:destination \|\| null/);
 });
-test("search endpoint genuinely sends per-provider safe search controls and merges results",()=>{
-  const route=fs.readFileSync("app/api/browser-search/route.js","utf8");
-  assert.match(route,/url\.searchParams\.set\("kp", safety\.ddg\)/);
-  assert.match(route,/url\.searchParams\.set\("adlt", safety\.bing\)/);
-  assert.match(route,/normalSearchMode\(searchParams\.get\("mode"\)\)/);
-  assert.match(route,/normalSearchScope\(searchParams\.get\("scope"\)\)/);
-  assert.match(route,/Promise\.allSettled/);
-  assert.match(route,/rankAndMergeSearch/);
-  assert.match(route,/guardProxyRequest\(req,"search"\)/);
-  assert.doesNotMatch(route,/if \(results\.length\) \{\s*return NextResponse\.json\(\{ query: q, locale:/);
+
+test("new cover URL is verified by preview before persistence",()=>{
+ const form=read("components/vault-v2/AddMediaSheet.jsx");
+ assert.match(form,/coverReady && !coverFailed/);
+ assert.match(form,/onLoad=\{\(\)=>setCoverReady\(true\)\}/);
+ assert.match(form,/onError=/);
+ assert.match(form,/setError\(e\?\.message/);
 });
-test("Vault browser exposes clear safety controls and media scopes with regular default",()=>{
-  const view=fs.readFileSync("components/InAppBrowser.jsx","utf8");
-  assert.match(view,/useState\("regular"\)/);
-  assert.match(view,/useState\("all"\)/);
-  assert.match(view,/NSFW/);
-  assert.match(view,/Unrestricted/);
-  assert.match(view,/aria-pressed=\{searchMode===value\}/);
-  assert.match(view,/All results/);
-  assert.match(view,/Sites \/ galleries/);
-  assert.match(view,/searchScope/);
-  assert.match(view,/Filter by website/);
-  assert.match(view,/More results/);
-});
-test("Vault uses universal import with gallery depth and keeps Chrome image capture",()=>{
-  const vault=fs.readFileSync("components/vault-v2/VaultV2.jsx","utf8");
-  const importer=fs.readFileSync("components/ImportMediaWorkspace.jsx","utf8");
-  const gallery=fs.readFileSync("components/ImportGallerySection.jsx","utf8");
-  const extension=JSON.parse(fs.readFileSync("extensions/vault-media-capture/manifest.json","utf8"));
-  const popup=fs.readFileSync("extensions/vault-media-capture/popup.html","utf8");
-  assert.match(vault,/\/import/);
-  assert.doesNotMatch(vault,/Venice AI|Perchance AI|route==="venice"/);
-  assert.match(importer,/Save URL to Vault/);
-  assert.match(importer,/uploadVaultMedia/);
-  assert.match(importer,/ImportGallerySection/);
-  assert.match(gallery,/GalleryImporter/);
-  assert.match(gallery,/ImageDetailPanel/);
-  assert.match(gallery,/onCreateFolder/);
-  assert.match(popup,/Smart Image Capture/);
-  assert.ok(!extension.permissions.includes("sidePanel"));
-  assert.match(fs.readFileSync("app/studios/perchance/page.jsx","utf8"),/redirect\("\/import"\)/);
-  assert.match(fs.readFileSync("app/studios/venice/page.jsx","utf8"),/redirect\("\/import"\)/);
+
+test("existing Chrome browser capture is still versioned but no longer in main Vault UI",()=>{
+ const popup=read("extensions/vault-media-capture/popup.js");
+ const modern=read("components/vault-v2/VaultV2.jsx");
+ assert.match(popup,/vault-media-capture-v1/);
+ assert.doesNotMatch(modern,/ImportMediaWorkspace|InAppBrowser/);
 });

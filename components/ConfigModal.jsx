@@ -2,6 +2,7 @@
 import { useState, useEffect, useRef } from "react";
 import { extractSheetId, extractSheetGid, splitKeywords, normalizeCoverUrl, proxiedMediaUrl, DEFAULT_SHEET_SOURCE, mergeSheetSources, normalizeSheetSource } from "@/lib/utils";
 import Icon from "./Icons";
+import useModalFocus from "./hooks/useModalFocus";
 import { T } from "@/lib/theme";
 
 const isPublishedExportUrl = (val) =>
@@ -94,12 +95,8 @@ export default function ConfigModal({
     return () => { alive = false; };
   }, [activeTab]);
 
-  useEffect(() => {
-    if (activeTab === "sheet") ref.current?.focus();
-    const h = (e) => { if (e.key === "Escape" && savedId && !needsManualTabs) onClose(); };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [onClose, savedId, needsManualTabs, activeTab]);
+  const dialogRef = useModalFocus(() => { if (savedId && !needsManualTabs) onClose(); });
+
 
   const handleChange = (v) => {
     setVal(v);
@@ -186,7 +183,7 @@ export default function ConfigModal({
   return (
     <>
       <div onClick={() => savedId && !needsManualTabs && onClose()} style={{ position: "fixed", inset: 0, zIndex: 1098, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)" }} />
-      <div style={{
+      <div ref={dialogRef} className="vault-dialog" role="dialog" aria-modal="true" aria-label="Vault settings" tabIndex={-1} style={{
         position: "fixed",
         top: "50%", left: "50%", transform: "translate(-50%, -50%)",
         width: "min(96vw, 760px)", maxHeight: "92dvh", overflow: "auto", zIndex: 1099,
@@ -201,7 +198,7 @@ export default function ConfigModal({
             <div style={{ fontSize: 16, fontWeight: 700, color: T.text1 }}>Vault Settings</div>
             <div style={{ fontSize: 12, color: T.text4, marginTop: 4 }}>Connect Sheets and manage uniform card covers.</div>
           </div>
-          {savedId && !needsManualTabs && <button onClick={onClose} style={iconBtn}><Icon name="x" size={18} /></button>}
+          {savedId && !needsManualTabs && <button aria-label="Close vault settings" onClick={onClose} style={iconBtn}><Icon name="x" size={18} /></button>}
         </div>
 
         <div style={{ display: "flex", gap: 7, marginBottom: 16, borderBottom: `1px solid ${T.borderSub}`, paddingBottom: 8, overflowX: "auto" }}>

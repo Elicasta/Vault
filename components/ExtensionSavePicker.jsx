@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase, getFolders, createFolder, upsertVaultItem } from "@/lib/supabase";
 import { parseCapturedMedia, buildVaultMediaItem } from "@/lib/media-capture-import.mjs";
 import { itemKey, sourceIdOf } from "@/lib/utils";
+import { getThumbCandidates } from "@/lib/sources";
 
 const PENDING_KEY = "vault-chrome-folder-picker";
 const MAX_ITEMS = 300;
@@ -42,6 +43,9 @@ export default function ExtensionSavePicker() {
   const [query, setQuery] = useState("");
   const [newName, setNewName] = useState("");
   const [userId, setUserId] = useState("");
+  const [accountEmail, setAccountEmail] = useState("");
+  const metadataChecked = useRef(new Set());
+  const [metadataBusy, setMetadataBusy] = useState(0);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -54,6 +58,7 @@ export default function ExtensionSavePicker() {
   const receive = useCallback(payload => {
     const incoming = normalizedMedia(payload);
     if (!incoming.length) return false;
+    metadataChecked.current.clear();
     setItems(incoming);
     setCompleted(0);
     setError("");
@@ -99,6 +104,7 @@ export default function ExtensionSavePicker() {
         return;
       }
       setUserId(data.user.id);
+      setAccountEmail(data.user.email || "");
       try { await refreshFolders(data.user.id); }
       catch (err) { if (active) setError(err.message || "Could not load collections."); }
       if (active) setLoading(false);
@@ -111,6 +117,49 @@ export default function ExtensionSavePicker() {
     .map(item => ({ ...item, path: pathFor(item, folders) }))
     .filter(item => item.path.toLowerCase().includes(query.toLowerCase()))
     .sort((a, b) => a.path.localeCompare(b.path)), [folders, query]);
+
+  const updateEntry = (url, patch) => setItems(current => current.map(item =>
+    item.url === url ? {...item, ...patch} : item
+  ));
+
+  // Covers are mandatory for the clean-slate Vault. Prefer source-specific
+  // thumbnails, then ordinary page metadata. Never use a fake generic cover.
+  const refreshMetadata = useCallback(async entry => {
+    if (!entry?.url) return;
+    try {
+      const response=await fetch("/api/metadata?url="+encodeURIComponent(entry.url),{
+        credentials:"same-origin",cache:"no-store",
+      });
+      if(!response.ok) return;
+      const info=await response.json();
+      if(!info || typeof info!=="object")return;
+      setItems(current=>current.map(item=>{
+        if(item.url!==entry.url)return item;
+        const autoCover=(getThumbCandidates(item.url)||[]).find(v=>/^https?:\/\//.test(v))||"";
+        const thumb=String(info.thumbnail||"").startsWith("https://")?info.thumbnail:autoCover;
+        const genericTitle=/^(?:Saved link|Google Drive|Pinterest|YouTube|website|Captured (?:image|video))\b/i.test(item.title||"");
+        return {
+          ...item,
+          thumbnail:item.thumbnail||thumb,
+          title:genericTitle&&info.title?String(info.title).slice(0,180):item.title,
+        };
+      }));
+    } catch {}
+  },[]);
+
+  useEffect(()=>{
+    if(!userId || !items.length || metadataBusy>0)return;
+    // Limit metadata lookups to 48 page requests per capture and 4 concurrent.
+    const genericName=/^(?:Saved link|Google Drive|Pinterest|YouTube|website|Captured (?:image|video))\b/i;
+    const next=items.slice(0,48).filter(item=>(!item.thumbnail || genericName.test(item.title||"")) && !metadataChecked.current.has(item.url)).slice(0,4);
+    if(!next.length)return;
+    for(const item of next)metadataChecked.current.add(item.url);
+    setMetadataBusy(count=>count+next.length);
+    Promise.allSettled(next.map(entry=>refreshMetadata(entry))).finally(()=>{
+      setMetadataBusy(count=>Math.max(0,count-next.length));
+    });
+  },[userId,items,refreshMetadata,metadataBusy]);
+
 
   async function createNewFolder() {
     const name = newName.trim().slice(0, 100);
@@ -184,7 +233,7 @@ export default function ExtensionSavePicker() {
       if (failures.length === 0) {
         sessionStorage.removeItem(PENDING_KEY);
         setItems([]);
-        setSuccess("Saved " + successful.size + " item" + (successful.size === 1 ? "" : "s") + " to " + (folder || "Inbox") + ".");
+        setSuccess("Saved " + successful.size + " item" + (successful.size === 1 ? "" : "s") + " to " + (folder || "Library") + ".");
       } else {
         setItems(current.filter(entry => !successful.has(entry.url)));
         // Only unsaved links remain on retry, so duplicates aren't created.
@@ -206,8 +255,11 @@ export default function ExtensionSavePicker() {
     <div style={{ maxWidth: 700, margin: "0 auto" }}>
       <div style={{ fontSize: 11, color: "#9b9b9b", letterSpacing: 1.6, fontWeight: 700 }}>VAULT · SAVE FROM CHROME</div>
       <h1 style={{ fontSize: 30, margin: "10px 0 6px", letterSpacing: -0.7 }}>Save to Vault</h1>
+      {userId&&<div data-testid="extension-connected-account" style={{margin:"12px 0",padding:"11px 13px",background:"#10251e",border:"1px solid #275441",borderRadius:9,fontSize:12,color:"#b8f7d5"}}>
+        Connected to {accountEmail || "your signed-in Vault account"} · All saves use this account
+      </div>}
       <p style={{ fontSize: 13, color: "#aaa", lineHeight: 1.6 }}>
-        Choose a destination and confirm once. Single images and gallery batches use the same window.
+        Choose a destination and confirm once. Images, videos, Pinterest pins, Drive shares and regular links use your existing signed-in account.
       </p>
       <section style={panelStyle}>
         <h2 style={{ fontSize: 15, margin: "0 0 12px" }}>Save to collection</h2>
@@ -242,11 +294,11 @@ export default function ExtensionSavePicker() {
       </section>
       <section style={panelStyle}>
         <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "baseline" }}>
-          <h2 style={{ fontSize: 15, margin: "0 0 10px" }}>Images to save</h2>
+          <h2 style={{ fontSize: 15, margin: "0 0 10px" }}>Links and media to save</h2>
           <span style={{ fontSize: 12, color: "#999" }}>{items.length} / {MAX_ITEMS}</span>
         </div>
         {!items.length && <p style={{ fontSize: 13, color: "#999", lineHeight: 1.6 }}>
-          Right-click any image, or choose images in the Chrome extension. Your selection appears here.
+          Right-click a page, link or image—or paste a URL in the Chrome extension. Your selection appears here.
         </p>}
         <div style={{ maxHeight: 280, overflowY: "auto" }}>
           {items.map(entry => <div key={entry.url}
@@ -257,9 +309,22 @@ export default function ExtensionSavePicker() {
                 style={{ width: "100%", height: "100%", objectFit: "cover" }} />}
             </div>
             <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 12, fontWeight: 650, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.title}</div>
-              <div title={entry.url} style={{ fontSize: 10, color: "#999", marginTop: 3,
-                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{entry.url}</div>
+              <div style={{fontSize:10,color:"#a1b3c6",textTransform:"uppercase",fontWeight:700}}>{entry.source || entry.type}</div>
+              <input aria-label={"Title for "+entry.url} value={entry.title||""}
+                onChange={event=>updateEntry(entry.url,{title:event.target.value})}
+                disabled={saving} style={{...inputStyle,margin:"5px 0",padding:"8px 9px",fontSize:12}}/>
+              <div title={entry.url} style={{fontSize:10,color:"#999",marginTop:3,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{entry.url}</div>
+              <input type="url" aria-label={"Cover URL for "+entry.url} value={entry.thumbnail||""}
+                onChange={event=>updateEntry(entry.url,{thumbnail:event.target.value})}
+                placeholder="Required cover URL (automatic or paste your own)"
+                disabled={saving} style={{...inputStyle,margin:"7px 0 0",padding:"8px 9px",fontSize:11}} />
+              {!entry.thumbnail && <div style={{fontSize:11,color:"#eabb8f",marginTop:5}}>
+                {metadataBusy ? "Looking for a cover…" : "Cover unavailable—paste one before saving."}
+              </div>}
+              <button type="button" disabled={saving} onClick={()=>{metadataChecked.current.add(entry.url);void refreshMetadata(entry);}}
+                style={{marginTop:7,padding:"5px 8px",fontSize:10,color:"#dce9fb",background:"#232c39",border:"1px solid #404d5d",borderRadius:6,cursor:"pointer"}}>
+                Refresh title &amp; cover
+              </button>
             </div>
             <button type="button" disabled={saving} onClick={() => setItems(old => old.filter(x => x.url !== entry.url))}
               aria-label={"Remove " + entry.title} style={{ border: 0, background: "none", color: "#aaa", cursor: "pointer", fontSize: 20 }}>×</button>
@@ -272,7 +337,7 @@ export default function ExtensionSavePicker() {
         style={{ ...buttonStyle, width: "100%", padding: 17, fontSize: 14, marginTop: 15,
           opacity: !items.length || !userId || saving || loading ? .5 : 1 }}>
         {saving ? "Saving " + completed + " of " + items.length + "…" :
-          "Save " + items.length + " item" + (items.length === 1 ? "" : "s") + " to " + (folder || "Inbox")}
+          "Save " + items.length + " item" + (items.length === 1 ? "" : "s") + " to " + (folder || "Library")}
       </button>
       <p style={{ marginTop: 14, color: "#888", fontSize: 11, lineHeight: 1.7 }}>
         Vault saves the link. If the source requires sign-in, expires, or returns HTTP 403, this does not make a permanent copy of its image bytes.

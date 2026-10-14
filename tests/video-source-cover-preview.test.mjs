@@ -98,8 +98,9 @@ test("audio-only playback can hide from Library but not destroy saved record", (
   assert.match(player,/Audio is available, but this browser could not decode the video track/);
   assert.match(player,/onRemoveFromLibrary/);
   assert.match(vault,/withLibraryVisibility\(item, hidden\)/);
-  assert.match(vault,/\.filter\(\(item\) => !isHiddenLibraryItem\(item\)\)/);
+  assert.match(vault,/!isHiddenLibraryItem\(item\)/);
   assert.match(vault,/hiddenItems\.map/);
   assert.match(vault,/Restore/);
-  assert.match(drawer,/Remove from Library/);
+  assert.match(drawer,/v2-clean-detail/);
+  assert.doesNotMatch(drawer,/Remove from Library/);
 });

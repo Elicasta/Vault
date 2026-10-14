@@ -1,6 +1,8 @@
 "use client";
 import { useState, useEffect, useRef } from "react";
 import Icon from "./Icons";
+import useModalFocus from "./hooks/useModalFocus";
+import { isMediaUrl, cropPosition } from "@/lib/media-form.mjs";
 import { itemKey } from "@/lib/utils";
 import { getSourceMeta } from "@/lib/sources";
 import { T } from "@/lib/theme";
@@ -23,23 +25,14 @@ export default function QuickAddModal({ onAdd, onClose, folders = [], onCreateFo
   const [newFolderName, setNewFolderName] = useState("");
   const [creatingFolder, setCreatingFolder] = useState(false);
   const urlRef = useRef(null);
+  const saveLock = useRef(false);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
+  const close = () => { if (!saveLock.current) onClose(); };
+  const dialogRef = useModalFocus(close);
 
-  // Read clipboard on mount
-  useEffect(() => {
-    const read = async () => {
-      if (!initialItem) {
-        try {
-          const text = await navigator.clipboard.readText();
-          if (text?.startsWith("http")) setUrl(text.trim());
-        } catch {}
-      }
-      urlRef.current?.focus();
-    };
-    read();
-    const h = (e) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", h);
-    return () => window.removeEventListener("keydown", h);
-  }, [onClose, initialItem]);
+  // Clipboard access is explicit through Paste; opening never replaces a draft.
+  useEffect(() => { urlRef.current?.focus(); }, []);
 
   const meta = url ? getSourceMeta(url) : null;
   const isKnown = meta && meta.id !== "extract";
@@ -94,14 +87,14 @@ export default function QuickAddModal({ onAdd, onClose, folders = [], onCreateFo
     return () => { cancelled = true; clearTimeout(t); };
   }, [url, coverMode]);
 
-  const canAdd = /^https?:\/\//i.test(url.trim());
+  const canAdd = isMediaUrl(url);
 
   const handlePaste = async () => {
     setPasting(true);
     try {
       const text = await navigator.clipboard.readText();
       if (text?.trim()) setUrl(text.trim());
-    } catch {}
+    } catch { setSaveError("Clipboard unavailable. Paste your link into the URL field."); }
     setPasting(false);
   };
 
@@ -114,13 +107,18 @@ export default function QuickAddModal({ onAdd, onClose, folders = [], onCreateFo
       await onCreateFolder?.(name);
       setFolder(name);
       setNewFolderName("");
+    } catch (error) {
+      setSaveError(error?.message || "Could not create folder. Try again.");
     } finally {
       setCreatingFolder(false);
     }
   };
 
   const handleAdd = async () => {
-    if (!canAdd) return;
+    if (!canAdd || saveLock.current) return;
+    saveLock.current = true;
+    setSaving(true);
+    setSaveError("");
     const manualThumb = thumbnail.trim();
     const autoThumb = metadata?.thumbnail || "";
     const resolvedThumb = coverMode === "manual"
@@ -146,8 +144,8 @@ export default function QuickAddModal({ onAdd, onClose, folders = [], onCreateFo
       thumbnail_source: thumbSource,
       cover_mode: coverMode,
       cover_fit: coverFit,
-      cover_position_x: Number(coverX) || 50,
-      cover_position_y: Number(coverY) || 50,
+      cover_position_x: cropPosition(coverX),
+      cover_position_y: cropPosition(coverY),
       type: metadata?.type || initialItem?.type || "link",
       siteName: metadata?.siteName || "",
       folder: folder || null,
@@ -156,13 +154,15 @@ export default function QuickAddModal({ onAdd, onClose, folders = [], onCreateFo
       addedAt: initialItem?.addedAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
-    try { await onAdd(item); } catch {} finally { onClose(); }
+    try { await onAdd(item); onClose(); }
+    catch (error) { setSaveError(error?.message || "Could not save. Your changes are still here. Try again."); }
+    finally { saveLock.current = false; setSaving(false); }
   };
 
   return (
     <>
-      <div onClick={onClose} style={{ position: "fixed", inset: 0, zIndex: 1098, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)" }} />
-      <div style={{
+      <div onClick={close} style={{ position: "fixed", inset: 0, zIndex: 1098, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(6px)" }} />
+      <div ref={dialogRef} className="vault-dialog" role="dialog" aria-modal="true" aria-label={mode === "edit" ? "Edit media" : "Add media"} tabIndex={-1} aria-busy={saving} style={{
         position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 1099,
         background: "rgba(10,10,10,0.97)", backdropFilter: "blur(24px)",
         borderTopLeftRadius: 20, borderTopRightRadius: 20,
@@ -180,9 +180,9 @@ export default function QuickAddModal({ onAdd, onClose, folders = [], onCreateFo
         <div style={{ padding: "4px 20px 8px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
             <div style={{ fontSize: 15, fontWeight: 800, color: T.text1 }}>{mode === "edit" ? "Edit item" : "Add media"}</div>
-            <div style={{ fontSize: 11, color: T.text4, marginTop: 2 }}>{mode === "edit" ? "Update the saved link, cover, folder, or notes." : "Paste once. Supabase saves the real vault record."}</div>
+            <div style={{ fontSize: 11, color: T.text4, marginTop: 2 }}>{mode === "edit" ? "Update the saved link, cover, folder, or notes." : "Save a link, choose a collection, and make it yours."}</div>
           </div>
-          <button onClick={onClose} style={{ background: "none", border: "none", color: T.text3, cursor: "pointer", padding: 4 }}>
+          <button aria-label="Close add media" disabled={saving} onClick={close} style={{ background: "none", border: "none", color: T.text3, cursor: "pointer", padding: 4 }}>
             <Icon name="x" size={18} />
           </button>
         </div>
@@ -190,7 +190,8 @@ export default function QuickAddModal({ onAdd, onClose, folders = [], onCreateFo
         <div style={{ padding: "0 20px 4px", display: "flex", flexDirection: "column", gap: 10 }}>
           <div style={{ display: "flex", gap: 8 }}>
             <input
-              ref={urlRef}
+              aria-label="Media URL"
+            ref={urlRef}
               value={url}
               onChange={(e) => setUrl(e.target.value)}
               placeholder="Paste any media or reference URL..."
@@ -202,12 +203,14 @@ export default function QuickAddModal({ onAdd, onClose, folders = [], onCreateFo
           </div>
 
           <input
+            aria-label="Title"
             value={title} onChange={(e) => setTitle(e.target.value)}
             placeholder="Title (optional)"
             style={{ padding: "11px 14px", background: "rgba(255,255,255,0.06)", border: `1px solid ${T.border}`, borderRadius: 10, color: T.text1, fontSize: 14, outline: "none" }}
           />
 
           <input
+            aria-label="Tags"
             value={tags} onChange={(e) => setTags(e.target.value)}
             placeholder="Tags (comma-separated)"
             style={{ padding: "11px 14px", background: "rgba(255,255,255,0.06)", border: `1px solid ${T.border}`, borderRadius: 10, color: T.text1, fontSize: 13, outline: "none" }}
@@ -215,6 +218,7 @@ export default function QuickAddModal({ onAdd, onClose, folders = [], onCreateFo
 
           <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 8 }}>
             <select
+              aria-label="Folder"
               value={folder}
               onChange={(e) => setFolder(e.target.value)}
               style={{ minWidth: 0, padding: "11px 14px", background: "rgba(255,255,255,0.06)", border: `1px solid ${T.border}`, borderRadius: 10, color: T.text1, fontSize: 13, outline: "none" }}
@@ -253,6 +257,7 @@ export default function QuickAddModal({ onAdd, onClose, folders = [], onCreateFo
           )}
 
           <input
+            aria-label="Note"
             value={note} onChange={(e) => setNote(e.target.value)}
             placeholder="Note (optional)"
             style={{ padding: "11px 14px", background: "rgba(255,255,255,0.06)", border: `1px solid ${T.border}`, borderRadius: 10, color: T.text1, fontSize: 13, outline: "none" }}
@@ -316,7 +321,7 @@ export default function QuickAddModal({ onAdd, onClose, folders = [], onCreateFo
               <span style={{ color: T.text2 }}>{meta.name}</span>
               {isKnown && (
                 <span style={{ color: T.green, display: "inline-flex", alignItems: "center", gap: 4, marginLeft: "auto" }}>
-                  <Icon name="check" size={12} strokeWidth={2.5} /> Will play
+                  <Icon name="check" size={12} strokeWidth={2.5} /> Recognized source
                 </span>
               )}
               {isExtract && preflight.state === "checking" && (
@@ -338,9 +343,10 @@ export default function QuickAddModal({ onAdd, onClose, folders = [], onCreateFo
             </div>
           )}
 
+          {saveError && <p role="alert" style={{color:"#ffb4b4",fontSize:13,lineHeight:1.5}}>{saveError}</p>}
           <button
             onClick={handleAdd}
-            disabled={!canAdd}
+            disabled={!canAdd || saving}
             style={{
               padding: "13px",
               background: canAdd ? "rgba(255,255,255,0.12)" : "rgba(255,255,255,0.04)",
@@ -352,7 +358,7 @@ export default function QuickAddModal({ onAdd, onClose, folders = [], onCreateFo
               marginTop: 4,
             }}
           >
-            {mode === "edit" ? "Save Changes" : "Add to Vault"}
+            {saving ? "Saving…" : mode === "edit" ? "Save Changes" : "Add to Vault"}
           </button>
         </div>
       </div>
