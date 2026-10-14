@@ -16,6 +16,101 @@ function isOldVaultPreview(origin) {
   } catch { return false; }
 }
 const selectedEl = document.querySelector("#selected");
+const sourceAware = globalThis.VaultSourceAware;
+const connectionPanel = document.querySelector(".connection");
+const accountStatus = document.querySelector("#vault-connection-status");
+const accountLabel = document.querySelector("#vault-connection-account");
+const sourceInput = document.querySelector("#source-link");
+const sourceLabel = document.querySelector("#source-kind");
+let inspectedPage = null;
+
+function getVaultSessionFromPage() {
+  // Runs only on a matching, preverified Vault-origin tab. Never read tokens.
+  const node = document.querySelector("[data-vault-extension-session='signed-in']");
+  return node ? { email: node.getAttribute("data-vault-extension-account") || "", connected: true } : {connected:false};
+}
+async function checkVaultAccount() {
+  connectionPanel.dataset.status = "checking";
+  accountStatus.textContent = "Checking Vault login…";
+  const origin=safeVaultOrigin(vaultUrlInput.value) || DEFAULT_VAULT;
+  try {
+    const tabs = await chrome.tabs.query({});
+    const matching = tabs.filter(tab => {
+      try {return new URL(tab.url).origin===origin;}catch{return false;}
+    });
+    for (const tab of matching) {
+      try {
+        const result = await chrome.scripting.executeScript({
+          target:{tabId:tab.id}, func:getVaultSessionFromPage,
+        });
+        const identity=result?.[0]?.result;
+        if (identity?.connected) {
+          connectionPanel.dataset.status="connected";
+          accountStatus.textContent="Connected to Vault";
+          accountLabel.textContent=identity.email || "Signed in on this browser";
+          return;
+        }
+      } catch {}
+    }
+    connectionPanel.dataset.status="disconnected";
+    accountStatus.textContent="Not connected yet";
+    accountLabel.textContent="Open Vault and sign in; then refresh this status.";
+  } catch (error) {
+    connectionPanel.dataset.status="disconnected";
+    accountStatus.textContent="Cannot check Vault login";
+    accountLabel.textContent=error?.message || "Try opening Vault first.";
+  }
+}
+document.querySelector("#vault-connect").addEventListener("click",async()=>{
+  const origin=safeVaultOrigin(vaultUrlInput.value)||DEFAULT_VAULT;
+  await chrome.tabs.create({url:origin+"/capture"});
+});
+document.querySelector("#vault-check").addEventListener("click",checkVaultAccount);
+
+function inspectCurrentPage() {
+  function absolute(raw) {try {const u=new URL(raw,location.href);return ["https:","http:"].includes(u.protocol)?u.href:"";}catch{return "";}}
+  const get=selector=>document.querySelector(selector)?.getAttribute("content") || "";
+  const cover=absolute(get('meta[property="og:image"]')||get('meta[name="twitter:image"]')||get('meta[property="twitter:image"]')||document.querySelector('link[rel="image_src"]')?.href||"");
+  const video=absolute(get('meta[property="og:video:url"]')||get('meta[property="og:video"]')||"");
+  const type=get('meta[property="og:type"]');
+  const title=get('meta[property="og:title"]')||get('meta[name="twitter:title"]')||document.title||"";
+  return {url:location.href,title,thumbnail:cover,video,type};
+}
+async function currentPageInfo() {
+  if (inspectedPage) return inspectedPage;
+  if (!currentTab?.id || !/^https?:/.test(currentTab.url || "")) return null;
+  try {
+    const result=await chrome.scripting.executeScript({target:{tabId:currentTab.id},func:inspectCurrentPage});
+    inspectedPage=result?.[0]?.result || null;
+  } catch { inspectedPage={url:currentTab.url,title:currentTab.title||"",thumbnail:""}; }
+  return inspectedPage;
+}
+function addShareLink(raw, info={}) {
+  const source=sourceAware?.identify(raw);
+  if(!source) {sourceLabel.textContent="Paste a complete HTTP(S) link.";return false;}
+  const item=sourceAware.enrich({url:raw,title:info.title||source.name+" item",thumbnail:info.thumbnail||source.thumbnail,
+    sourcePage:info.sourcePage||source.url,sourceKind:"browser-shared-link"});
+  add(item);
+  selected.add(item.url);
+  sourceLabel.textContent="Detected "+source.name+" · "+(item.thumbnail?"Cover available":"Vault will look for a cover before saving");
+  render();
+  return true;
+}
+document.querySelector("#add-link").addEventListener("click",async()=> {
+  const url=sourceInput.value.trim();
+  const page=await currentPageInfo();
+  const samePage=sourceAware?.cleanUrl(page?.url)===sourceAware?.cleanUrl(url);
+  if(addShareLink(url,samePage?page:{}))sourceInput.value="";
+});
+sourceInput.addEventListener("keydown",event=>{
+  if(event.key==="Enter"){event.preventDefault();document.querySelector("#add-link").click();}
+});
+document.querySelector("#save-page").addEventListener("click",async()=>{
+  const info=await currentPageInfo();
+  if(!info?.url){sourceLabel.textContent="Open a website to save its page.";return;}
+  addShareLink(info.url,info);
+});
+
 const selected = new Set();
 const saved = new Map();
 let currentTab;
@@ -31,9 +126,11 @@ function normalize(raw) {
 }
 function add(item) {
   const url = normalize(item?.url);
-  if (!url || !["image", "video"].includes(item?.type)) return;
+  if (!url || !["image", "video", "link", "audio"].includes(item?.type)) return;
   const previous = saved.get(url);
-  saved.set(url, { ...previous, ...item, url, title: item.title || previous?.title || (item.type === "image" ? "Image" : "Video"), sourcePage: item.sourcePage || previous?.sourcePage || currentTab?.url || "" });
+  const normalized=sourceAware?.enrich({...previous,...item,url}) || {...previous,...item,url};
+  saved.set(url, { ...normalized, title:item.title || previous?.title || normalized.title,
+    sourcePage:item.sourcePage || previous?.sourcePage || currentTab?.url || url });
 }
 function render() {
   const entries = [...saved.values()].filter((item) => activeFilter === "all" || item.type === activeFilter);
@@ -45,7 +142,7 @@ function render() {
     checkbox.type = "checkbox"; checkbox.checked = selected.has(item.url);
     checkbox.addEventListener("change", () => { if (checkbox.checked) selected.add(item.url); else selected.delete(item.url); updateStatus(); });
     const details = document.createElement("div");
-    if (item.type === "image" && item.thumbnail) {
+    if (item.thumbnail) {
       const thumb = document.createElement("img");
       thumb.className = "item-thumb";
       thumb.alt = "";
@@ -57,9 +154,12 @@ function render() {
     }
     const title = document.createElement("strong"); title.textContent = item.title;
     const url = document.createElement("span"); url.textContent = item.url; url.title = item.url;
-    details.append(title, url); label.append(checkbox, details); itemsEl.append(label);
+    const badge=document.createElement("small");
+    badge.className="source-label";
+    badge.textContent=item.sourceName || item.source || item.type;
+    details.append(title,badge,url);label.append(checkbox,details);itemsEl.append(label);
   }
-  statusEl.textContent = saved.size + " media link" + (saved.size === 1 ? "" : "s") + " detected in this tab";
+  statusEl.textContent = saved.size + " saved candidate" + (saved.size === 1 ? "" : "s") + " from links and media";
   updateStatus();
 }
 function updateStatus() {
@@ -140,6 +240,7 @@ async function start() {
   [currentTab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (!currentTab?.id) { statusEl.textContent = "Open a website to capture media."; return; }
   await loadVaultDestination();
+  await checkVaultAccount();
   await scanPage();
 }
 document.querySelector("#scan").addEventListener("click", scanPage);
@@ -163,7 +264,7 @@ copyBtn.addEventListener("click", async () => {
   const items=selectedItems();
   try {
     await navigator.clipboard.writeText(makePayload(items));
-    statusEl.textContent="Copied "+items.length+" links. Paste them into Vault → Import Media → Import from your browser.";
+    statusEl.textContent="Copied "+items.length+" links. Use Open Vault if you need to save them manually.";
   } catch (error) {statusEl.textContent="Copy failed: "+(error.message||"Clipboard unavailable");}
 });
 function safeVaultOrigin(raw) {
@@ -191,6 +292,7 @@ document.querySelector("#save-vault-url").addEventListener("click",async()=>{
     await chrome.storage.local.set({vault_import_origin:origin});
     vaultHostLabel.textContent=new URL(origin).hostname;
     vaultUrlResult.textContent="Destination saved. Selected items will be sent here.";
+    await checkVaultAccount();
   }catch(error){vaultUrlResult.textContent="Could not save destination: "+(error?.message||"Unknown error");}
 });
 sendBtn.addEventListener("click",async()=>{
