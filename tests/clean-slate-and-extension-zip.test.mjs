@@ -14,8 +14,8 @@ test("Chrome extension is packaged as a downloadable ZIP before Next.js builds",
  assert.equal(manifest.background.service_worker,"background.js");
  const background=fs.readFileSync("extensions/vault-media-capture/background.js","utf8");
  const popup=fs.readFileSync("extensions/vault-media-capture/popup.js","utf8");
- assert.match(background,/vault-preview-temp-git-polish-vault-p-5026a8-elicastas-projects\.vercel\.app/);
- assert.match(popup,/vault-preview-temp-git-polish-vault-p-5026a8-elicastas-projects\.vercel\.app/);
+ assert.match(background,/vault-preview-temp\.vercel\.app/);
+ assert.match(popup,/vault-preview-temp\.vercel\.app/);
 });
 
 test("local queued writes from before the Vault reset are cleared once", () => {
