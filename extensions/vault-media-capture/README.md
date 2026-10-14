@@ -16,7 +16,7 @@ A YouTube link is saved as a YouTube video link, a Drive link stays a Drive shar
 
 1. Download the latest `vault-media-capture.zip` from the preview at `/downloads/vault-media-capture.zip`.
 2. Unzip it and use Chrome (desktop) → `chrome://extensions` → **Developer mode** → **Load unpacked**, selecting the unzipped `vault-media-capture` folder containing `manifest.json`.
-3. Open `https://vault-preview-temp-git-polish-vault-p-5026a8-elicastas-projects.vercel.app` in desktop Chrome and sign in.
+3. Open `https://vault-preview-temp.vercel.app` in desktop Chrome and sign in.
 4. Open the extension and press **Refresh**. The **Connected to Vault** status should show your account email.
 5. Select links or media, choose a Vault collection, review automatically detected title and cover, and save.
 
