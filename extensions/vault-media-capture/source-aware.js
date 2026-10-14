@@ -28,8 +28,9 @@
     }
     if (h === "drive.google.com" || h === "docs.google.com") {
       const id = path.match(/\/(?:file\/d|document\/d|spreadsheets\/d|presentation\/d)\/([\w-]{12,})/)?.[1] || u.searchParams.get("id");
-      const mime = /\/spreadsheets\/|\/document\/|\/presentation\//.test(path) ? "link" : "video";
-      return { source:"drive", name:"Google Drive", type:mime, url:link,
+      // Drive shares may contain video, images, PDF or office files. Keep the
+      // original Drive link instead of falsely labeling unknown files as videos.
+      return { source:"drive", name:"Google Drive", type:"link", url:link,
         thumbnail: id && /^[\w-]{12,}$/.test(id) ? "https://drive.google.com/thumbnail?id=" + encodeURIComponent(id) + "&sz=w640" : "" };
     }
     if (/(^|\.)pinterest\.(?:com|ca|co\.uk|fr|de|es|it|com\.au)$/.test(h) || h === "pin.it") {
