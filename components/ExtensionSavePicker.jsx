@@ -233,7 +233,7 @@ export default function ExtensionSavePicker() {
       if (failures.length === 0) {
         sessionStorage.removeItem(PENDING_KEY);
         setItems([]);
-        setSuccess("Saved " + successful.size + " item" + (successful.size === 1 ? "" : "s") + " to " + (folder || "Inbox") + ".");
+        setSuccess("Saved " + successful.size + " item" + (successful.size === 1 ? "" : "s") + " to " + (folder || "Library") + ".");
       } else {
         setItems(current.filter(entry => !successful.has(entry.url)));
         // Only unsaved links remain on retry, so duplicates aren't created.
