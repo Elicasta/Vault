@@ -150,7 +150,8 @@ export default function ExtensionSavePicker() {
   useEffect(()=>{
     if(!userId || !items.length || metadataBusy>0)return;
     // Limit metadata lookups to 48 page requests per capture and 4 concurrent.
-    const next=items.slice(0,48).filter(item=>!item.thumbnail && !metadataChecked.current.has(item.url)).slice(0,4);
+    const genericName=/^(?:Saved link|Google Drive|Pinterest|YouTube|website|Captured (?:image|video))\b/i;
+    const next=items.slice(0,48).filter(item=>(!item.thumbnail || genericName.test(item.title||"")) && !metadataChecked.current.has(item.url)).slice(0,4);
     if(!next.length)return;
     for(const item of next)metadataChecked.current.add(item.url);
     setMetadataBusy(count=>count+next.length);
@@ -320,6 +321,10 @@ export default function ExtensionSavePicker() {
               {!entry.thumbnail && <div style={{fontSize:11,color:"#eabb8f",marginTop:5}}>
                 {metadataBusy ? "Looking for a cover…" : "Cover unavailable—paste one before saving."}
               </div>}
+              <button type="button" disabled={saving} onClick={()=>{metadataChecked.current.add(entry.url);void refreshMetadata(entry);}}
+                style={{marginTop:7,padding:"5px 8px",fontSize:10,color:"#dce9fb",background:"#232c39",border:"1px solid #404d5d",borderRadius:6,cursor:"pointer"}}>
+                Refresh title &amp; cover
+              </button>}
             </div>
             <button type="button" disabled={saving} onClick={() => setItems(old => old.filter(x => x.url !== entry.url))}
               aria-label={"Remove " + entry.title} style={{ border: 0, background: "none", color: "#aaa", cursor: "pointer", fontSize: 20 }}>×</button>
