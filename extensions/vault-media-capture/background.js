@@ -113,7 +113,9 @@ const VAULT_DEFAULT_URL = "https://vault-preview-temp-git-polish-vault-p-5026a8-
 function isOldVaultPreview(origin) {
   try {
     const host = new URL(origin).hostname;
-    return host.startsWith("vault-preview-temp-git-feat-extension-") && host.endsWith("-elicastas-projects.vercel.app");
+    return host.startsWith("vault-preview-temp-") &&
+      host.endsWith("-elicastas-projects.vercel.app") &&
+      host !== new URL(VAULT_DEFAULT_URL).hostname;
   } catch { return false; }
 }
 const PENDING_PREFIX = "vault_folder_job_";
