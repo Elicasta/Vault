@@ -148,16 +148,16 @@ export default function ExtensionSavePicker() {
   },[]);
 
   useEffect(()=>{
-    if(!userId || !items.length)return;
-    // Limit metadata lookups to a few at a time; source URLs may be inaccessible.
-    const next=items.filter(item=>!item.thumbnail && !metadataChecked.current.has(item.url)).slice(0,4);
+    if(!userId || !items.length || metadataBusy>0)return;
+    // Limit metadata lookups to 48 page requests per capture and 4 concurrent.
+    const next=items.slice(0,48).filter(item=>!item.thumbnail && !metadataChecked.current.has(item.url)).slice(0,4);
     if(!next.length)return;
     for(const item of next)metadataChecked.current.add(item.url);
     setMetadataBusy(count=>count+next.length);
     Promise.allSettled(next.map(entry=>refreshMetadata(entry))).finally(()=>{
       setMetadataBusy(count=>Math.max(0,count-next.length));
     });
-  },[userId,items,refreshMetadata]);
+  },[userId,items,refreshMetadata,metadataBusy]);
 
 
   async function createNewFolder() {
