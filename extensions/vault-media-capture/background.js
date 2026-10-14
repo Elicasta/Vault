@@ -109,7 +109,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 // Chrome-only capture handoff into Elicasta/Vault. Saving happens inside
 // the existing signed-in Vault application, never in this service worker.
-const VAULT_DEFAULT_URL = "https://vault-preview-temp-git-polish-vault-p-5026a8-elicastas-projects.vercel.app";
+const VAULT_DEFAULT_URL = "https://vault-preview-temp.vercel.app";
 function isOldVaultPreview(origin) {
   try {
     const host = new URL(origin).hostname;
