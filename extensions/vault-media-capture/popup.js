@@ -126,9 +126,10 @@ function normalize(raw) {
 }
 function add(item) {
   const url = normalize(item?.url);
-  if (!url || !["image", "video", "link", "audio"].includes(item?.type)) return;
+  if (!url || !["image", "video", "link", "audio"].includes(item?.type) || !sourceAware?.identify(url)) return;
   const previous = saved.get(url);
-  const normalized=sourceAware?.enrich({...previous,...item,url}) || {...previous,...item,url};
+  const normalized=sourceAware.enrich({...previous,...item,url});
+  if (!normalized) return;
   saved.set(url, { ...normalized, title:item.title || previous?.title || normalized.title,
     sourcePage:item.sourcePage || previous?.sourcePage || currentTab?.url || url });
 }
