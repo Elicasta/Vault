@@ -55,11 +55,11 @@ test("V2 player reactions use persistent state and expose failed writes", () => 
   assert.match(player, /Could not save reaction/);
 });
 
-test("Chrome extension targets the same stable V2 preview instead of a stale feature build", () => {
+test("Chrome extension targets production after merging the clean Vault release", () => {
   const service = source("extensions/vault-media-capture/background.js");
   const popup = source("extensions/vault-media-capture/popup.js");
   const docs = source("extensions/vault-media-capture/README.md");
-  const origin = "https://vault-preview-temp-git-polish-vault-p-5026a8-elicastas-projects.vercel.app";
+  const origin = "https://vault-preview-temp.vercel.app";
   for (const file of [service, popup, docs]) assert.ok(file.includes(origin));
   assert.match(service, /isOldVaultPreview\(savedOrigin\)/);
   assert.match(popup, /if \(isOldVaultPreview\(origin\)\)/);
